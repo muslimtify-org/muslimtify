@@ -9,7 +9,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         STRINGS Debug Release RelWithDebInfo MinSizeRel)
 endif()
 
-set(FULL_PROJECT_VERSION "${PROJECT_VERSION}-rc.1")
+set(FULL_PROJECT_VERSION "${PROJECT_VERSION}")
 
 # ── C standard and output dirs ────────────────────────────────────────────────
 
@@ -35,6 +35,9 @@ if(WIN32)
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_TESTS ON CACHE BOOL "" FORCE)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(CURL_USE_SCHANNEL ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(curl)
 else()
