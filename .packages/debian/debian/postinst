@@ -2,6 +2,13 @@
 set -e
 
 if [ "$1" = "configure" ]; then
-    echo "==> Run the following to enable the prayer time daemon:"
-    echo "      muslimtify daemon install"
+    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        uid=$(id -u "$SUDO_USER")
+        echo "==> Setting up muslimtify daemon for $SUDO_USER..."
+        XDG_RUNTIME_DIR="/run/user/$uid" \
+            runuser -u "$SUDO_USER" -- muslimtify daemon install || true
+    else
+        echo "==> Run the following to enable the prayer time daemon:"
+        echo "      muslimtify daemon install"
+    fi
 fi

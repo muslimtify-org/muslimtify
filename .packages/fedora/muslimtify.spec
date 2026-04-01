@@ -30,9 +30,16 @@ with systemd user timers and supports per-prayer configuration.
 %cmake_install
 
 %post
-echo ""
-echo "  Run 'muslimtify daemon install' to enable the prayer time daemon."
-echo ""
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    uid=$(id -u "$SUDO_USER")
+    echo "==> Setting up muslimtify daemon for $SUDO_USER..."
+    XDG_RUNTIME_DIR="/run/user/$uid" \
+        runuser -u "$SUDO_USER" -- muslimtify daemon install || true
+else
+    echo ""
+    echo "  Run 'muslimtify daemon install' to enable the prayer time daemon."
+    echo ""
+fi
 
 %files
 %license LICENSE
@@ -43,6 +50,10 @@ echo ""
 %{_prefix}/lib/systemd/user/muslimtify.timer
 
 %changelog
+* Thu Apr 03 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.2.1-1
+- Auto-detect location and method on daemon install
+- Bug fixes and improvements
+
 * Fri Mar 27 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.2.0-1
 - Add full Windows support for Muslimtify, including toast notifications with icon, Task Scheduler daemon, service helper, install/uninstall scripts, and Inno Setup installer for winget distribution
 - Add 23 international prayer time calculation methods (MWL, Makkah, ISNA, Egypt, and more)
