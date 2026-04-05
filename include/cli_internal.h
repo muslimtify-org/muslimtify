@@ -33,8 +33,13 @@ int handle_list(int argc, char **argv);
 int handle_reminder(int argc, char **argv);
 int handle_daemon(int argc, char **argv);
 int handle_notification(int argc, char **argv);
+int handle_run(int argc, char **argv);
 int handle_method(int argc, char **argv);
 int handle_version(int argc, char **argv);
 int handle_help(int argc, char **argv);
+
+#ifdef MUSLIMTIFY_CMD_RUN_TEST
+int cmd_run_resolve_gui_path_for_test(const char *exe_dir, char *buffer, size_t buffer_size);
+#endif
 
 #endif // CLI_INTERNAL_H

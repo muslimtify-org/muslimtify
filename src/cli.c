@@ -13,7 +13,8 @@ static const CommandEntry top_commands[] = {
     {"location", handle_location}, {"enable", handle_enable},
     {"disable", handle_disable},   {"list", handle_list},
     {"reminder", handle_reminder}, {"daemon", handle_daemon},
-    {"method", handle_method},     {"notification", handle_notification},
+    {"run", handle_run},           {"method", handle_method},
+    {"notification", handle_notification},
     {"version", handle_version},   {"--version", handle_version},
     {"-v", handle_version},        {"help", handle_help},
     {"--help", handle_help},       {"-h", handle_help},
@@ -73,6 +74,7 @@ void cli_print_help(void) {
   printf("  disable <prayer>  Disable prayer notification\n");
   printf("  list              List prayer notification status\n");
   printf("  reminder          Manage prayer reminders\n");
+  printf("  run               Launch the GUI\n");
 #ifdef _WIN32
   printf("  daemon            Manage scheduled task "
          "[install|uninstall|status]\n");

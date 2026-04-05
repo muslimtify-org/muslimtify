@@ -2,10 +2,13 @@
 
 #include "cli.h"
 #include "config.h"
+#include "platform.h"
 #include <stdio.h>
+#include <sys/types.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 // ── test infrastructure ─────────────────────────────────────────────────────
@@ -95,6 +98,55 @@ static int run(int argc, char **argv) {
   return ret;
 }
 
+static int run_external_process(const char *path, char *const argv[]) {
+  pid_t pid = fork();
+  if (pid < 0) {
+    captured[0] = '\0';
+    last_ret = 1;
+    return last_ret;
+  }
+
+  if (pid == 0) {
+    FILE *f = fopen(output_file, "w");
+    if (!f) {
+      _exit(127);
+    }
+
+    int fd = fileno(f);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    fclose(f);
+
+    execv(path, argv);
+    perror(path);
+    _exit(127);
+  }
+
+  int status = 0;
+  if (waitpid(pid, &status, 0) < 0) {
+    captured[0] = '\0';
+    last_ret = 1;
+    return last_ret;
+  }
+
+  FILE *r = fopen(output_file, "r");
+  if (r) {
+    size_t n = fread(captured, 1, sizeof(captured) - 1, r);
+    captured[n] = '\0';
+    fclose(r);
+  } else {
+    captured[0] = '\0';
+  }
+
+  if (WIFEXITED(status)) {
+    last_ret = WEXITSTATUS(status);
+  } else {
+    last_ret = 1;
+  }
+
+  return last_ret;
+}
+
 // ── assertion helpers ────────────────────────────────────────────────────────
 
 static void check_ret(const char *test, int expected) {
@@ -174,6 +226,27 @@ static void test_version_and_help(void) {
   run(2, (char *[]){"m", "xyzzy", NULL});
   check_ret("unknown ret", 1);
   check_contains("unknown out", "Unknown command");
+}
+
+static void test_run_help_line(void) {
+  printf("  run help line...\n");
+  reset_config();
+
+  run(2, (char *[]){"m", "help", NULL});
+  check_ret("run help ret", 0);
+  check_contains("run help out", "run               Launch the GUI");
+}
+
+static void test_run_command(void) {
+  printf("  run command...\n");
+  reset_config();
+
+  char binary_path[PLATFORM_PATH_MAX];
+  snprintf(binary_path, sizeof(binary_path), "%s/muslimtify", platform_exe_dir());
+  char *argv[] = {binary_path, "run", NULL};
+  run_external_process(binary_path, argv);
+  check_ret("run command ret", 1);
+  check_contains("run command out", "Failed to open display");
 }
 
 static void test_config(void) {
@@ -561,6 +634,8 @@ int main(void) {
 
   printf("Running CLI tests...\n");
   test_version_and_help();
+  test_run_help_line();
+  test_run_command();
   test_config();
   test_location();
   test_enable_disable();

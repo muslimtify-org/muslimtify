@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Muslimtify
+Comment=Prayer time notifications and prayer schedule viewer
+Exec=muslimtify-gui
+Icon=muslimtify
+Terminal=false
+Categories=Utility;
+StartupNotify=true

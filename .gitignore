@@ -38,3 +38,5 @@ docs/superpowers/
 .claude/
 .omc/
 **/.omc/
+.omx/
+**/.omx/

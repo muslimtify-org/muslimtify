@@ -92,6 +92,7 @@ add_library(muslimtify_lib OBJECT
     src/location.c
     src/string_util.c
     src/prayer_checker.c
+    src/cmd_run.c
     $<IF:$<BOOL:${WIN32}>,src/notification_win.c,src/notification.c>
     src/display.c
     $<IF:$<BOOL:${WIN32}>,src/platform_win.c,src/platform_linux.c>
@@ -118,6 +119,17 @@ else()
         muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
 endif()
 
+if(NOT WIN32)
+    pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4)
+
+    add_executable(muslimtify-gui
+        src/muslimtify_gui.c
+        src/gui.c
+    )
+    muslimtify_set_target_defaults(muslimtify-gui)
+    target_link_libraries(muslimtify-gui PRIVATE PkgConfig::GTK4)
+endif()
+
 # ── Testing ──────────────────────────────────────────────────────────────────
 
 option(BUILD_TESTING "Build test targets" ON)
@@ -129,8 +141,19 @@ if(BUILD_TESTING)
         add_executable(test_cli tests/test_cli.c)
         muslimtify_set_target_defaults(test_cli)
         target_include_directories(test_cli PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_cli muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        target_link_libraries(test_cli
+            muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m
+        )
         add_test(NAME cli COMMAND test_cli)
+
+        add_executable(test_cmd_run
+            tests/test_cmd_run.c
+            src/cmd_run.c
+            src/platform_linux.c
+        )
+        muslimtify_set_target_defaults(test_cmd_run)
+        target_compile_definitions(test_cmd_run PRIVATE MUSLIMTIFY_CMD_RUN_TEST)
+        add_test(NAME cmd_run COMMAND test_cmd_run)
 
         add_executable(test_prayer_checker tests/test_prayer_checker.c)
         muslimtify_set_target_defaults(test_prayer_checker)
@@ -209,11 +232,18 @@ endif()
 # ── Install ──────────────────────────────────────────────────────────────────
 
 install(TARGETS muslimtify DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(NOT WIN32)
+    install(TARGETS muslimtify-gui DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 
 install(FILES assets/muslimtify.png
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps/)
 install(FILES assets/muslimtify.png
     DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps/)
+if(NOT WIN32)
+    install(FILES assets/muslimtify.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications/)
+endif()
 if(WIN32)
     install(FILES assets/muslimtify.ico
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/)

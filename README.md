@@ -88,6 +88,10 @@ cmake --install build --config Release
 muslimtify daemon install
 ```
 
+The GTK GUI can be launched with `muslimtify run` or directly with
+`muslimtify-gui`. On Linux, it also appears in your desktop app launcher after
+install.
+
 ## Configuration
 
 Muslimtify can be configured with CLI commands or by editing `config.json`
