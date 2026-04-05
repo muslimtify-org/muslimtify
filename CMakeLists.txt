@@ -119,7 +119,7 @@ else()
         muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
 endif()
 
-if(NOT WIN32)
+if(LINUX)
     pkg_check_modules(GTK4 REQUIRED IMPORTED_TARGET gtk4)
 
     add_executable(muslimtify-gui
@@ -232,7 +232,7 @@ endif()
 # ── Install ──────────────────────────────────────────────────────────────────
 
 install(TARGETS muslimtify DESTINATION ${CMAKE_INSTALL_BINDIR})
-if(NOT WIN32)
+if(LINUX)
     install(TARGETS muslimtify-gui DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 

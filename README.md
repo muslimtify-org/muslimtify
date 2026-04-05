@@ -18,7 +18,6 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 
 ```bash
 yay -S muslimtify
-muslimtify daemon install
 ```
 
 ### Fedora (COPR)
@@ -26,7 +25,6 @@ muslimtify daemon install
 ```bash
 sudo dnf copr enable rizukirr/muslimtify
 sudo dnf install muslimtify
-muslimtify daemon install
 ```
 
 ### Debian/Ubuntu (PPA)
@@ -35,7 +33,6 @@ muslimtify daemon install
 sudo add-apt-repository ppa:rizukirr/muslimtify
 sudo apt update
 sudo apt install muslimtify
-muslimtify daemon install
 ```
 
 ### Linux Source Install
@@ -88,9 +85,10 @@ cmake --install build --config Release
 muslimtify daemon install
 ```
 
-The GTK GUI can be launched with `muslimtify run` or directly with
-`muslimtify-gui`. On Linux, it also appears in your desktop app launcher after
-install.
+## Post Installation
+Run `muslimtify daemon status` to check if Muslimtify is registered with systemd. If no status is found, run `muslimtify daemon install` to register the service and ensure it runs as expected.
+
+Muslimtify automatically selects the standard prayer time calculation method based on your country and location. Run `muslimtify` to verify that your configuration is correct. If the automatic selection does not meet your needs, you can set it manually using `muslimtify method set <key-method>`. A full list of available methods is documented [here](#calculation-methods).
 
 ## Configuration
 
@@ -243,6 +241,6 @@ for details.
 
 ## Support
 
-- Bugs and feature requests: GitHub Issues
-- Questions and discussion: GitHub Discussions
+- Bugs and feature requests: [GitHub Issues](https://github.com/rizukirr/muslimtify/issues)
+- Questions and discussion: [GitHub Discussions](https://github.com/rizukirr/muslimtify/discussions)
 - Or buy me a ☕ [Ko-fi](https://ko-fi.com/rizukirr)
