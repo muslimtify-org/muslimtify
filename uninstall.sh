@@ -16,7 +16,7 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# -- helpers -------------------------------------------------------------------
 
 step() { echo -e "\n${BLUE}${BOLD}[$1/$TOTAL_STEPS] $2${NC}"; }
 ok()   { echo -e "${GREEN}✓${NC} $1"; }
@@ -31,7 +31,7 @@ run_as_user() {
         "$@"
 }
 
-# ── pre-flight checks ─────────────────────────────────────────────────────────
+# -- pre-flight checks ---------------------------------------------------------
 
 [ "$EUID" -eq 0 ] || die "Run with sudo: sudo ./uninstall.sh"
 
@@ -53,7 +53,7 @@ echo -e "${BOLD}=== Muslimtify Uninstaller ===${NC}"
 echo "Removing installation for user: $REAL_USER"
 $PURGE && echo -e "${YELLOW}--purge: config directory will also be removed${NC}"
 
-# ── step 1: stop and remove systemd units ────────────────────────────────────
+# -- step 1: stop and remove systemd units ------------------------------------
 
 step 1 "Stopping and removing systemd units..."
 
@@ -91,7 +91,7 @@ if [ -d "$XDG_RT" ]; then
     ok "Reloaded systemd"
 fi
 
-# ── step 2: remove binary and icons ──────────────────────────────────────────
+# -- step 2: remove binary and icons ------------------------------------------
 
 step 2 "Removing binary and icons from $INSTALL_PREFIX..."
 
@@ -112,7 +112,7 @@ for icon in \
     fi
 done
 
-# ── step 3: config directory ──────────────────────────────────────────────────
+# -- step 3: config directory --------------------------------------------------
 
 step 3 "Handling config files..."
 
@@ -130,16 +130,16 @@ else
     skip "config directory not found"
 fi
 
-# ── done ──────────────────────────────────────────────────────────────────────
+# -- done ----------------------------------------------------------------------
 
 echo ""
 echo -e "${GREEN}${BOLD}=== Uninstallation complete! ===${NC}"
 echo ""
 
-# ── manual uninstall reference ────────────────────────────────────────────────
+# -- manual uninstall reference ------------------------------------------------
 
 cat <<'MANUAL'
-─────────────────────────────────────────────────────
+-----------------------------------------------------
 Manual uninstall reference (if you prefer doing it yourself):
 
   # 1. Stop and disable the timer
@@ -160,5 +160,5 @@ Manual uninstall reference (if you prefer doing it yourself):
 
   # 5. Remove config (optional)
   rm -rf ~/.config/muslimtify
-─────────────────────────────────────────────────────
+-----------------------------------------------------
 MANUAL

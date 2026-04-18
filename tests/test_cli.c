@@ -8,7 +8,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// ── test infrastructure ─────────────────────────────────────────────────────
+// -- test infrastructure -----------------------------------------------------
 
 static char tmpdir[256];
 static char output_file[512];
@@ -95,7 +95,7 @@ static int run(int argc, char **argv) {
   return ret;
 }
 
-// ── assertion helpers ────────────────────────────────────────────────────────
+// -- assertion helpers --------------------------------------------------------
 
 static void check_ret(const char *test, int expected) {
   if (last_ret == expected) {
@@ -134,7 +134,7 @@ static void check_bool(const char *test, bool cond) {
   }
 }
 
-// ── test groups ──────────────────────────────────────────────────────────────
+// -- test groups --------------------------------------------------------------
 
 static void test_version_and_help(void) {
   printf("  version and help...\n");
@@ -677,7 +677,7 @@ static void test_daemon_errors(void) {
   check_ret("daemon unknown ret", 1);
 }
 
-// ── main ─────────────────────────────────────────────────────────────────────
+// -- main ---------------------------------------------------------------------
 
 int main(void) {
   setup();

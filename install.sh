@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# -- helpers ------------------------------------------------------------------
 
 step() { echo -e "\n${BLUE}${BOLD}[$1/$TOTAL_STEPS] $2${NC}"; }
 ok()   { echo -e "${GREEN}✓${NC} $1"; }
@@ -27,7 +27,7 @@ run_as_user() {
         "$@"
 }
 
-# ── pre-flight checks ─────────────────────────────────────────────────────────
+# -- pre-flight checks ---------------------------------------------------------
 
 [ "$EUID" -eq 0 ] || die "Run with sudo: sudo ./install.sh"
 
@@ -48,7 +48,7 @@ echo -e "${BOLD}=== Muslimtify Installer ===${NC}"
 echo "Installing for user: $REAL_USER"
 echo "Install prefix:      $INSTALL_PREFIX"
 
-# ── step 1: release build ─────────────────────────────────────────────────────
+# -- step 1: release build -----------------------------------------------------
 
 step 1 "Building in release mode..."
 
@@ -62,7 +62,7 @@ cmake -S "$SCRIPT_DIR" -B "$BUILD_DIR" \
 cmake --build "$BUILD_DIR" --parallel "$(nproc)"
 ok "Build complete → $BUILD_DIR/bin/muslimtify"
 
-# ── step 2: install binary and icons ─────────────────────────────────────────
+# -- step 2: install binary and icons -----------------------------------------
 
 step 2 "Installing binary and icons to $INSTALL_PREFIX..."
 
@@ -70,7 +70,7 @@ cmake --install "$BUILD_DIR"
 ok "Binary installed to $INSTALL_PREFIX/bin/muslimtify"
 ok "Icons installed to $INSTALL_PREFIX/share/"
 
-# ── step 3: write systemd unit files ─────────────────────────────────────────
+# -- step 3: write systemd unit files -----------------------------------------
 
 step 3 "Creating systemd user service for $REAL_USER..."
 
@@ -110,7 +110,7 @@ chown "$REAL_USER" "$SYSTEMD_DIR/muslimtify.service" "$SYSTEMD_DIR/muslimtify.ti
 ok "Created $SYSTEMD_DIR/muslimtify.service"
 ok "Created $SYSTEMD_DIR/muslimtify.timer"
 
-# ── step 4: enable and start timer ───────────────────────────────────────────
+# -- step 4: enable and start timer -------------------------------------------
 
 step 4 "Enabling systemd timer..."
 
@@ -124,7 +124,7 @@ else
     ok "Timer enabled and started"
 fi
 
-# ── done ─────────────────────────────────────────────────────────────────────
+# -- done ---------------------------------------------------------------------
 
 echo ""
 echo -e "${GREEN}${BOLD}=== Installation complete! ===${NC}"

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22...3.31)
 project(muslimtify VERSION 0.2.1 LANGUAGES C)
 
-# ── Default build type ────────────────────────────────────────────────────────
+# -- Default build type --------------------------------------------------------
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -11,7 +11,7 @@ endif()
 
 set(FULL_PROJECT_VERSION "${PROJECT_VERSION}")
 
-# ── C standard and output dirs ────────────────────────────────────────────────
+# -- C standard and output dirs ------------------------------------------------
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -23,11 +23,19 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 include(GNUInstallDirs)
+include(FetchContent)
 
-# ── Dependencies ──────────────────────────────────────────────────────────────
+# -- Ccompose ------------------------------------------------------------------
+
+FetchContent_Declare(ccompose
+    GIT_REPOSITORY https://github.com/rizukirr/ccompose.git
+    GIT_TAG main)
+FetchContent_MakeAvailable(ccompose)
+
+
+# -- Dependencies --------------------------------------------------------------
 
 if(WIN32)
-    include(FetchContent)
     set(CURL_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
     set(CURL_ENABLE_EXPORT_TARGET OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(curl
@@ -46,11 +54,11 @@ else()
     pkg_check_modules(LIBCURL REQUIRED libcurl)
 endif()
 
-# ── Generated version header ─────────────────────────────────────────────────
+# -- Generated version header -------------------------------------------------
 
 configure_file(src/version.h.in ${CMAKE_BINARY_DIR}/generated/version.h @ONLY)
 
-# ── Helper function ──────────────────────────────────────────────────────────
+# -- Helper function ----------------------------------------------------------
 
 function(muslimtify_set_target_defaults target)
     target_include_directories(${target} PRIVATE
@@ -74,7 +82,7 @@ function(muslimtify_set_target_defaults target)
     endif()
 endfunction()
 
-# ── Object library (shared app sources) ──────────────────────────────────────
+# -- Object library (shared app sources) --------------------------------------
 
 add_library(muslimtify_lib OBJECT
     src/cli.c
@@ -105,21 +113,22 @@ else()
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
 endif()
 
-# ── Main executable ──────────────────────────────────────────────────────────
+# -- Main executable ----------------------------------------------------------
 
 add_executable(muslimtify src/muslimtify.c)
 muslimtify_set_target_defaults(muslimtify)
+
 if(WIN32)
     target_link_libraries(muslimtify
-        muslimtify_lib ole32 runtimeobject CURL::libcurl)
+        muslimtify_lib ole32 runtimeobject CURL::libcurl ccompose)
 else()
     target_include_directories(muslimtify PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
     target_link_libraries(muslimtify
-        muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} ccompose m)
 endif()
 
-# ── Testing ──────────────────────────────────────────────────────────────────
+# -- Testing ------------------------------------------------------------------
 
 option(BUILD_TESTING "Build test targets" ON)
 
@@ -209,7 +218,7 @@ if(BUILD_TESTING)
     endif()
 endif()
 
-# ── Install ──────────────────────────────────────────────────────────────────
+# -- Install ------------------------------------------------------------------
 
 install(TARGETS muslimtify DESTINATION ${CMAKE_INSTALL_BINDIR})
 

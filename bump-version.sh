@@ -35,13 +35,13 @@ fi
 
 echo "Bumping version to ${FULL_VERSION}"
 
-# ── CMakeLists.txt ───────────────────────────────────────────────────────────
+# -- CMakeLists.txt -----------------------------------------------------------
 
 sed -i "s/^project(muslimtify VERSION [^ ]*/project(muslimtify VERSION ${VERSION}/" CMakeLists.txt
 sed -i "s/^set(FULL_PROJECT_VERSION .*)/${CMAKE_SUFFIX_LINE}/" CMakeLists.txt
 echo "  updated CMakeLists.txt"
 
-# ── Fedora spec ──────────────────────────────────────────────────────────────
+# -- Fedora spec --------------------------------------------------------------
 
 SPEC=".packages/fedora/muslimtify.spec"
 if [ -f "$SPEC" ]; then
@@ -49,7 +49,7 @@ if [ -f "$SPEC" ]; then
     echo "  updated ${SPEC}"
 fi
 
-# ── AUR PKGBUILD ─────────────────────────────────────────────────────────────
+# -- AUR PKGBUILD -------------------------------------------------------------
 
 PKGBUILD=".packages/aur/PKGBUILD"
 if [ -f "$PKGBUILD" ]; then
@@ -57,7 +57,7 @@ if [ -f "$PKGBUILD" ]; then
     echo "  updated ${PKGBUILD}"
 fi
 
-# ── Winget / Inno Setup ──────────────────────────────────────────────────────
+# -- Winget / Inno Setup ------------------------------------------------------
 
 ISS=".packages/winget/muslimtify.iss"
 if [ -f "$ISS" ]; then
@@ -65,7 +65,7 @@ if [ -f "$ISS" ]; then
     echo "  updated ${ISS}"
 fi
 
-# ── Debian changelog ─────────────────────────────────────────────────────────
+# -- Debian changelog ---------------------------------------------------------
 
 CHANGELOG=".packages/debian/debian/changelog"
 if [ -f "$CHANGELOG" ]; then

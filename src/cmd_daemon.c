@@ -14,7 +14,7 @@
 #include "method_detect.h"
 #include "string_util.h"
 
-// ── helpers ─────────────────────────────────────────────────────────────────
+// -- helpers -----------------------------------------------------------------
 
 static int systemctl_user(const char *const *args) {
   int n = 0;
@@ -70,7 +70,7 @@ static const char *get_home(void) {
   return home;
 }
 
-// ── sub-handlers ────────────────────────────────────────────────────────────
+// -- sub-handlers ------------------------------------------------------------
 
 static int daemon_install_handler(int argc, char **argv) {
   (void)argc;

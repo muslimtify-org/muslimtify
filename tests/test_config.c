@@ -37,7 +37,7 @@ static void teardown(void) {
   }
 }
 
-// ── config_parse_reminders tests ────────────────────────────────────────────
+// -- config_parse_reminders tests --------------------------------------------
 
 static void test_parse_reminders(void) {
   printf("  parse_reminders...\n");
@@ -86,7 +86,7 @@ static void test_parse_reminders(void) {
   check_bool("parse 1441 rejected", n == 0);
 }
 
-// ── config_validate tests ───────────────────────────────────────────────────
+// -- config_validate tests ---------------------------------------------------
 
 static void test_validate(void) {
   printf("  validate...\n");
@@ -149,7 +149,7 @@ static void test_validate(void) {
   check_bool("validate reminder -1", !config_validate(&cfg));
 }
 
-// ── config_get_prayer tests ─────────────────────────────────────────────────
+// -- config_get_prayer tests -------------------------------------------------
 
 static void test_get_prayer(void) {
   printf("  get_prayer...\n");
@@ -177,7 +177,7 @@ static void test_get_prayer(void) {
   check_bool("get NULL name", config_get_prayer(&cfg, NULL) == NULL);
 }
 
-// ── config_format_reminders tests ───────────────────────────────────────────
+// -- config_format_reminders tests -------------------------------------------
 
 static void test_format_reminders(void) {
   printf("  format_reminders...\n");
@@ -199,7 +199,7 @@ static void test_format_reminders(void) {
   check_bool("format none", strcmp(buf, "none") == 0);
 }
 
-// ── config_default tests ────────────────────────────────────────────────────
+// -- config_default tests ----------------------------------------------------
 
 static void test_default(void) {
   printf("  default...\n");
@@ -226,7 +226,7 @@ static void test_default(void) {
   check_bool("default sound_reminder", strcmp(cfg.notification_sound_reminder, "reminder") == 0);
 }
 
-// ── round-trip save/load test ───────────────────────────────────────────────
+// -- round-trip save/load test -----------------------------------------------
 
 static void test_path_resolution(void) {
   printf("  path resolution...\n");
@@ -289,7 +289,7 @@ static void test_round_trip(void) {
   check_bool("rt madhab", strcmp(in.madhab, "shafi") == 0);
 }
 
-// ── main ─────────────────────────────────────────────────────────────────────
+// -- main ---------------------------------------------------------------------
 
 int main(void) {
   setup();

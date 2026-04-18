@@ -488,7 +488,7 @@ static void test_bandung_jul(void) {
   printf("\n");
 }
 
-// ── Multi-method tests ──────────────────────────────────────────────────────
+// -- Multi-method tests ------------------------------------------------------
 // Reference: api.aladhan.com
 // Tolerances per method based on official accuracy standards:
 //   MWL/ISNA/Egypt: 2 min (standard ihtiyat)

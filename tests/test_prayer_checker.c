@@ -49,7 +49,7 @@ static Config test_config(void) {
   return cfg;
 }
 
-// ── prayer_check_current tests ──────────────────────────────────────────────
+// -- prayer_check_current tests ----------------------------------------------
 
 static void test_exact_match(void) {
   printf("  exact match...\n");
@@ -164,7 +164,7 @@ static void test_all_disabled(void) {
   check_bool("all disabled none", m.type == PRAYER_NONE);
 }
 
-// ── prayer_get_next tests ───────────────────────────────────────────────────
+// -- prayer_get_next tests ---------------------------------------------------
 
 static void test_next_upcoming(void) {
   printf("  next upcoming...\n");
@@ -233,7 +233,7 @@ static void test_next_skips_disabled(void) {
   check_bool("next skips disabled dhuhr", next == PRAYER_ASR);
 }
 
-// ── helper function tests ───────────────────────────────────────────────────
+// -- helper function tests ---------------------------------------------------
 
 static void test_prayer_get_name(void) {
   printf("  prayer_get_name...\n");
@@ -259,7 +259,7 @@ static void test_prayer_get_time(void) {
   check_bool("get none time", prayer_get_time(&times, PRAYER_NONE) == 0.0);
 }
 
-// ── main ─────────────────────────────────────────────────────────────────────
+// -- main ---------------------------------------------------------------------
 
 int main(void) {
   printf("Running prayer checker tests...\n");

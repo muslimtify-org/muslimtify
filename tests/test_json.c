@@ -41,7 +41,7 @@ static void check_not_null(const void *result, const char *label) {
   }
 }
 
-/* ── Basic extraction ─────────────────────────────────────────────────────── */
+/* -- Basic extraction ------------------------------------------------------- */
 
 static void test_basic_string(void) {
   printf("test_basic_string\n");
@@ -89,7 +89,7 @@ static void test_empty_string_value(void) {
   json_end(ctx);
 }
 
-/* ── Nested objects ───────────────────────────────────────────────────────── */
+/* -- Nested objects --------------------------------------------------------- */
 
 static void test_nested_object(void) {
   printf("test_nested_object\n");
@@ -106,7 +106,7 @@ static void test_nested_object(void) {
   json_end(ctx);
 }
 
-/* ── Missing keys ─────────────────────────────────────────────────────────── */
+/* -- Missing keys ----------------------------------------------------------- */
 
 static void test_missing_key(void) {
   printf("test_missing_key\n");
@@ -126,7 +126,7 @@ static void test_empty_object(void) {
   json_end(ctx);
 }
 
-/* ── Escaped strings ──────────────────────────────────────────────────────── */
+/* -- Escaped strings -------------------------------------------------------- */
 
 static void test_escaped_quote(void) {
   printf("test_escaped_quote\n");
@@ -192,7 +192,7 @@ static void test_unicode_passthrough(void) {
   json_end(ctx);
 }
 
-/* ── Edge cases ───────────────────────────────────────────────────────────── */
+/* -- Edge cases ------------------------------------------------------------- */
 
 static void test_key_inside_value(void) {
   printf("test_key_inside_value\n");
@@ -219,7 +219,7 @@ static void test_multiple_get_value(void) {
   json_end(ctx);
 }
 
-/* ── Lifecycle ────────────────────────────────────────────────────────────── */
+/* -- Lifecycle -------------------------------------------------------------- */
 
 static void test_json_begin(void) {
   printf("test_json_begin\n");
@@ -257,7 +257,7 @@ static void test_arena_large_alignment(void) {
   json_alloc_free(arena);
 }
 
-/* ── Main ─────────────────────────────────────────────────────────────────── */
+/* -- Main ------------------------------------------------------------------- */
 
 int main(void) {
   printf("=== json.h tests ===\n\n");

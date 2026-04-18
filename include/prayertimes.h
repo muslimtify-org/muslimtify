@@ -35,7 +35,7 @@ extern "C" {
 // (irtifa' syams / setinggi tombak — standard in Indonesian falak)
 #define DHUHA_ALTITUDE 4.3
 
-/* ── Calculation-method catalogue ────────────────────────────────────── */
+/* -- Calculation-method catalogue -------------------------------------- */
 
 typedef enum {
   CALC_MWL,
@@ -126,7 +126,7 @@ static double normalize_deg(double angle) {
   return a;
 }
 
-/* ── Method parameter table ─────────────────────────────────────────── */
+/* -- Method parameter table ------------------------------------------- */
 
 static const MethodParams METHOD_TABLE[CALC_COUNT] = {
     [CALC_MWL] = {"Muslim World League", 18.0, 17.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
