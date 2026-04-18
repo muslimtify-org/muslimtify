@@ -87,29 +87,29 @@ endfunction()
 # muslimtify_cli : CLI dispatcher + command handlers
 
 add_library(muslimtify_core OBJECT
-    src/config.c
-    src/cache.c
-    src/location.c
-    src/string_util.c
-    src/prayer_checker.c
-    src/check_cycle.c
-    src/display.c
-    $<IF:$<BOOL:${WIN32}>,src/notification_win.c,src/notification.c>
-    $<IF:$<BOOL:${WIN32}>,src/platform_win.c,src/platform_linux.c>
+    src/core/config.c
+    src/core/cache.c
+    src/core/location.c
+    src/core/string_util.c
+    src/core/prayer_checker.c
+    src/core/check_cycle.c
+    src/core/display.c
+    $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
+    $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/linux/platform_linux.c>
 )
 muslimtify_set_target_defaults(muslimtify_core)
 
 add_library(muslimtify_cli OBJECT
-    src/cli.c
-    src/cmd_show.c
-    src/cmd_next.c
-    src/cmd_config.c
-    src/cmd_location.c
-    src/cmd_prayer.c
-    $<IF:$<BOOL:${WIN32}>,src/cmd_daemon_win.c,src/cmd_daemon.c>
-    src/cmd_method.c
-    src/cmd_notification.c
-    src/cmd_sound.c
+    src/cli/cli.c
+    src/cli/cmd_show.c
+    src/cli/cmd_next.c
+    src/cli/cmd_config.c
+    src/cli/cmd_location.c
+    src/cli/cmd_prayer.c
+    $<IF:$<BOOL:${WIN32}>,src/cli/cmd_daemon_win.c,src/cli/cmd_daemon.c>
+    src/cli/cmd_method.c
+    src/cli/cmd_notification.c
+    src/cli/cmd_sound.c
 )
 muslimtify_set_target_defaults(muslimtify_cli)
 
@@ -176,8 +176,8 @@ if(BUILD_TESTING)
     # Cross-platform tests (no POSIX dependencies)
     add_executable(test_platform
         tests/test_platform.c
-        $<$<BOOL:${WIN32}>:src/platform_win.c>
-        $<$<NOT:$<BOOL:${WIN32}>>:src/platform_linux.c>
+        $<$<BOOL:${WIN32}>:src/platform/windows/platform_win.c>
+        $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/platform_linux.c>
     )
     muslimtify_set_target_defaults(test_platform)
     add_test(NAME platform COMMAND test_platform)
@@ -196,7 +196,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME json COMMAND test_json)
 
-    add_executable(test_string_util tests/test_string_util.c src/string_util.c)
+    add_executable(test_string_util tests/test_string_util.c src/core/string_util.c)
     muslimtify_set_target_defaults(test_string_util)
     add_test(NAME string_util COMMAND test_string_util)
 
@@ -210,8 +210,8 @@ if(BUILD_TESTING)
     if(WIN32)
         add_executable(test_cmd_daemon_win
             tests/test_cmd_daemon_win.c
-            src/cmd_daemon_win.c
-            src/platform_win.c
+            src/cli/cmd_daemon_win.c
+            src/platform/windows/platform_win.c
         )
         muslimtify_set_target_defaults(test_cmd_daemon_win)
         target_compile_definitions(test_cmd_daemon_win PRIVATE MUSLIMTIFY_CMD_DAEMON_WIN_TEST)
@@ -219,7 +219,7 @@ if(BUILD_TESTING)
 
         add_executable(test_notification_win
             tests/test_notification_win.c
-            src/notification_win.c
+            src/platform/windows/notification_win.c
         )
         muslimtify_set_target_defaults(test_notification_win)
         target_compile_definitions(test_notification_win PRIVATE MUSLIMTIFY_NOTIFICATION_WIN_TEST)
@@ -245,7 +245,7 @@ install(FILES systemd/muslimtify.service systemd/muslimtify.timer
     DESTINATION lib/systemd/user/)
 
 if(WIN32)
-    add_executable(muslimtify-service WIN32 src/muslimtify_service_win.c)
+    add_executable(muslimtify-service WIN32 src/platform/windows/muslimtify_service_win.c)
     muslimtify_set_target_defaults(muslimtify-service)
     target_link_libraries(muslimtify-service
         muslimtify_core ole32 runtimeobject CURL::libcurl)
