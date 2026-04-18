@@ -82,12 +82,26 @@ function(muslimtify_set_target_defaults target)
     endif()
 endfunction()
 
-# -- Object library (shared app sources) --------------------------------------
+# -- Object libraries ---------------------------------------------------------
+# muslimtify_core: platform-agnostic + platform abstraction (shared by cli/gui)
+# muslimtify_cli : CLI dispatcher + command handlers
 
-add_library(muslimtify_lib OBJECT
+add_library(muslimtify_core OBJECT
+    src/config.c
+    src/cache.c
+    src/location.c
+    src/string_util.c
+    src/prayer_checker.c
+    src/check_cycle.c
+    src/display.c
+    $<IF:$<BOOL:${WIN32}>,src/notification_win.c,src/notification.c>
+    $<IF:$<BOOL:${WIN32}>,src/platform_win.c,src/platform_linux.c>
+)
+muslimtify_set_target_defaults(muslimtify_core)
+
+add_library(muslimtify_cli OBJECT
     src/cli.c
     src/cmd_show.c
-    src/check_cycle.c
     src/cmd_next.c
     src/cmd_config.c
     src/cmd_location.c
@@ -96,20 +110,16 @@ add_library(muslimtify_lib OBJECT
     src/cmd_method.c
     src/cmd_notification.c
     src/cmd_sound.c
-    src/config.c
-    src/cache.c
-    src/location.c
-    src/string_util.c
-    src/prayer_checker.c
-    $<IF:$<BOOL:${WIN32}>,src/notification_win.c,src/notification.c>
-    src/display.c
-    $<IF:$<BOOL:${WIN32}>,src/platform_win.c,src/platform_linux.c>
 )
-muslimtify_set_target_defaults(muslimtify_lib)
+muslimtify_set_target_defaults(muslimtify_cli)
+
 if(WIN32)
-    target_include_directories(muslimtify_lib PRIVATE ${curl_SOURCE_DIR}/include)
+    target_include_directories(muslimtify_core PRIVATE ${curl_SOURCE_DIR}/include)
+    target_include_directories(muslimtify_cli  PRIVATE ${curl_SOURCE_DIR}/include)
 else()
-    target_include_directories(muslimtify_lib PRIVATE
+    target_include_directories(muslimtify_core PRIVATE
+        ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+    target_include_directories(muslimtify_cli  PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
 endif()
 
@@ -120,12 +130,12 @@ muslimtify_set_target_defaults(muslimtify)
 
 if(WIN32)
     target_link_libraries(muslimtify
-        muslimtify_lib ole32 runtimeobject CURL::libcurl ccompose)
+        muslimtify_cli muslimtify_core ole32 runtimeobject CURL::libcurl ccompose)
 else()
     target_include_directories(muslimtify PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
     target_link_libraries(muslimtify
-        muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} ccompose m)
+        muslimtify_cli muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} ccompose m)
 endif()
 
 # -- Testing ------------------------------------------------------------------
@@ -140,26 +150,26 @@ if(BUILD_TESTING)
         muslimtify_set_target_defaults(test_cli)
         target_include_directories(test_cli PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
         target_link_libraries(test_cli
-            muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m
+            muslimtify_cli muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m
         )
         add_test(NAME cli COMMAND test_cli)
 
         add_executable(test_prayer_checker tests/test_prayer_checker.c)
         muslimtify_set_target_defaults(test_prayer_checker)
         target_include_directories(test_prayer_checker PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_prayer_checker muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        target_link_libraries(test_prayer_checker muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME prayer_checker COMMAND test_prayer_checker)
 
         add_executable(test_config tests/test_config.c)
         muslimtify_set_target_defaults(test_config)
         target_include_directories(test_config PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_config muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        target_link_libraries(test_config muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME config COMMAND test_config)
 
         add_executable(test_cache tests/test_cache.c)
         muslimtify_set_target_defaults(test_cache)
         target_include_directories(test_cache PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_cache muslimtify_lib ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        target_link_libraries(test_cache muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME cache COMMAND test_cache)
     endif()
 
@@ -238,7 +248,7 @@ if(WIN32)
     add_executable(muslimtify-service WIN32 src/muslimtify_service_win.c)
     muslimtify_set_target_defaults(muslimtify-service)
     target_link_libraries(muslimtify-service
-        muslimtify_lib ole32 runtimeobject CURL::libcurl)
+        muslimtify_core ole32 runtimeobject CURL::libcurl)
     install(TARGETS muslimtify-service DESTINATION ${CMAKE_INSTALL_BINDIR})
 
     install(CODE [[
