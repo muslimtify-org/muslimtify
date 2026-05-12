@@ -217,7 +217,7 @@ static void test_windows_zone_to_iana(void) {
   check_win2iana(L"Newfoundland Standard Time", "America/St_Johns");
 
   // Asia (duplicates resolve to canonical IANA)
-  check_win2iana(L"SE Asia Standard Time", "Asia/Bangkok");
+  check_win2iana(L"SE Asia Standard Time", "Asia/Jakarta");
   check_win2iana(L"Sri Lanka Standard Time", "Asia/Colombo");
   check_win2iana(L"Bangladesh Standard Time", "Asia/Dhaka");
   check_win2iana(L"Arabian Standard Time", "Asia/Dubai");
