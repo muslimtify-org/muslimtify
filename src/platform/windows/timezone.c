@@ -112,8 +112,7 @@ double parse_timezone_offset(const char *tz_name, time_t when) {
     return 0.0;
 
   ULONGLONG utc_ticks = ((ULONGLONG)utc_ft.dwHighDateTime << 32) | utc_ft.dwLowDateTime;
-  ULONGLONG local_ticks =
-      ((ULONGLONG)local_ft.dwHighDateTime << 32) | local_ft.dwLowDateTime;
+  ULONGLONG local_ticks = ((ULONGLONG)local_ft.dwHighDateTime << 32) | local_ft.dwLowDateTime;
   LONGLONG diff = (LONGLONG)local_ticks - (LONGLONG)utc_ticks;
 
   // 10^7 ticks/sec * 3600 sec/hr = 3.6 * 10^10 ticks/hr.
