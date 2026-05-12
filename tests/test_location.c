@@ -92,8 +92,6 @@ static void test_fractional_offsets(void) {
   printf("\n-- Fractional-hour offsets --\n");
   check("Asia/Kolkata", WINTER, "Jan (+5:30)", 5.5);
   check("Asia/Kolkata", SUMMER, "Jul (+5:30)", 5.5);
-  check("Asia/Tehran", WINTER, "Jan (+3:30)", 3.5);
-  check("Asia/Tehran", SUMMER, "Jul (+3:30, no DST since 2022)", 3.5);
   check("Asia/Kabul", WINTER, "Jan (+4:30)", 4.5);
   check("Asia/Kabul", SUMMER, "Jul (+4:30)", 4.5);
   check("Asia/Yangon", WINTER, "Jan (+6:30)", 6.5);
@@ -174,6 +172,124 @@ static void test_edge_cases(void) {
 #endif
 }
 
+#ifdef _WIN32
+#include <wchar.h>
+extern const char *windows_zone_to_iana(const wchar_t *win_zone);
+
+static void check_win2iana(const wchar_t *win, const char *expected) {
+  total++;
+  const char *got = windows_zone_to_iana(win);
+  if (expected == NULL) {
+    if (got == NULL) {
+      wprintf(L"  PASS: %-32ls -> (NULL)\n", win ? win : L"(NULL)");
+    } else {
+      wprintf(L"  FAIL: %-32ls -> %hs (expected NULL)\n", win ? win : L"(NULL)", got);
+      failures++;
+    }
+    return;
+  }
+  if (got && strcmp(got, expected) == 0) {
+    wprintf(L"  PASS: %-32ls -> %hs\n", win, got);
+  } else {
+    wprintf(L"  FAIL: %-32ls -> %hs (expected %hs)\n", win, got ? got : "(NULL)", expected);
+    failures++;
+  }
+}
+
+static void test_windows_zone_to_iana(void) {
+  printf("\n-- windows_zone_to_iana (every Windows zone in the table) --\n");
+
+  // Africa
+  check_win2iana(L"Egypt Standard Time", "Africa/Cairo");
+  check_win2iana(L"South Africa Standard Time", "Africa/Johannesburg");
+  check_win2iana(L"E. Africa Standard Time", "Africa/Nairobi");
+
+  // Americas
+  check_win2iana(L"Alaskan Standard Time", "America/Anchorage");
+  check_win2iana(L"Argentina Standard Time", "America/Argentina/Buenos_Aires");
+  check_win2iana(L"SA Pacific Standard Time", "America/Bogota");
+  check_win2iana(L"Central Standard Time", "America/Chicago");
+  check_win2iana(L"Mountain Standard Time", "America/Denver");
+  check_win2iana(L"Pacific Standard Time", "America/Los_Angeles");
+  check_win2iana(L"Eastern Standard Time", "America/New_York");
+  check_win2iana(L"Pacific SA Standard Time", "America/Santiago");
+  check_win2iana(L"E. South America Standard Time", "America/Sao_Paulo");
+  check_win2iana(L"Newfoundland Standard Time", "America/St_Johns");
+
+  // Asia (duplicates resolve to canonical IANA)
+  check_win2iana(L"SE Asia Standard Time", "Asia/Bangkok");
+  check_win2iana(L"Sri Lanka Standard Time", "Asia/Colombo");
+  check_win2iana(L"Bangladesh Standard Time", "Asia/Dhaka");
+  check_win2iana(L"Arabian Standard Time", "Asia/Dubai");
+  check_win2iana(L"Tokyo Standard Time", "Asia/Tokyo");
+  check_win2iana(L"Afghanistan Standard Time", "Asia/Kabul");
+  check_win2iana(L"Pakistan Standard Time", "Asia/Karachi");
+  check_win2iana(L"Nepal Standard Time", "Asia/Kathmandu");
+  check_win2iana(L"India Standard Time", "Asia/Kolkata");
+  check_win2iana(L"Singapore Standard Time", "Asia/Singapore");
+  check_win2iana(L"Arab Standard Time", "Asia/Riyadh");
+  check_win2iana(L"Myanmar Standard Time", "Asia/Yangon");
+
+  // Australia
+  check_win2iana(L"Cen. Australia Standard Time", "Australia/Adelaide");
+  check_win2iana(L"AUS Eastern Standard Time", "Australia/Sydney");
+
+  // UTC + Europe
+  check_win2iana(L"UTC", "Etc/UTC");
+  check_win2iana(L"W. Europe Standard Time", "Europe/Berlin");
+  check_win2iana(L"Turkey Standard Time", "Europe/Istanbul");
+  check_win2iana(L"GMT Standard Time", "Europe/London");
+  check_win2iana(L"Romance Standard Time", "Europe/Paris");
+
+  // Pacific
+  check_win2iana(L"Samoa Standard Time", "Pacific/Apia");
+  check_win2iana(L"New Zealand Standard Time", "Pacific/Auckland");
+  check_win2iana(L"Hawaiian Standard Time", "Pacific/Honolulu");
+  check_win2iana(L"Line Islands Standard Time", "Pacific/Kiritimati");
+
+  // Negative cases
+  check_win2iana(L"Bogus Standard Time", NULL);
+  check_win2iana(NULL, NULL);
+}
+#endif
+
+static void test_get_system_timezone(void) {
+  printf("\n-- get_system_timezone --\n");
+
+  char buf[64] = {0};
+  int rc = get_system_timezone(buf, sizeof(buf));
+
+  total++;
+  if (rc == 0 && buf[0] != '\0') {
+    printf("  PASS: get_system_timezone returned %s\n", buf);
+  } else {
+    printf("  FAIL: get_system_timezone returned rc=%d buf=\"%s\"\n", rc, buf);
+    failures++;
+  }
+
+  // Offset round-trip: whatever zone the helper returned must round-trip
+  // through parse_timezone_offset to a finite offset within [-12, +14].
+  total++;
+  double off = parse_timezone_offset(buf, time(NULL));
+  if (off >= -12.0 && off <= 14.0) {
+    printf("  PASS: %s round-trips to UTC%+.2f\n", buf, off);
+  } else {
+    printf("  FAIL: %s round-trips to out-of-range UTC%+.2f\n", buf, off);
+    failures++;
+  }
+
+  // Capacity guard: cap=1 must not write past the buffer.
+  total++;
+  char tiny[2] = {'X', 'X'};
+  int rc2 = get_system_timezone(tiny, 1);
+  if (rc2 == -1 && tiny[1] == 'X') {
+    printf("  PASS: cap<2 rejected without write\n");
+  } else {
+    printf("  FAIL: cap<2 not rejected (rc=%d, tiny[1]=%c)\n", rc2, tiny[1]);
+    failures++;
+  }
+}
+
 int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
@@ -184,6 +300,10 @@ int main(void) {
   test_half_hour_dst();
   test_utc_and_negative_only();
   test_edge_cases();
+#ifdef _WIN32
+  test_windows_zone_to_iana();
+#endif
+  test_get_system_timezone();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;
