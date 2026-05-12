@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 typedef struct {
   char *data;
@@ -49,35 +50,6 @@ static void location_log_trunc(const char *field) {
     fprintf(stderr, "location: truncated field %s\n", field ? field : "(unknown)");
     location_trunc_logged = true;
   }
-}
-
-// Parse timezone string like "Asia/Jakarta" to get UTC offset
-static double parse_timezone_offset(const char *tz_name) {
-  // Common timezone offsets
-  struct {
-    const char *name;
-    double offset;
-  } timezones[] = {
-      {"Asia/Jakarta", 7.0},         {"Asia/Makassar", 8.0},
-      {"Asia/Jayapura", 9.0},        {"Asia/Kuala_Lumpur", 8.0},
-      {"Asia/Singapore", 8.0},       {"Asia/Bangkok", 7.0},
-      {"Asia/Dubai", 4.0},           {"Asia/Riyadh", 3.0},
-      {"Asia/Karachi", 5.0},         {"Asia/Kolkata", 5.5},
-      {"Asia/Dhaka", 6.0},           {"Asia/Tokyo", 9.0},
-      {"Europe/London", 0.0},        {"Europe/Paris", 1.0},
-      {"Europe/Istanbul", 3.0},      {"America/New_York", -5.0},
-      {"America/Chicago", -6.0},     {"America/Denver", -7.0},
-      {"America/Los_Angeles", -8.0}, {"UTC", 0.0},
-  };
-
-  for (size_t i = 0; i < sizeof(timezones) / sizeof(timezones[0]); i++) {
-    if (strcmp(tz_name, timezones[i].name) == 0) {
-      return timezones[i].offset;
-    }
-  }
-
-  // Default to UTC if unknown
-  return 0.0;
 }
 
 int location_fetch(Config *cfg) {
@@ -155,7 +127,7 @@ int location_fetch(Config *cfg) {
     if (!copy_string(cfg->timezone, sizeof(cfg->timezone), tz_str)) {
       location_log_trunc("timezone");
     }
-    cfg->timezone_offset = parse_timezone_offset(tz_str);
+    cfg->timezone_offset = parse_timezone_offset(tz_str, time(NULL));
   }
 
   // Parse city

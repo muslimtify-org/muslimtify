@@ -3,11 +3,11 @@
 #define COBJMACROS
 
 #include "notification.h"
-#include <Windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <windows.h>
 
 /* -- WinRT type declarations ------------------------------------------------ */
 

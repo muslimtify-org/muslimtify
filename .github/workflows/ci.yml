@@ -55,7 +55,7 @@ jobs:
 
       - name: Test
         working-directory: build
-        run: ctest --output-on-failure
+        run: ctest --output-on-failure --no-tests=error
 
   build-windows:
     runs-on: windows-latest
@@ -63,10 +63,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 
       - name: Build
         run: cmake --build build --config Release
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure -C Release
+        run: ctest --test-dir build --output-on-failure -C Release --no-tests=error

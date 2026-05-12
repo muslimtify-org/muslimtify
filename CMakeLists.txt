@@ -13,7 +13,7 @@ set(FULL_PROJECT_VERSION "${PROJECT_VERSION}")
 
 # -- C standard and output dirs ------------------------------------------------
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -35,7 +35,6 @@ if(WIN32)
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
-    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
     set(CURL_DISABLE_TESTS ON CACHE BOOL "" FORCE)
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(CURL_USE_SCHANNEL ON CACHE BOOL "" FORCE)
@@ -88,6 +87,7 @@ add_library(muslimtify_core OBJECT
     src/core/display.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/linux/platform_linux.c>
+    $<IF:$<BOOL:${WIN32}>,src/platform/windows/timezone.c,src/platform/linux/timezone.c>
 )
 muslimtify_set_target_defaults(muslimtify_core)
 
@@ -108,6 +108,9 @@ muslimtify_set_target_defaults(muslimtify_cli)
 if(WIN32)
     target_include_directories(muslimtify_core PRIVATE ${curl_SOURCE_DIR}/include)
     target_include_directories(muslimtify_cli  PRIVATE ${curl_SOURCE_DIR}/include)
+    # Static curl: prevent its headers from emitting __declspec(dllimport).
+    target_compile_definitions(muslimtify_core PRIVATE CURL_STATICLIB)
+    target_compile_definitions(muslimtify_cli  PRIVATE CURL_STATICLIB)
 else()
     target_include_directories(muslimtify_core PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
@@ -121,6 +124,8 @@ add_executable(muslimtify src/muslimtify.c)
 muslimtify_set_target_defaults(muslimtify)
 
 if(WIN32)
+    target_include_directories(muslimtify PRIVATE ${curl_SOURCE_DIR}/include)
+    target_compile_definitions(muslimtify PRIVATE CURL_STATICLIB)
     target_link_libraries(muslimtify
         muslimtify_cli muslimtify_core ole32 runtimeobject CURL::libcurl)
 else()
@@ -164,6 +169,19 @@ if(BUILD_TESTING)
         target_link_libraries(test_cache muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME cache COMMAND test_cache)
     endif()
+
+    # test_location is cross-platform; its parse_timezone_offset target lives
+    # in muslimtify_core which links curl on both platforms.
+    add_executable(test_location tests/test_location.c)
+    muslimtify_set_target_defaults(test_location)
+    if(WIN32)
+        target_include_directories(test_location PRIVATE ${curl_SOURCE_DIR}/include)
+        target_link_libraries(test_location muslimtify_core CURL::libcurl ole32 runtimeobject)
+    else()
+        target_include_directories(test_location PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_location muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+    endif()
+    add_test(NAME location COMMAND test_location)
 
     # Cross-platform tests (no POSIX dependencies)
     add_executable(test_platform
