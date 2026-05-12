@@ -191,15 +191,15 @@ static void test_windows_file_operations(void) {
     report_result("platform_exe_dir() UTF-8 path", false);
   }
 
-  char dir[PLATFORM_PATH_MAX];
+  char dir[PLATFORM_PATH_MAX + 32];
   snprintf(dir, sizeof(dir), "%s\\cache_\xC3\xA9", root_utf8);
   report_result("platform_mkdir_p() nested UTF-8", platform_mkdir_p(dir) == 0);
 
   wchar_t dir_w[PLATFORM_PATH_MAX];
   swprintf(dir_w, PLATFORM_PATH_MAX, L"%ls\\cache_\x00E9", root_w);
 
-  char source[PLATFORM_PATH_MAX];
-  char renamed[PLATFORM_PATH_MAX];
+  char source[PLATFORM_PATH_MAX + 64];
+  char renamed[PLATFORM_PATH_MAX + 64];
   snprintf(source, sizeof(source), "%s\\cache_\xC3\xA9.json", dir);
   snprintf(renamed, sizeof(renamed), "%s\\cache_renamed_\xC3\xA9.json", dir);
 

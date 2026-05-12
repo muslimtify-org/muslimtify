@@ -7,6 +7,11 @@
 
 #include "location.h"
 
+#if !defined(_WIN32_WINNT) || _WIN32_WINNT < 0x0602
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602  // Windows 8: EnumDynamicTimeZoneInformation, SystemTimeToTzSpecificLocalTimeEx
+#endif
+
 #include <string.h>
 #include <time.h>
 #include <wchar.h>

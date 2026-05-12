@@ -152,7 +152,7 @@ static int daemon_install_handler(int argc, char **argv) {
     return 1;
   }
 
-  char args[PLATFORM_PATH_MAX * 3];
+  char args[DAEMON_TASK_ACTION_MAX + 128];
   snprintf(args, sizeof(args), "/create /tn \"muslimtify\" /tr %s /sc minute /mo 1 /f",
            task_action);
 
