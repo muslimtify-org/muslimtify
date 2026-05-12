@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 static int location_show_handler(int argc, char **argv) {
   (void)argc;
@@ -111,6 +112,16 @@ static int location_set_handler(int argc, char **argv) {
   }
   cfg.auto_detect = false;
 
+  // The user picked coordinates manually — the previously cached city/country
+  // and ipinfo-derived timezone no longer apply. Clear them and re-derive
+  // the timezone from the host OS so the offset stays correct.
+  cfg.city[0] = '\0';
+  cfg.country[0] = '\0';
+  if (get_system_timezone(cfg.timezone, sizeof(cfg.timezone)) != 0) {
+    fprintf(stderr, "Warning: could not detect system timezone, defaulting to %s\n", cfg.timezone);
+  }
+  cfg.timezone_offset = parse_timezone_offset(cfg.timezone, time(NULL));
+
   if (config_save(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to save config\n");
     return 1;
@@ -118,6 +129,7 @@ static int location_set_handler(int argc, char **argv) {
 
   cache_invalidate();
   printf("✓ Location set to: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
+  printf("  Timezone: %s (UTC%+.1f)\n", cfg.timezone, cfg.timezone_offset);
   return 0;
 }
 
