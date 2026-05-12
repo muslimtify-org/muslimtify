@@ -118,8 +118,7 @@ static int location_set_handler(int argc, char **argv) {
   cfg.city[0] = '\0';
   cfg.country[0] = '\0';
   if (get_system_timezone(cfg.timezone, sizeof(cfg.timezone)) != 0) {
-    fprintf(stderr, "Warning: could not detect system timezone, defaulting to %s\n",
-            cfg.timezone);
+    fprintf(stderr, "Warning: could not detect system timezone, defaulting to %s\n", cfg.timezone);
   }
   cfg.timezone_offset = parse_timezone_offset(cfg.timezone, time(NULL));
 
