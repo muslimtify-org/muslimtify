@@ -1,0 +1,9 @@
+CompileFlags:
+  Add: [-DCCOMPOSE_IMPLEMENTATION,
+    -DMUSLIMTIFY_NAVIGATION_IMPLEMENTATION,
+    -DMUSLIMTIFY_DASHBOARD_CONTENT_IMPLEMENTATION,
+    -DMUSLIMTIFY_TOPBAR_IMPLEMENTATION,
+    -Wno-macro-redefined]
+Diagnostics:
+  ClangTidy:
+    Remove: [misc-definitions-in-headers]

@@ -4,7 +4,6 @@
 
 #include "string_util.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 

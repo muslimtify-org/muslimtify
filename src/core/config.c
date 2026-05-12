@@ -1,6 +1,6 @@
 #define JSON_IMPLEMENTATION
 #include "config.h"
-#include "json.h"
+#include "lib/json.h"
 #include "platform.h"
 #include "string_util.h"
 #include <ctype.h>
