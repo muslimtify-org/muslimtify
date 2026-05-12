@@ -187,8 +187,13 @@ static int location_set_handler(int argc, char **argv) {
 
   cache_invalidate();
   printf("✓ Location set to: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
-  printf("  Timezone: %s (UTC%+.1f)%s\n", cfg.timezone, cfg.timezone_offset,
-         override_tz ? " [override]" : "");
+  if (override_tz) {
+    printf("  Timezone: %s (UTC%+.1f) [override]\n", cfg.timezone, cfg.timezone_offset);
+  } else {
+    printf("  Timezone: %s (UTC%+.1f) [from system OS]\n", cfg.timezone, cfg.timezone_offset);
+    printf("  Hint: pass --timezone=<iana> if the coordinates are in a different region\n");
+    printf("        (e.g. --timezone=Asia/Jakarta)\n");
+  }
   return 0;
 }
 
