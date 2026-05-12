@@ -3,9 +3,20 @@
 
 #include "config.h"
 
+#include <time.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * Compute the UTC offset (in hours) for IANA timezone `tz_name` at the
+ * moment `when`. Reads the system tzdb via libc, so DST and historical
+ * zone changes are honored. Returns 0.0 if `tz_name` is NULL.
+ *
+ * Not thread-safe: temporarily mutates the process-wide TZ env var.
+ */
+double parse_timezone_offset(const char *tz_name, time_t when);
 
 /**
  * Fetch location information from ipinfo.io and update config.

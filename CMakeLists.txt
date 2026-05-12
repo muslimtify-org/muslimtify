@@ -13,7 +13,7 @@ set(FULL_PROJECT_VERSION "${PROJECT_VERSION}")
 
 # -- C standard and output dirs ------------------------------------------------
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -163,6 +163,12 @@ if(BUILD_TESTING)
         target_include_directories(test_cache PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
         target_link_libraries(test_cache muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME cache COMMAND test_cache)
+
+        add_executable(test_location tests/test_location.c)
+        muslimtify_set_target_defaults(test_location)
+        target_include_directories(test_location PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_location muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        add_test(NAME location COMMAND test_location)
     endif()
 
     # Cross-platform tests (no POSIX dependencies)
