@@ -2,7 +2,8 @@
 # muslimtify_gui_lib OBJECT library; the executable links it plus muslimtify_core.
 
 add_library(muslimtify_gui_lib OBJECT
-    ${CMAKE_SOURCE_DIR}/src/gui/app/assets.c)
+    ${CMAKE_SOURCE_DIR}/src/gui/app/assets.c
+    ${CMAKE_SOURCE_DIR}/src/gui/components/topbar.c)
 muslimtify_set_target_defaults(muslimtify_gui_lib)
 target_include_directories(muslimtify_gui_lib PUBLIC ${CMAKE_SOURCE_DIR}/src/gui)
 

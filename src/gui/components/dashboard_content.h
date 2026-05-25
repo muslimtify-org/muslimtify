@@ -53,7 +53,6 @@ void DashboardContent(void);
 
 #ifdef MUSLIMTIFY_DASHBOARD_CONTENT_IMPLEMENTATION
 
-#define MUSLIMTIFY_TOPBAR_IMPLEMENTATION
 #include "../themes/app_assets.h"
 #include "../themes/colors.h"
 #include "../themes/fonts.h"
