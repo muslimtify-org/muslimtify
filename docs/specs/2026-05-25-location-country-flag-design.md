@@ -22,8 +22,12 @@ flag, accepting only valid ISO 3166-1 alpha-2 codes.
 
 ## Non-goals
 - No `--country` on `location auto` (auto keeps deriving country from ipinfo).
-- No country-name (alpha-3, numeric, or full-name) support — alpha-2 only.
-- No change to how country is displayed or used downstream.
+- No alpha-3 / numeric code support — alpha-2 only.
+- No name-lookup accessor or name display **yet** — the table stores the English
+  short name per code so a future feature can expose it, but no accessor is
+  added in this change.
+- No change to how country is displayed or used downstream beyond echoing the
+  code on `set`.
 
 ## Constraints
 - C99; builds clean under `-Wall -Wextra -Wpedantic -Wshadow -Wformat=2` / `/W4`.
@@ -32,18 +36,29 @@ flag, accepting only valid ISO 3166-1 alpha-2 codes.
 - clang-format (LLVM, 2-space, 100-col) must pass on new/changed files.
 
 ## Approach
-**New module** `src/core/country.c` + `include/country.h` exposing:
+**New module** `src/core/country.c` + `include/country.h`.
+
+Public header exposes a record type plus the validation function:
 
 ```c
+typedef struct {
+  char code[3];      // ISO 3166-1 alpha-2, uppercase, NUL-terminated (e.g. "ID")
+  const char *name;  // English short name (e.g. "Indonesia") — for future use
+} Country;
+
 // Returns true iff `code` is exactly two letters that, uppercased, match a
 // known ISO 3166-1 alpha-2 code. Does not mutate `code`. Returns false for
 // NULL, empty, wrong length, or non-letter input.
 bool country_is_valid_alpha2(const char *code);
 ```
 
-Implementation: a `static const char *const ISO_3166_1_ALPHA2[]` array sorted
-ascending, queried with `bsearch`. The function first checks `code` is exactly
-2 ASCII letters, builds a 2-char uppercased key, then binary-searches the table.
+Implementation: a `static const Country ISO_3166_1_ALPHA2[]` table sorted
+ascending by `code`, queried with `bsearch`. `country_is_valid_alpha2` first
+checks `code` is exactly 2 ASCII letters, builds a 2-char uppercased key, then
+binary-searches the table comparing the key against each entry's `.code`. The
+`.name` field is populated now but read by no caller yet (reserved for a future
+name-lookup/display feature) — storing it costs nothing and avoids a later data
+migration.
 
 **Wiring in `src/cli/cmd_location.c`:**
 - Extend `location_set_handler`'s argument loop with `--country=` / `--country`
