@@ -62,7 +62,9 @@ static CC_Color NavigationButtonTextColor(size_t currentIndex) {
   return currentIndex == selectedItem ? COLOR_ON_PRIMARY : COLOR_ON_SURFACE;
 }
 
-static void onNavigationItemSelected(const size_t index) { selectedItem = index; }
+static void onNavigationItemSelected(const size_t index) {
+  selectedItem = index;
+}
 
 static void NavigationItems(OnNavigationSelectedItem onSelected, bool isMinimized) {
   Assets *a = App_Assets();

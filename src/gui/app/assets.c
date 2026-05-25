@@ -5,7 +5,9 @@
 
 static Assets g_assets;
 
-Assets *App_Assets(void) { return &g_assets; }
+Assets *App_Assets(void) {
+  return &g_assets;
+}
 
 void Assets_Load(void) {
   g_assets.fontManrope = (int16_t)CC_LoadFont(FONT_MANROPE_BOLD, 48);

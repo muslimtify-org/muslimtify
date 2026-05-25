@@ -24,15 +24,30 @@ typedef struct {
 } DailyScheduleItem;
 
 static DailyScheduleItem dailyScheduleItems[] = {
-    {.isPast = true, .isCurrent = false, .title = "Fajr", .time = "05:00 AM",
+    {.isPast = true,
+     .isCurrent = false,
+     .title = "Fajr",
+     .time = "05:00 AM",
      .icon = PRAYER_ICON_FAJR},
-    {.isPast = false, .isCurrent = true, .title = "Dhuhr", .time = "12:00 PM",
+    {.isPast = false,
+     .isCurrent = true,
+     .title = "Dhuhr",
+     .time = "12:00 PM",
      .icon = PRAYER_ICON_DHUHR},
-    {.isPast = false, .isCurrent = false, .title = "Asr", .time = "01:00 PM",
+    {.isPast = false,
+     .isCurrent = false,
+     .title = "Asr",
+     .time = "01:00 PM",
      .icon = PRAYER_ICON_ASR},
-    {.isPast = false, .isCurrent = false, .title = "Maghrib", .time = "03:00 PM",
+    {.isPast = false,
+     .isCurrent = false,
+     .title = "Maghrib",
+     .time = "03:00 PM",
      .icon = PRAYER_ICON_MAGHRIB},
-    {.isPast = false, .isCurrent = false, .title = "Isha", .time = "08:00 PM",
+    {.isPast = false,
+     .isCurrent = false,
+     .title = "Isha",
+     .time = "08:00 PM",
      .icon = PRAYER_ICON_ISHA},
 };
 
@@ -100,8 +115,7 @@ static void DailyScheduleCard(DailyScheduleItem item, int index) {
     Spacer(.height = Fixed(16));
     Text(item.title, .textColor = headerColor,
          .fontId = item.isCurrent ? a->fontBold : a->fontNormal, .fontSize = FONT_SIZE_TITLE_LARGE);
-    Text(item.time, .textColor = timeColor,
-         .fontId = item.isCurrent ? a->fontBold : a->fontNormal,
+    Text(item.time, .textColor = timeColor, .fontId = item.isCurrent ? a->fontBold : a->fontNormal,
          .fontSize = FONT_SIZE_HEADLINE_LARGE);
   }
 }
