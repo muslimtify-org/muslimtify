@@ -8,11 +8,13 @@
 #include "gui/themes/app_assets.h"
 #include "gui/themes/colors.h"
 #include "gui/themes/fonts.h"
+#include "app/assets.h"
 #include <raylib.h>
 #include <stdbool.h>
 
 void App(void) {
   AppAssetsLoad();
+  Assets_Load();
 
   while (CC_Running()) {
     CC_Begin();
@@ -25,6 +27,7 @@ void App(void) {
     CC_End();
   }
 
+  Assets_Unload();
   AppAssetsUnload();
 }
 
