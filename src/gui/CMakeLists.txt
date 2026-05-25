@@ -9,9 +9,16 @@ add_library(muslimtify_gui_lib OBJECT
     ${CMAKE_SOURCE_DIR}/src/gui/components/calculation_profile_card.c
     ${CMAKE_SOURCE_DIR}/src/gui/components/daily_schedule.c
     ${CMAKE_SOURCE_DIR}/src/gui/components/dashboard_content.c
+    ${CMAKE_SOURCE_DIR}/src/gui/utils/gui_config.c
+    ${CMAKE_SOURCE_DIR}/src/gui/utils/strfmt.c
     ${CMAKE_SOURCE_DIR}/src/gui/app/app.c)
 muslimtify_set_target_defaults(muslimtify_gui_lib)
 target_include_directories(muslimtify_gui_lib PUBLIC ${CMAKE_SOURCE_DIR}/src/gui)
+# muslimtify_set_target_defaults resolves CMAKE_CURRENT_SOURCE_DIR to src/gui here,
+# so the core headers in include/ and src/ are not on the path. Add them explicitly.
+target_include_directories(muslimtify_gui_lib PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(muslimtify_gui_lib PRIVATE -Wno-c2y-extensions)
@@ -30,7 +37,10 @@ endif()
 
 add_executable(muslimtify-gui ${CMAKE_SOURCE_DIR}/src/muslimtify_gui.c)
 muslimtify_set_target_defaults(muslimtify-gui)
-target_include_directories(muslimtify-gui PRIVATE ${CMAKE_SOURCE_DIR}/src/gui)
+target_include_directories(muslimtify-gui PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/gui
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     target_compile_options(muslimtify-gui PRIVATE -Wno-c2y-extensions)

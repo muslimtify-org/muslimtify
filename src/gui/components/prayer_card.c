@@ -7,7 +7,8 @@
 #include <raylib.h>
 
 void PrayerCard(void) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
+
   Column("PrayerCard",
          .layout = {.sizing = {.height = Fit(), .width = Grow()},
                     .padding = PadAll(48),

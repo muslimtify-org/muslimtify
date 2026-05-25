@@ -4,6 +4,7 @@
 #include "ccompose.h"
 #include "themes/colors.h"
 #include "themes/fonts.h"
+#include "utils/gui_config.h"
 #include <raylib.h>
 #include <stdbool.h>
 
@@ -56,7 +57,7 @@ static int dailyScheduleItemsCount = sizeof(dailyScheduleItems) / sizeof(DailySc
 static CC_Scroll dailyScroll;
 
 static Texture2D *PrayerIconTexture(PrayerIcon id, bool active) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
   switch (id) {
   case PRAYER_ICON_FAJR:
     return active ? &a->fajrActive : &a->fajr;
@@ -73,7 +74,7 @@ static Texture2D *PrayerIconTexture(PrayerIcon id, bool active) {
 }
 
 static void DailyScheduleCard(DailyScheduleItem item, int index) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
   const CC_Color headerColor = item.isCurrent ? COLOR_PRIMARY : COLOR_SURFACE;
   const CC_Color timeColor = item.isCurrent ? COLOR_PRIMARY : COLOR_ON_BACKGROUND;
   Texture2D *icon = PrayerIconTexture(item.icon, item.isCurrent);
@@ -121,7 +122,9 @@ static void DailyScheduleCard(DailyScheduleItem item, int index) {
 }
 
 void DailySchedule(void) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
+  CurrentDate date = getCurrentDate();
+
   CC_ScrollUpdate(&dailyScroll, "DailyScheduleScroll", .horizontal = true, .drag = true,
                   .wheel = true);
 
@@ -130,7 +133,7 @@ void DailySchedule(void) {
     Column("DailyScheduleSectionHeader",
            .layout = {.sizing = {.width = Grow()}, .childGap = 8, .padding = PadSymmetric(48, 0)}) {
       Text("Daily Schedule", .fontId = a->fontManrope, .fontSize = FONT_SIZE_HEADLINE_MEDIUM);
-      Text("Tuesday, 24 October 2026");
+      Text(TextFormat("%s", date.date));
     }
     Row("DailyScheduleScroll", .clip = {.horizontal = true, .childOffset = dailyScroll.offset},
         .layout = {.sizing = {.width = Grow(), .height = Fit()}, .childGap = 16}) {

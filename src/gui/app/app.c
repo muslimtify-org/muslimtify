@@ -6,9 +6,11 @@
 #include "components/navigation.h"
 #include "themes/colors.h"
 #include "themes/fonts.h"
+#include "utils/gui_config.h"
 
 static void AppFrame(void) {
-  Assets_Load();
+  assetsLoad();
+  guiLoadConfig();
 
   while (CC_Running()) {
     CC_Begin();
@@ -21,10 +23,10 @@ static void AppFrame(void) {
     CC_End();
   }
 
-  Assets_Unload();
+  assetsUnload();
 }
 
-void App_Run(void) {
+void AppRun(void) {
   CC_SetWindow(1200, 780, "Muslimtify");
   CC_SetBackground(COLOR_BACKGROUND);
   CC_Init();

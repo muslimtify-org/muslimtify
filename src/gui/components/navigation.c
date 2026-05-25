@@ -38,7 +38,7 @@ typedef void (*OnNavigationSelectedItem)(const size_t index);
 static size_t selectedItem = 0;
 
 static Texture2D *NavIconTexture(NavIcon id, bool active) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
   switch (id) {
   case NAV_ICON_DASHBOARD:
     return active ? &a->dashboard : &a->dashboardInactive;
@@ -67,7 +67,7 @@ static void onNavigationItemSelected(const size_t index) {
 }
 
 static void NavigationItems(OnNavigationSelectedItem onSelected, bool isMinimized) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
   Column("NavigationItems", .layout = {
                                 .sizing = {.width = Grow(), .height = Grow()},
                                 .padding = PadSymmetric(0, 16),
@@ -100,7 +100,7 @@ static void NavigationItems(OnNavigationSelectedItem onSelected, bool isMinimize
 }
 
 static void SideNavigationCollapsed(void) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
   Column("Navigation",
          .layout = {.sizing = {.height = Grow(), .width = Fixed(80)}, .padding = PadAll(16)},
          .backgroundColor = COLOR_SURFACE_VARIANT) {
@@ -121,7 +121,7 @@ static void SideNavigationCollapsed(void) {
 }
 
 static void SideNavigationExpanded(void) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
   Column("Navigation",
          .layout = {.sizing = {.height = Grow(), .width = Fixed(288)}, .padding = PadAll(16)},
          .backgroundColor = COLOR_SURFACE_VARIANT) {

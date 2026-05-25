@@ -2,12 +2,16 @@
 
 #include "app/assets.h"
 #include "ccompose.h"
+#include "helper/country_name.h"
 #include "themes/colors.h"
 #include "themes/fonts.h"
+#include "utils/gui_config.h"
 #include <raylib.h>
 
 void TopBar(void) {
-  Assets *a = App_Assets();
+  Assets *a = appAssets();
+  Config *cfg = guiGetConfig();
+
   Row("TopBar",
       .layout = {.sizing = {.height = Fixed(64), .width = Grow()},
                  .padding = PadSymmetric(42, 16),
@@ -17,10 +21,11 @@ void TopBar(void) {
           .layout = {.sizing = {.height = Fixed(18), .width = Fixed(18)}});
     Column("CurrentLocation", .layout = {.sizing = {.height = Grow(), .width = Grow()},
                                          .childAlignment = {.y = AlignYCenter()}}) {
-      Text("Jakarta, Indonesia", .fontId = a->fontBold, .textColor = COLOR_PRIMARY,
-           .fontSize = FONT_SIZE_TITLE_LARGE);
-      Text("6.2088 S, 106.8456 E", .textColor = COLOR_ON_BACKGROUND,
-           .fontSize = FONT_SIZE_TITLE_MEDIUM, .wrapMode = CC_TEXT_WRAP_WORDS);
+      Text(TextFormat("%s, %s", cfg->city, getCountryName(cfg->country)), .fontId = a->fontBold,
+           .textColor = COLOR_PRIMARY, .fontSize = FONT_SIZE_TITLE_LARGE);
+      Text(TextFormat("%.6f, %.6f", cfg->latitude, cfg->longitude),
+           .textColor = COLOR_ON_BACKGROUND, .fontSize = FONT_SIZE_TITLE_MEDIUM,
+           .wrapMode = CC_TEXT_WRAP_WORDS);
     }
   }
 }

@@ -1,15 +1,16 @@
 #include "app/assets.h"
+#include "ccompose.h"
 
 #include "themes/asset_paths.h"
 #include "themes/fonts.h"
 
 static Assets g_assets;
 
-Assets *App_Assets(void) {
+Assets *appAssets(void) {
   return &g_assets;
 }
 
-void Assets_Load(void) {
+void assetsLoad(void) {
   g_assets.fontManrope = (int16_t)CC_LoadFont(FONT_MANROPE_BOLD, 48);
   g_assets.fontBold = (int16_t)CC_LoadFont(FONT_INTER_BOLD, 48);
   g_assets.fontNormal = (int16_t)CC_LoadFont(FONT_INTER_REGULAR, 48);
@@ -48,7 +49,7 @@ void Assets_Load(void) {
   g_assets.nextNotification = CC_LoadImage(IC_NEXT_NOTIFICATION);
 }
 
-void Assets_Unload(void) {
+void assetsUnload(void) {
   CC_UnloadImage(g_assets.currentTime);
   CC_UnloadImage(g_assets.currentLocation);
   CC_UnloadImage(g_assets.calculationProfile);

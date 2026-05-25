@@ -100,6 +100,7 @@ add_library(muslimtify_core OBJECT
     src/core/prayer_checker.c
     src/core/check_cycle.c
     src/core/display.c
+    src/core/sanitizer_options.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/linux/platform_linux.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/timezone.c,src/platform/linux/timezone.c>

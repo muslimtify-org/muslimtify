@@ -1,7 +1,6 @@
 #ifndef MUSLIMTIFY_APP_ASSETS_STRUCT_H
 #define MUSLIMTIFY_APP_ASSETS_STRUCT_H
 
-#include "ccompose.h"
 #include <raylib.h>
 #include <stdint.h>
 
@@ -44,8 +43,8 @@ typedef struct {
   Texture2D nextNotification;
 } Assets;
 
-void Assets_Load(void);
-void Assets_Unload(void);
-Assets *App_Assets(void);
+void assetsLoad(void);
+void assetsUnload(void);
+Assets *appAssets(void);
 
 #endif // MUSLIMTIFY_APP_ASSETS_STRUCT_H
