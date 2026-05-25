@@ -1,8 +1,6 @@
-#define MUSLIMTIFY_APP_ASSETS_IMPLEMENTATION
 #include "ccompose.h"
 #include "gui/components/dashboard_content.h"
 #include "gui/components/navigation.h"
-#include "gui/themes/app_assets.h"
 #include "gui/themes/colors.h"
 #include "gui/themes/fonts.h"
 #include "app/assets.h"
@@ -10,7 +8,6 @@
 #include <stdbool.h>
 
 void App(void) {
-  AppAssetsLoad();
   Assets_Load();
 
   while (CC_Running()) {
@@ -25,7 +22,6 @@ void App(void) {
   }
 
   Assets_Unload();
-  AppAssetsUnload();
 }
 
 int main(void) {
