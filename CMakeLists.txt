@@ -82,6 +82,7 @@ add_library(muslimtify_core OBJECT
     src/core/cache.c
     src/core/location.c
     src/core/string_util.c
+    src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
     src/core/display.c
@@ -209,6 +210,10 @@ if(BUILD_TESTING)
     add_executable(test_string_util tests/test_string_util.c src/core/string_util.c)
     muslimtify_set_target_defaults(test_string_util)
     add_test(NAME string_util COMMAND test_string_util)
+
+    add_executable(test_country tests/test_country.c src/core/country.c)
+    muslimtify_set_target_defaults(test_country)
+    add_test(NAME country COMMAND test_country)
 
     add_executable(test_method_detect tests/test_method_detect.c)
     muslimtify_set_target_defaults(test_method_detect)
