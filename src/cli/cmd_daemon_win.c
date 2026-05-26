@@ -9,7 +9,7 @@
 
 #ifndef MUSLIMTIFY_CMD_DAEMON_WIN_TEST
 #include "location.h"
-#include "method_detect.h"
+#include "prayertimes.h"
 #include "string_util.h"
 #endif
 
@@ -167,7 +167,7 @@ static int daemon_install_handler(int argc, char **argv) {
       fprintf(stderr, "Warning: Failed to load config, skipping auto-detect\n");
     } else {
       printf("Detecting location...\n");
-      if (location_fetch(&cfg) != 0) {
+      if (config_auto_detect(&cfg) != 0) {
         fprintf(stderr, "Warning: Failed to detect location, skipping auto-detect\n");
       } else {
         if (cfg.city[0] != '\0') {
@@ -176,16 +176,12 @@ static int daemon_install_handler(int argc, char **argv) {
           printf("Location detected: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
         }
 
-        CalcMethod detected = method_detect_by_country(cfg.country);
-        const char *method_key = method_to_string(detected);
-        const MethodParams *p = method_params_get(detected);
-
-        copy_string(cfg.calculation_method, sizeof(cfg.calculation_method), method_key);
-
         if (config_save(&cfg) != 0) {
           fprintf(stderr, "Warning: Failed to save config\n");
         } else {
-          printf("Method auto-detected: %s", method_key);
+          CalcMethod m = method_from_string(cfg.calculation_method);
+          const MethodParams *p = method_params_get(m);
+          printf("Method auto-detected: %s", cfg.calculation_method);
           if (p)
             printf(" (%s)", p->name);
           printf("\n");

@@ -1,4 +1,5 @@
 #include "country.h"
+#include "prayertimes.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -70,6 +71,34 @@ static void test_table_sorted(void) {
   report_result("table sorted strictly ascending by code", sorted);
 }
 
+static void expect_method(const char *code, CalcMethod expected, const char *label) {
+  report_result(label, country_default_method(code) == expected);
+}
+
+static void test_country_default_method(void) {
+  printf("test_country_default_method\n");
+  // Dedicated-method countries.
+  expect_method("ID", CALC_KEMENAG, "ID -> kemenag");
+  expect_method("MY", CALC_JAKIM, "MY -> jakim");
+  expect_method("BN", CALC_JAKIM, "BN -> jakim");
+  expect_method("SG", CALC_SINGAPORE, "SG -> singapore");
+  expect_method("SA", CALC_MAKKAH, "SA -> makkah");
+  expect_method("US", CALC_ISNA, "US -> isna");
+  expect_method("PK", CALC_KARACHI, "PK -> karachi");
+  expect_method("TR", CALC_TURKEY, "TR -> turkey");
+  expect_method("EG", CALC_EGYPT, "EG -> egypt");
+  // Case-insensitive.
+  expect_method("id", CALC_KEMENAG, "lowercase id -> kemenag");
+  expect_method("Sa", CALC_MAKKAH, "mixed-case Sa -> makkah");
+  // Fallback to MWL for valid-but-unmapped, unknown, and malformed input.
+  expect_method("JP", CALC_MWL, "JP (unmapped) -> mwl");
+  expect_method("DE", CALC_MWL, "DE (unmapped) -> mwl");
+  expect_method("XX", CALC_MWL, "unknown XX -> mwl");
+  expect_method("I", CALC_MWL, "too-short -> mwl");
+  expect_method("", CALC_MWL, "empty -> mwl");
+  expect_method(NULL, CALC_MWL, "NULL -> mwl");
+}
+
 int main(void) {
   printf("=== country tests ===\n\n");
 
@@ -77,6 +106,7 @@ int main(void) {
   test_boundary_codes();
   test_invalid_codes();
   test_table_sorted();
+  test_country_default_method();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;

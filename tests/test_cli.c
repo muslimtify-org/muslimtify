@@ -341,6 +341,10 @@ static void test_location(void) {
   // location unknown
   run(3, (char *[]){"m", "location", "bogus", NULL});
   check_ret("location unknown ret", 1);
+
+  // location auto removed -> unknown subcommand
+  run(3, (char *[]){"m", "location", "auto", NULL});
+  check_ret("location auto removed ret", 1);
 }
 
 static void test_enable_disable(void) {
@@ -626,6 +630,10 @@ static void test_method(void) {
   // method madhab (no arg)
   run(3, (char *[]){"m", "method", "madhab", NULL});
   check_ret("method madhab noarg ret", 1);
+
+  // method auto removed -> falls through to "method set auto" which is invalid
+  run(3, (char *[]){"m", "method", "auto", NULL});
+  check_ret("method auto removed ret", 1);
 }
 
 static void test_sound(void) {

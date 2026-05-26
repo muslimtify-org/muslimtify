@@ -53,9 +53,13 @@ int location_prepare(Config *cfg);
 int ensure_location(Config *cfg);
 
 /**
- * Alias for location_fetch (for clarity)
+ * Auto-detect: fetch location via ipinfo and set calculation_method from the
+ * detected country (via country_default_method). Mutates *cfg only — does NOT
+ * save config or print. Returns 0 on success, -1 on fetch failure.
+ *
+ * Shared by `config auto` and `daemon enable` (Linux + Windows).
  */
-int location_auto_detect(Config *cfg);
+int config_auto_detect(Config *cfg);
 
 /**
  * Free any resources allocated by location module

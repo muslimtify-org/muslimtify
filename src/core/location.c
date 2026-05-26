@@ -1,4 +1,5 @@
 #include "location.h"
+#include "country.h"
 #include "json.h"
 #include "string_util.h"
 #include <curl/curl.h>
@@ -149,8 +150,14 @@ int location_fetch(Config *cfg) {
   return 0;
 }
 
-int location_auto_detect(Config *cfg) {
-  return location_fetch(cfg);
+int config_auto_detect(Config *cfg) {
+  if (!cfg)
+    return -1;
+  if (location_fetch(cfg) != 0)
+    return -1;
+  copy_string(cfg->calculation_method, sizeof(cfg->calculation_method),
+              method_to_string(country_default_method(cfg->country)));
+  return 0;
 }
 
 int location_prepare(Config *cfg) {
