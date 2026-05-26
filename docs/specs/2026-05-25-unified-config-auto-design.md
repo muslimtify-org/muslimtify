@@ -1,7 +1,7 @@
 ---
 title: Unified `config auto` (consolidate location/method auto-detect)
 date: 2026-05-25
-status: draft
+status: approved
 ---
 
 # Unified `config auto` — Design
