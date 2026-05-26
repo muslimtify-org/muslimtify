@@ -16,6 +16,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > - ~Merge command  `location auto` and `method auto` into (only) `config auto` and optimize auto detection per (249) country~
 > - Add GUI (see branch gui to see a progress)
 > - MacOS support (have no device yet)
+> - Embedded Device Support
 
 ## Installation
 
