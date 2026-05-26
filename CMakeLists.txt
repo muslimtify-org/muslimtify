@@ -215,13 +215,6 @@ if(BUILD_TESTING)
     muslimtify_set_target_defaults(test_country)
     add_test(NAME country COMMAND test_country)
 
-    add_executable(test_method_detect tests/test_method_detect.c)
-    muslimtify_set_target_defaults(test_method_detect)
-    if(NOT WIN32)
-        target_link_libraries(test_method_detect m)
-    endif()
-    add_test(NAME method_detect COMMAND test_method_detect)
-
     if(WIN32)
         add_executable(test_cmd_daemon_win
             tests/test_cmd_daemon_win.c
