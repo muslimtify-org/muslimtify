@@ -21,8 +21,8 @@
 - None.
 
 ### Nit
-- `include/country.h:45` — doc comment for `country_default_method` says "Replaces the former method_detect_by_country()", naming a symbol that no longer exists. Accurate history, but a reader grepping `method_detect` still gets a hit. Trim to "…or any country without a dedicated method." 
-- `src/cli/cmd_daemon.c:15` — `#include "string_util.h"` is now unused (the rewire moved `copy_string` into `config_auto_detect`). clangd flags it; it is not a compiler `-Wall` warning, so the build stays clean, but the include is dead. Remove it.
+- ~~`include/country.h:45` stale comment naming `method_detect_by_country()`~~ — **RESOLVED** in `chore: drop stale comment and unused include`.
+- ~~`src/cli/cmd_daemon.c:15` unused `#include "string_util.h"`~~ — **RESOLVED** in the same commit. Build + 10/10 tests + lint still clean after removal.
 - Print blocks (`✓ Location detected: …` + `✓ Method auto-detected: …`) are duplicated across `cmd_config.c`, `cmd_daemon.c`, `cmd_daemon_win.c`. The spec scoped the shared helper to *detection* only (not display), and the daemon wording differs slightly (Windows has no `✓`), so this is left as-is — noted only for completeness.
 
 ## Self-critique (three risks)
