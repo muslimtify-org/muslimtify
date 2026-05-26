@@ -38,7 +38,7 @@ Always read the entire file before acting; updates frequently accompany specs in
 - cmake -S . -B build
 - cmake --build build -j
 - build/bin/muslimtify show
-- muslimtify location auto
+- muslimtify config auto
 
 ## Testing
 - Enable tests via -DBUILD_TESTING=ON (default).
