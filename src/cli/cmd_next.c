@@ -121,6 +121,10 @@ int handle_next(int argc, char **argv) {
     const CommandEntry *sub = dispatch_lookup(next_commands, DISPATCH_N(next_commands), argv[0]);
     if (sub)
       return sub->handler(argc - 1, argv + 1);
+
+    fprintf(stderr, "Error: Unknown next subcommand '%s'\n", argv[0]);
+    fprintf(stderr, "Usage: muslimtify next [name|time|remaining]\n");
+    return 1;
   }
 
   Config cfg;

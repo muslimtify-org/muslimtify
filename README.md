@@ -12,6 +12,13 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 | ![Linux Screenshot](images/linux-example.png) | ![Windows Screenshot](images/windows-example.png) |
 
 
+> ## Roadmap
+> - ~Merge command  `location auto` and `method auto` into (only) `config auto` and optimize auto detection per (249) country~
+> - Distribute to Flatpak
+> - Add GUI (see branch gui to see a progress)
+> - MacOS support (have no device yet)
+> - Embedded Device Support
+
 ## Installation
 
 ### Arch Linux (AUR)
@@ -104,8 +111,8 @@ Config paths:
 Common setup commands:
 
 ```bash
-muslimtify location auto          # detect location from IP
-muslimtify location auto --city=Mansoura  # auto-detect but use your own city label
+muslimtify config auto            # detect location from IP + set method
+muslimtify config auto --city=Mansoura  # auto-detect but use your own city label
 muslimtify location set <lat> <lon>  # set location manually (uses system timezone)
 muslimtify location set <lat> <lon> --timezone=Asia/Jakarta  # override timezone
 muslimtify location set <lat> <lon> --city=Jakarta  # add a city label
@@ -222,7 +229,7 @@ prayers, reminder offsets, notification settings, or location data.
 
 ### Location detection is not working
 
-- Run `muslimtify location auto` again.
+- Run `muslimtify config auto` again.
 - Set coordinates manually with `muslimtify location set <latitude> <longitude>`.
   If the host machine is in a different region than the coordinates, override
   the timezone with `--timezone=<iana>`, e.g.

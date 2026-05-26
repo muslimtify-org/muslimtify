@@ -60,6 +60,8 @@ int handle_notification(int argc, char **argv) {
         dispatch_lookup(notification_commands, DISPATCH_N(notification_commands), argv[0]);
     if (sub)
       return sub->handler(argc - 1, argv + 1);
+
+    fprintf(stderr, "Error: Unknown notification subcommand '%s'\n", argv[0]);
   }
 
   fprintf(stderr, "Usage: muslimtify notification test\n");

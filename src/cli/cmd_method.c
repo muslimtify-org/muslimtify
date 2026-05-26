@@ -1,7 +1,5 @@
 #include "cache.h"
 #include "cli_internal.h"
-#include "location.h"
-#include "method_detect.h"
 #include "prayertimes.h"
 #include "string_util.h"
 #include <stdio.h>
@@ -131,50 +129,11 @@ static int method_list_handler(int argc, char **argv) {
   return 0;
 }
 
-static int method_auto_handler(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
-
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
-
-  printf("Detecting location...\n");
-  if (location_fetch(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to detect location\n");
-    return 1;
-  }
-
-  if (cfg.city[0] != '\0') {
-    printf("✓ Location detected: %s, %s\n", cfg.city, cfg.country);
-  } else {
-    printf("✓ Location detected: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
-  }
-
-  CalcMethod detected = method_detect_by_country(cfg.country);
-  const char *method_key = method_to_string(detected);
-  const MethodParams *p = method_params_get(detected);
-
-  copy_string(cfg.calculation_method, sizeof(cfg.calculation_method), method_key);
-
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
-  }
-
-  cache_invalidate();
-  printf("✓ Method set to: %s", method_key);
-  if (p)
-    printf(" (%s)", p->name);
-  printf("\n");
-  return 0;
-}
-
 static const CommandEntry method_commands[] = {
-    {"show", method_show_handler}, {"set", method_set_handler},       {"auto", method_auto_handler},
-    {"list", method_list_handler}, {"madhab", method_madhab_handler},
+    {"show", method_show_handler},
+    {"set", method_set_handler},
+    {"list", method_list_handler},
+    {"madhab", method_madhab_handler},
 };
 
 int handle_method(int argc, char **argv) {

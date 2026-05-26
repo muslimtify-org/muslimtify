@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22...3.31)
-project(muslimtify VERSION 0.2.2 LANGUAGES C)
+project(muslimtify VERSION 0.2.3 LANGUAGES C)
 
 # -- Default build type --------------------------------------------------------
 
@@ -31,13 +31,22 @@ if(WIN32)
     set(CURL_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
     set(CURL_ENABLE_EXPORT_TARGET OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(curl
-        URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.xz
+        URL https://github.com/curl/curl/releases/download/curl-8_20_0/curl-8.20.0.tar.xz
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
     set(CURL_DISABLE_TESTS ON CACHE BOOL "" FORCE)
     set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(CURL_USE_SCHANNEL ON CACHE BOOL "" FORCE)
+    # Disable optional dependencies curl would otherwise hard-require when found.
+    # We only issue a plain GET to ipinfo.io, so none of these are needed.
+    set(CURL_USE_LIBPSL OFF CACHE BOOL "" FORCE)
+    set(USE_LIBIDN2 OFF CACHE BOOL "" FORCE)
+    set(CURL_USE_LIBSSH2 OFF CACHE BOOL "" FORCE)
+    set(CURL_ZLIB OFF CACHE BOOL "" FORCE)
+    set(CURL_BROTLI OFF CACHE BOOL "" FORCE)
+    set(CURL_ZSTD OFF CACHE BOOL "" FORCE)
+    set(USE_NGHTTP2 OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(curl)
 else()
     find_package(PkgConfig REQUIRED)
@@ -97,6 +106,7 @@ add_library(muslimtify_core OBJECT
     src/core/cache.c
     src/core/location.c
     src/core/string_util.c
+    src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
     src/core/display.c
@@ -232,12 +242,9 @@ if(BUILD_TESTING)
     muslimtify_set_target_defaults(test_string_util)
     add_test(NAME string_util COMMAND test_string_util)
 
-    add_executable(test_method_detect tests/test_method_detect.c)
-    muslimtify_set_target_defaults(test_method_detect)
-    if(NOT WIN32)
-        target_link_libraries(test_method_detect m)
-    endif()
-    add_test(NAME method_detect COMMAND test_method_detect)
+    add_executable(test_country tests/test_country.c src/core/country.c)
+    muslimtify_set_target_defaults(test_country)
+    add_test(NAME country COMMAND test_country)
 
     if(WIN32)
         add_executable(test_cmd_daemon_win

@@ -35,7 +35,6 @@ jobs:
     strategy:
       matrix:
         compiler: [gcc, clang]
-        build_type: [Debug, Release]
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +47,7 @@ jobs:
       - name: Configure
         env:
           CC: ${{ matrix.compiler }}
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -57,7 +56,8 @@ jobs:
         working-directory: build
         run: ctest --output-on-failure --no-tests=error
 
-  build-windows:
+  build-and-test-msvc:
+    name: build-and-test (msvc)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

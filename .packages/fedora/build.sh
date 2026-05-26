@@ -2,7 +2,7 @@
 # Build muslimtify .rpm package using a Podman (or Docker) Fedora container on Arch Linux
 set -euo pipefail
 
-FEDORA_VERSION="${1:-42}"
+FEDORA_VERSION="${1:-44}"
 PKG_NAME="muslimtify"
 PROJECT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 PKG_VERSION="$(grep '^Version:' "$PROJECT_DIR/.packages/fedora/muslimtify.spec" | awk '{print $2}')"

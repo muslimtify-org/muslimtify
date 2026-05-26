@@ -43,4 +43,9 @@ docs/superpowers/
 /gui
 docs/plans/
 .no-vibe/
+.vibe-worktrees/
 /.tmp_disc.json
+docs/reviews/
+docs/plans/
+docs/verifications/
+CLAUDE.md

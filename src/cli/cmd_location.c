@@ -1,7 +1,9 @@
 #include "cache.h"
 #include "cli_internal.h"
+#include "country.h"
 #include "display.h"
 #include "location.h"
+#include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -22,31 +24,6 @@ static int location_show_handler(int argc, char **argv) {
   return 0;
 }
 
-// Parse `--city=<value>` or `--city <value>` out of argv. On success returns 0
-// and writes the start of the value into *out_city. Returns 1 on a malformed
-// flag (missing value), -1 if the flag is absent (out_city untouched).
-static int parse_city_flag(int argc, char **argv, const char **out_city) {
-  for (int i = 0; i < argc; ++i) {
-    if (strncmp(argv[i], "--city=", 7) == 0) {
-      const char *v = argv[i] + 7;
-      if (*v == '\0') {
-        fprintf(stderr, "Error: --city requires a value (e.g. --city=Jakarta)\n");
-        return 1;
-      }
-      *out_city = v;
-      return 0;
-    } else if (strcmp(argv[i], "--city") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --city requires a value (e.g. --city Jakarta)\n");
-        return 1;
-      }
-      *out_city = argv[i + 1];
-      return 0;
-    }
-  }
-  return -1;
-}
-
 // Copy `name` into cfg->city with NUL-termination, truncating on overflow.
 static void set_city(Config *cfg, const char *name) {
   size_t cap = sizeof(cfg->city);
@@ -57,46 +34,12 @@ static void set_city(Config *cfg, const char *name) {
   cfg->city[n] = '\0';
 }
 
-static int location_auto_handler(int argc, char **argv) {
-  const char *override_city = NULL;
-  int city_rc = parse_city_flag(argc, argv, &override_city);
-  if (city_rc == 1)
-    return 1;
-
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
-
-  printf("Detecting location...\n");
-  if (location_fetch(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to detect location\n");
-    return 1;
-  }
-
-  // ipinfo no longer fills city — make it explicit opt-in. Clear whatever was
-  // cached previously, then write the user override if one was provided.
-  cfg.city[0] = '\0';
-  if (override_city)
-    set_city(&cfg, override_city);
-
-  printf("✓ Location detected: ");
-  if (cfg.city[0] != '\0') {
-    printf("%s, %s\n", cfg.city, cfg.country);
-  } else {
-    printf("%.4f, %.4f\n", cfg.latitude, cfg.longitude);
-  }
-  printf("  Timezone: %s (UTC%+.1f)\n", cfg.timezone, cfg.timezone_offset);
-
-  cfg.auto_detect = true;
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
-  }
-  cache_invalidate();
-  printf("✓ Saved to config\n");
-  return 0;
+// Copy the 2-letter `code` into cfg->country, uppercased and NUL-terminated.
+// Caller must have validated `code` via country_is_valid_alpha2 first.
+static void set_country(Config *cfg, const char *code) {
+  cfg->country[0] = (char)toupper((unsigned char)code[0]);
+  cfg->country[1] = (char)toupper((unsigned char)code[1]);
+  cfg->country[2] = '\0';
 }
 
 static int location_refresh_handler(int argc, char **argv) {
@@ -133,7 +76,7 @@ static int location_refresh_handler(int argc, char **argv) {
 
 static const char *LOCATION_SET_USAGE =
     "Usage: muslimtify location set <latitude> <longitude> [--timezone=<iana>] "
-    "[--city=<name>]\n";
+    "[--city=<name>] [--country=<iso2>]\n";
 
 // Returns true if `tz` is one of the canonical UTC aliases (so an offset of 0.0
 // is expected, not a sign of an unrecognized zone).
@@ -145,6 +88,7 @@ static bool is_utc_zone(const char *tz) {
 static int location_set_handler(int argc, char **argv) {
   const char *override_tz = NULL;
   const char *override_city = NULL;
+  const char *override_country = NULL;
   const char *positional[2] = {NULL, NULL};
   int pos_count = 0;
 
@@ -173,6 +117,18 @@ static int location_set_handler(int argc, char **argv) {
         return 1;
       }
       override_city = argv[++i];
+    } else if (strncmp(argv[i], "--country=", 10) == 0) {
+      override_country = argv[i] + 10;
+      if (*override_country == '\0') {
+        fprintf(stderr, "Error: --country requires a value (e.g. --country=ID)\n");
+        return 1;
+      }
+    } else if (strcmp(argv[i], "--country") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "Error: --country requires a value (e.g. --country ID)\n");
+        return 1;
+      }
+      override_country = argv[++i];
     } else if (pos_count < 2) {
       positional[pos_count++] = argv[i];
     } else {
@@ -208,11 +164,20 @@ static int location_set_handler(int argc, char **argv) {
   cfg.auto_detect = false;
 
   // The user picked coordinates manually — the previously cached city/country
-  // no longer apply. Clear them, then write the user's --city override if any.
+  // no longer apply. Clear them, then write the user's --city/--country
+  // overrides if any.
   cfg.city[0] = '\0';
   cfg.country[0] = '\0';
   if (override_city)
     set_city(&cfg, override_city);
+  if (override_country) {
+    if (!country_is_valid_alpha2(override_country)) {
+      fprintf(stderr, "Error: Invalid country code '%s' (expected ISO 3166-1 alpha-2, e.g. ID)\n",
+              override_country);
+      return 1;
+    }
+    set_country(&cfg, override_country);
+  }
 
   if (override_tz) {
     // Explicit override — validate it resolves to something other than the
@@ -249,6 +214,8 @@ static int location_set_handler(int argc, char **argv) {
   printf("✓ Location set to: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
   if (cfg.city[0] != '\0')
     printf("  City: %s\n", cfg.city);
+  if (cfg.country[0] != '\0')
+    printf("  Country: %s\n", cfg.country);
   if (override_tz) {
     printf("  Timezone: %s (UTC%+.1f) [override]\n", cfg.timezone, cfg.timezone_offset);
   } else {
@@ -286,8 +253,9 @@ static int location_clear_handler(int argc, char **argv) {
 }
 
 static const CommandEntry location_commands[] = {
-    {"show", location_show_handler},       {"auto", location_auto_handler},
-    {"set", location_set_handler},         {"clear", location_clear_handler},
+    {"show", location_show_handler},
+    {"set", location_set_handler},
+    {"clear", location_clear_handler},
     {"refresh", location_refresh_handler},
 };
 
@@ -299,6 +267,7 @@ int handle_location(int argc, char **argv) {
       return sub->handler(argc - 1, argv + 1);
 
     fprintf(stderr, "Error: Unknown location subcommand '%s'\n", argv[0]);
+    fprintf(stderr, "Usage: muslimtify location [show|set|clear|refresh]\n");
     return 1;
   }
 

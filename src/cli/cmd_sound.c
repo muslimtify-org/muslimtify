@@ -138,6 +138,7 @@ int handle_sound(int argc, char **argv) {
   if (sub)
     return sub->handler(argc - 1, argv + 1);
 
+  fprintf(stderr, "Error: Unknown sound subcommand '%s'\n", argv[0]);
   fprintf(stderr, "Usage:\n");
   fprintf(stderr, "  muslimtify sound [status]          Show current sound settings\n");
   fprintf(stderr, "  muslimtify sound on|off            Enable/disable notification sound\n");

@@ -1,3 +1,16 @@
+muslimtify (0.2.3-1) unstable; urgency=medium
+
+  * Add unified 'config auto' command that auto-detects both location and calculation method
+  * Merge calculation method into the country master table; share config_auto_detect helper with daemon install
+  * Remove the separate 'location auto' and 'method auto' subcommands (replaced by 'config auto')
+  * Add --country=<code> flag to 'location set' with ISO 3166-1 alpha-2 validation
+  * Fix Windows CI by disabling optional curl dependencies
+  * Bump bundled curl to 8.20.0
+  * Silence Windows build warnings
+  * Align CLI help text with actual subcommand behavior
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Tue, 26 May 2026 09:13:55 +0700
+
 muslimtify (0.2.2-2) unstable; urgency=medium
 
   * Rebuild for Ubuntu 26.04 (resolute).
@@ -24,7 +37,7 @@ muslimtify (0.2.1-1) unstable; urgency=medium
   * Auto-detect location and method on daemon install
   * Bug fixes and improvements
 
- -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Thu, 02 April 2026 05:41:00 +0700
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Thu, 02 Apr 2026 05:41:00 +0700
 
 muslimtify (0.2.0-1) unstable; urgency=medium
 
@@ -40,7 +53,7 @@ muslimtify (0.2.0-1) unstable; urgency=medium
   * Add comprehensive multi-method validation (~108 data points)
   * Add unit tests for json.h, platform boundary, and Windows components
 
- -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Fri, 27 March 2026 13:78:00 +0700
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Fri, 27 Mar 2026 13:48:00 +0700
 
 muslimtify (0.1.6-1) unstable; urgency=medium
 

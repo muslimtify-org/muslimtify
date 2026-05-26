@@ -2,7 +2,7 @@
 # Build muslimtify .deb package using debootstrap chroot on Arch Linux
 set -euo pipefail
 
-DISTRO="${1:-noble}"  # Default: Ubuntu 24.04 (noble)
+DISTRO="${1:-resolute}"  # Default: Ubuntu (resolute)
 ARCH="amd64"
 CHROOT_DIR="${HOME}/.cache/muslimtify-deb-chroot"
 PROJECT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -41,6 +41,10 @@ sudo mkdir -p "$CHROOT_DIR/build"
 sudo mount --bind "$PROJECT_DIR" "$CHROOT_DIR/build"
 
 # --- Step 4: Install build deps and build ---
+LOG_FILE="${PROJECT_DIR}/.packages/debian/build-${DISTRO}.log"
+echo "==> Full build output -> ${LOG_FILE}"
+
+set +e  # capture the chroot exit status ourselves so we can surface the cause
 sudo chroot "$CHROOT_DIR" /bin/bash -c "
 set -euo pipefail
 
@@ -55,6 +59,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
     build-essential \
+    gcc-13 \
     debhelper \
     cmake \
     pkg-config \
@@ -67,23 +72,53 @@ apt-get install -y --no-install-recommends \
 # Prepare source tree
 cd /tmp
 rm -rf ${PKG_NAME}-build
+# Drop stale build outputs from previous runs (chroot /tmp persists across builds),
+# otherwise the copy-back below re-copies every version ever built here.
+rm -f ${PKG_NAME}_*
 cp -a /build ${PKG_NAME}-build
 cd ${PKG_NAME}-build
 
 # Copy debian/ directory into source root
 cp -a .packages/debian/debian .
 
-# Build the .deb
-dpkg-buildpackage -us -uc -b
+# Pin gcc-13: this chroot defaults to gcc-15, but its binutils predates the
+# '.base64' assembler directive gcc-15 emits, so 'as' aborts with
+# 'unknown pseudo-op: .base64'. gcc-13 matches the chroot's binutils.
+export CC=gcc-13
 
-# Copy results back
-cp /tmp/${PKG_NAME}_*.deb /build/.packages/debian/
-cp /tmp/${PKG_NAME}_*.buildinfo /build/.packages/debian/ 2>/dev/null || true
-cp /tmp/${PKG_NAME}_*.changes /build/.packages/debian/ 2>/dev/null || true
+# Build the .deb; on failure, surface the CMake configure logs that dh hides
+if ! dpkg-buildpackage -us -uc -b; then
+    echo '!!! dpkg-buildpackage failed -- dumping CMake error log (compiler/toolchain checks):'
+    for f in obj-*-linux-gnu/CMakeFiles/CMakeError.log; do
+        [ -f \"\$f\" ] && { echo \"===== \$f =====\"; cat \"\$f\"; }
+    done
+    exit 1
+fi
+
+# Refresh output dir: prune all old muslimtify artifacts, then copy back only
+# this build's version (PKG_VERSION) so the directory holds just the latest.
+rm -f /build/.packages/debian/${PKG_NAME}_*.deb \
+      /build/.packages/debian/${PKG_NAME}_*.buildinfo \
+      /build/.packages/debian/${PKG_NAME}_*.changes
+cp /tmp/${PKG_NAME}_${PKG_VERSION}-*.deb /build/.packages/debian/
+cp /tmp/${PKG_NAME}_${PKG_VERSION}-*.buildinfo /build/.packages/debian/ 2>/dev/null || true
+cp /tmp/${PKG_NAME}_${PKG_VERSION}-*.changes /build/.packages/debian/ 2>/dev/null || true
 
 echo '==> Build complete!'
-ls -lh /tmp/${PKG_NAME}_*.deb
-"
+ls -lh /tmp/${PKG_NAME}_${PKG_VERSION}-*.deb
+" 2>&1 | tee "$LOG_FILE"
+build_status=${PIPESTATUS[0]}
+set -e
+
+if [ "$build_status" -ne 0 ]; then
+    echo
+    echo "==> BUILD FAILED (exit ${build_status}). Root-cause configure error:"
+    echo "--------------------------------------------------------------------"
+    grep -nE -B30 'CMake Error|Could NOT find|dh_auto_configure: error' "$LOG_FILE" | tail -60 || true
+    echo "--------------------------------------------------------------------"
+    echo "==> Full log saved at: ${LOG_FILE}"
+    exit "$build_status"
+fi
 
 echo "==> Output .deb files:"
 ls -lh "$PROJECT_DIR/.packages/debian/"*.deb 2>/dev/null || echo "Check ${PROJECT_DIR}/.packages/debian/ for output"

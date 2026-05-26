@@ -3,15 +3,12 @@ This playbook briefs autonomous agents working inside Muslimtify project.
 Always read the entire file before acting; updates frequently accompany specs in docs/.
 
 ## Canonical References
-- CLAUDE.md describes the runtime, toolchain, and target platforms; treat it as law.
 - README.md gives feature overview and common CLI usage; mimic its command names.
-- docs/KEMENAG_METHOD.md explains the astronomical method powering src/prayertimes.h.
-- docs/superpowers/** holds current architecture plans (Windows port, notification, JSON cleanup).
+- docs/*.md explains the astronomical method powering src/prayertimes.h.
 - CONTRIBUTING.md + .clang-format codify style + workflow; keep them synced.
-- No Cursor or Copilot rules exist; this document substitutes for those systems.
 
 ## Toolchain Snapshot
-- Language: C99 (CMake enforces CMAKE_C_STANDARD 99; avoid GCC-only extensions).
+- Language: C11 (CMake enforces CMAKE_C_STANDARD 11; avoid GCC-only extensions).
 - Compilers: GCC/Clang on Linux, MSVC on Windows (warnings at /W4).
 - Build system: CMake 3.22+ generating in-tree build/; muslimtify_lib is an OBJECT lib.
 - Notifications: libnotify on Linux, WinRT toast (ole32, runtimeobject) on Windows.
@@ -28,7 +25,7 @@ Always read the entire file before acting; updates frequently accompany specs in
 
 ## Platform Notes
 - Linux requires pkg-config, libnotify, libcurl, systemd (user) for daemon tasks.
-- Windows uses FetchContent to download curl-8.11.1; optional libs (zlib, nghttp2, etc.) can be disabled via -DCURL_ZLIB=OFF etc.
+- Windows uses FetchContent to download curl-8.20.0; optional libs (zlib, nghttp2, etc.) can be disabled via -DCURL_ZLIB=OFF etc.
 - Tests depending on libnotify/libcurl (cli, config, cache, prayer_checker) are Linux-only.
 - Windows-only sources: src/cmd_daemon_win.c, src/notification_win.c, src/platform_win.c.
 - Linux-only sources: src/cmd_daemon.c, src/notification.c, src/platform_linux.c.
@@ -38,7 +35,7 @@ Always read the entire file before acting; updates frequently accompany specs in
 - cmake -S . -B build
 - cmake --build build -j
 - build/bin/muslimtify show
-- muslimtify location auto
+- muslimtify config auto
 
 ## Testing
 - Enable tests via -DBUILD_TESTING=ON (default).
