@@ -4,3 +4,4 @@
 *.buildinfo
 *.upload
 obj-*/
+build-*.log
