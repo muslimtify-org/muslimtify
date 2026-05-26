@@ -42,7 +42,7 @@ const Country *country_table(size_t *count);
 /**
  * Best-fit calculation method for ISO 3166-1 alpha-2 `code` (case-insensitive).
  * Returns CALC_MWL for NULL, empty, malformed, unknown, or any country without
- * a dedicated method. Replaces the former method_detect_by_country().
+ * a dedicated method.
  */
 CalcMethod country_default_method(const char *code);
 

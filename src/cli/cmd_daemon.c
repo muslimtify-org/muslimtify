@@ -12,7 +12,6 @@
 
 #include "location.h"
 #include "prayertimes.h"
-#include "string_util.h"
 
 // -- helpers -----------------------------------------------------------------
 
