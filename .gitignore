@@ -47,5 +47,6 @@ docs/plans/
 /.tmp_disc.json
 docs/reviews/
 docs/plans/
+docs/specs/
 docs/verifications/
 CLAUDE.md
