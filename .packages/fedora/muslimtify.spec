@@ -1,6 +1,6 @@
 Name:           muslimtify
 Version:        0.2.3
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
 License:        MIT
 URL:            https://github.com/rizukirr/muslimtify
@@ -50,6 +50,8 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.timer
 
 %changelog
+* Wed May 27 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.2.3-2
+- fix config auto detection
 * Tue May 26 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.2.3-1
 - Add unified 'config auto' command that auto-detects both location and calculation method
 - Merge calculation method into the country master table; share config_auto_detect helper with daemon install
