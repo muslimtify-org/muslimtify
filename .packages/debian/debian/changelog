@@ -1,3 +1,11 @@
+muslimtify (0.2.3-2) unstable; urgency=medium
+
+  * Fix the 0.2.1-1 changelog timestamp (full month name "April" -> "Apr")
+    so dh_installchangelogs can parse it; the 0.2.3-1 Launchpad build failed
+    at that step with "Could not parse timestamp".
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Wed, 27 May 2026 07:55:11 +0700
+
 muslimtify (0.2.3-1) unstable; urgency=medium
 
   * Add unified 'config auto' command that auto-detects both location and calculation method
