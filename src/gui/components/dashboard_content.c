@@ -9,7 +9,7 @@
 void DashboardContent(void) {
   Column("Body", .layout = {.sizing = {.height = Grow(), .width = Grow()}}) {
 
-    TopBar();
+    TopBar("Dashboard");
     Column("ContentContainer", .layout = {.sizing = {.height = Grow(), .width = Grow()}}) {
       Row("Containter1",
           .layout = {.sizing = {.width = Grow()},
