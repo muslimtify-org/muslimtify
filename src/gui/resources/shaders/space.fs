@@ -62,17 +62,18 @@ void main() {
     vec2 planet = orbitC + vec2(cos(ang) * 0.08 * aspect, sin(ang) * 0.035);
     float pd = length(pc - planet);
     float pr = 0.07;
-    // smooth radial intensity: 1 at the core, easing to 0 at the edge.
-    float orb = smoothstep(pr, 0.0, pd);
-    // gentle directional shading for a little depth (kept subtle).
+    // soft outer glow ring — kept as before, drawn first so the solid body
+    // sits on top and the glow reads as a ring around it.
+    float halo = smoothstep(pr * 2.4, pr, pd) * 0.06;
+    col += vec3(0.45, 0.85, 0.78) * halo;
+    // solid planet body: filled disc with a crisp anti-aliased edge and a
+    // gentle directional terminator for a little depth.
+    float body = smoothstep(pr, pr - 0.006, pd);
     vec2 ldir = normalize(vec2(-0.4, -0.5));
     float shade = clamp(dot(normalize(pc - planet + 1e-5), ldir) * 0.5 + 0.5,
                         0.0, 1.0);
     vec3 planetCol = mix(vec3(0.28, 0.58, 0.52), vec3(0.58, 0.95, 0.86), shade);
-    col = mix(col, planetCol, orb * 0.85);
-    // faint wide halo to seat it in the scene.
-    float halo = smoothstep(pr * 2.4, pr, pd) * 0.06;
-    col += vec3(0.45, 0.85, 0.78) * halo;
+    col = mix(col, planetCol, body);
 
     // --- rounded-rect alpha mask (keeps the card's 16px corners) ---
     float d = sdRoundRect(local - size * 0.5, size * 0.5, uRadius);
