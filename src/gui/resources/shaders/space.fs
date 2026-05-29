@@ -53,13 +53,19 @@ void main() {
         col += vec3(0.75, 0.92, 0.85) * bright * 0.6;
     }
 
-    // --- orbiting planet (top-right): one soft radial orb ---
-    // No hard body disc and no separate ring — a single smooth falloff from a
-    // gentle core to nothing, so there is no sharp dot in the centre.
+    // --- orbiting planet: solid sphere + soft glow ring on a circular orbit ---
+    // The orbit sweeps from the top-right down to the bottom-centre and back as
+    // a closed loop: trUv and bcUv are opposite points on the circle, aUv spans
+    // between them, and bUv (its perpendicular) gives the circular bulge.
     vec2 pc = vec2(uv.x * aspect, uv.y);
-    float ang = uTime * 0.25;
-    vec2 orbitC = vec2(0.82 * aspect, 0.16);
-    vec2 planet = orbitC + vec2(cos(ang) * 0.08 * aspect, sin(ang) * 0.035);
+    float ang = uTime * 0.07;
+    vec2 trUv = vec2(0.82, 0.16);  // top-right
+    vec2 bcUv = vec2(0.50, 0.85);  // bottom-centre
+    vec2 ctrUv = (trUv + bcUv) * 0.5;
+    vec2 aUv = (trUv - bcUv) * 0.5;
+    vec2 bUv = vec2(-aUv.y, aUv.x);
+    vec2 planetUv = ctrUv + cos(ang) * aUv + sin(ang) * bUv;
+    vec2 planet = vec2(planetUv.x * aspect, planetUv.y);
     float pd = length(pc - planet);
     float pr = 0.07;
     // soft outer glow ring — kept as before, drawn first so the solid body
