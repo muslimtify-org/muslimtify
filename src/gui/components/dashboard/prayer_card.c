@@ -1,4 +1,4 @@
-#include "components/prayer_card.h"
+#include "prayer_card.h"
 
 #include "app/assets.h"
 #include "ccompose.h"
@@ -30,8 +30,7 @@ static void paint_space(CC_BoundingBox bb, void *user) {
   SetShaderValue(a->spaceShader, a->spaceLocCardRect, rect, SHADER_UNIFORM_VEC4);
   SetShaderValue(a->spaceShader, a->spaceLocRadius, &radius, SHADER_UNIFORM_FLOAT);
   SetShaderValue(a->spaceShader, a->spaceLocColorTop, colTop, SHADER_UNIFORM_VEC3);
-  SetShaderValue(a->spaceShader, a->spaceLocColorDeep, colDeep,
-                 SHADER_UNIFORM_VEC3);
+  SetShaderValue(a->spaceShader, a->spaceLocColorDeep, colDeep, SHADER_UNIFORM_VEC3);
 
   BeginShaderMode(a->spaceShader);
   DrawRectangleRec((Rectangle){bb.x, bb.y, bb.width, bb.height}, WHITE);

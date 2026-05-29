@@ -1,5 +1,4 @@
-#include "components/calculation_profile_card.h"
-
+#include "calculation_profile_card.h"
 #include "app/assets.h"
 #include "ccompose.h"
 #include "helper/method_description.h"

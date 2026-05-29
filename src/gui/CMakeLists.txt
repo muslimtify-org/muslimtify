@@ -5,10 +5,10 @@ add_library(muslimtify_gui_lib OBJECT
     ${CMAKE_SOURCE_DIR}/src/gui/app/assets.c
     ${CMAKE_SOURCE_DIR}/src/gui/components/topbar.c
     ${CMAKE_SOURCE_DIR}/src/gui/components/navigation.c
-    ${CMAKE_SOURCE_DIR}/src/gui/components/prayer_card.c
-    ${CMAKE_SOURCE_DIR}/src/gui/components/calculation_profile_card.c
-    ${CMAKE_SOURCE_DIR}/src/gui/components/daily_schedule.c
-    ${CMAKE_SOURCE_DIR}/src/gui/components/dashboard_content.c
+    ${CMAKE_SOURCE_DIR}/src/gui/components/dashboard/prayer_card.c
+    ${CMAKE_SOURCE_DIR}/src/gui/components/dashboard/calculation_profile_card.c
+    ${CMAKE_SOURCE_DIR}/src/gui/components/dashboard/daily_schedule.c
+    ${CMAKE_SOURCE_DIR}/src/gui/components/dashboard/dashboard_content.c
     ${CMAKE_SOURCE_DIR}/src/gui/utils/gui_config.c
     ${CMAKE_SOURCE_DIR}/src/gui/utils/gui_prayer.c
     ${CMAKE_SOURCE_DIR}/src/gui/utils/strfmt.c

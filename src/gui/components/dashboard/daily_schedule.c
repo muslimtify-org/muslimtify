@@ -1,4 +1,4 @@
-#include "components/daily_schedule.h"
+#include "daily_schedule.h"
 
 #include "app/assets.h"
 #include "ccompose.h"

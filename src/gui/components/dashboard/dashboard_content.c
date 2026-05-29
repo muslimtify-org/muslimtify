@@ -1,10 +1,10 @@
-#include "components/dashboard_content.h"
+#include "dashboard_content.h"
 
+#include "calculation_profile_card.h"
 #include "ccompose.h"
-#include "components/calculation_profile_card.h"
-#include "components/daily_schedule.h"
-#include "components/prayer_card.h"
 #include "components/topbar.h"
+#include "daily_schedule.h"
+#include "prayer_card.h"
 
 void DashboardContent(void) {
   Column("Body", .layout = {.sizing = {.height = Grow(), .width = Grow()}}) {

@@ -99,7 +99,7 @@ static void NavigationItems(OnNavigationSelectedItem onSelected, bool isMinimize
   }
 }
 
-static void SideNavigationCollapsed(void) {
+static void SideNavigationCollapsed(OnNavigationSelectedItem onSelected) {
   Assets *a = appAssets();
   Column("Navigation",
          .layout = {.sizing = {.height = Grow(), .width = Fixed(80)}, .padding = PadAll(16)},
@@ -115,11 +115,11 @@ static void SideNavigationCollapsed(void) {
       Image("ExpandedIcon", ImgFit(icon),
             .layout = {.sizing = {.height = Fixed(24), .width = Fixed(24)}});
     }
-    NavigationItems(onNavigationItemSelected, true);
+    NavigationItems(onSelected, true);
   }
 }
 
-static void SideNavigationExpanded(void) {
+static void SideNavigationExpanded(OnNavigationSelectedItem onSelected) {
   Assets *a = appAssets();
   Column("Navigation",
          .layout = {.sizing = {.height = Grow(), .width = Fixed(288)}, .padding = PadAll(16)},
@@ -144,13 +144,15 @@ static void SideNavigationExpanded(void) {
       }
     }
     Text("Sacred Precision", .textColor = COLOR_ON_SURFACE);
-    NavigationItems(onNavigationItemSelected, false);
+    NavigationItems(onSelected, false);
   }
 }
 
-void SideNavigation(void) {
+void SideNavigation(int *index) {
   if (isExpanded)
-    SideNavigationExpanded();
+    SideNavigationExpanded(onNavigationItemSelected);
   else
-    SideNavigationCollapsed();
+    SideNavigationCollapsed(onNavigationItemSelected);
+
+  *index = selectedItem;
 }
