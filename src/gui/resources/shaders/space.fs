@@ -53,22 +53,26 @@ void main() {
         col += vec3(0.75, 0.92, 0.85) * bright * 0.6;
     }
 
-    // --- orbiting planet (kept toward lower-right, away from the title) ---
+    // --- orbiting planet (top-right): one soft radial orb ---
+    // No hard body disc and no separate ring — a single smooth falloff from a
+    // gentle core to nothing, so there is no sharp dot in the centre.
     vec2 pc = vec2(uv.x * aspect, uv.y);
     float ang = uTime * 0.25;
-    vec2 orbitC = vec2(0.72 * aspect, 0.62);
-    vec2 planet = orbitC + vec2(cos(ang) * 0.16 * aspect, sin(ang) * 0.10);
+    vec2 orbitC = vec2(0.82 * aspect, 0.16);
+    vec2 planet = orbitC + vec2(cos(ang) * 0.08 * aspect, sin(ang) * 0.035);
     float pd = length(pc - planet);
-    float pr = 0.045;
-    // soft glow halo
-    float glow = smoothstep(pr * 3.0, pr, pd) * 0.10;
-    col += vec3(0.45, 0.85, 0.78) * glow;
-    // planet body with a simple shaded terminator
-    float body = smoothstep(pr, pr - 0.004, pd);
-    vec2 ldir = normalize(vec2(-0.5, -0.6));
-    float shade = clamp(dot(normalize(pc - planet), ldir) * 0.5 + 0.5, 0.0, 1.0);
-    vec3 planetCol = mix(vec3(0.10, 0.30, 0.28), vec3(0.55, 0.95, 0.85), shade);
-    col = mix(col, planetCol, body);
+    float pr = 0.07;
+    // smooth radial intensity: 1 at the core, easing to 0 at the edge.
+    float orb = smoothstep(pr, 0.0, pd);
+    // gentle directional shading for a little depth (kept subtle).
+    vec2 ldir = normalize(vec2(-0.4, -0.5));
+    float shade = clamp(dot(normalize(pc - planet + 1e-5), ldir) * 0.5 + 0.5,
+                        0.0, 1.0);
+    vec3 planetCol = mix(vec3(0.28, 0.58, 0.52), vec3(0.58, 0.95, 0.86), shade);
+    col = mix(col, planetCol, orb * 0.85);
+    // faint wide halo to seat it in the scene.
+    float halo = smoothstep(pr * 2.4, pr, pd) * 0.06;
+    col += vec3(0.45, 0.85, 0.78) * halo;
 
     // --- rounded-rect alpha mask (keeps the card's 16px corners) ---
     float d = sdRoundRect(local - size * 0.5, size * 0.5, uRadius);
