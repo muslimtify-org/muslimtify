@@ -11,6 +11,33 @@
 #include <raylib.h>
 #include <time.h>
 
+static void paint_space(CC_BoundingBox bb, void *user) {
+  (void)user;
+  Assets *a = appAssets();
+  if (!a->spaceShaderReady) {
+    return; // ccompose already drew the rounded teal base as fallback
+  }
+
+  float t = (float)GetTime();
+  float res[2] = {(float)GetScreenWidth(), (float)GetScreenHeight()};
+  float rect[4] = {bb.x, bb.y, bb.width, bb.height};
+  float radius = 16.0f;
+  float colTop[3] = {0.0f, 0.31f, 0.27f};  // COLOR_PRIMARY (0x004F45)
+  float colDeep[3] = {0.0f, 0.13f, 0.12f}; // darker teal
+
+  SetShaderValue(a->spaceShader, a->spaceLocTime, &t, SHADER_UNIFORM_FLOAT);
+  SetShaderValue(a->spaceShader, a->spaceLocResolution, res, SHADER_UNIFORM_VEC2);
+  SetShaderValue(a->spaceShader, a->spaceLocCardRect, rect, SHADER_UNIFORM_VEC4);
+  SetShaderValue(a->spaceShader, a->spaceLocRadius, &radius, SHADER_UNIFORM_FLOAT);
+  SetShaderValue(a->spaceShader, a->spaceLocColorTop, colTop, SHADER_UNIFORM_VEC3);
+  SetShaderValue(a->spaceShader, a->spaceLocColorDeep, colDeep,
+                 SHADER_UNIFORM_VEC3);
+
+  BeginShaderMode(a->spaceShader);
+  DrawRectangleRec((Rectangle){bb.x, bb.y, bb.width, bb.height}, WHITE);
+  EndShaderMode();
+}
+
 void PrayerCard(void) {
   Assets *a = appAssets();
   const PrayerSnapshot *snap = guiGetPrayer();
@@ -32,11 +59,11 @@ void PrayerCard(void) {
     format_time_hm(prayer_get_time(&snap->times, snap->next), startStr, sizeof(startStr));
   }
 
-  Column("PrayerCard",
-         .layout = {.sizing = {.height = Grow(), .width = Grow()},
-                    .padding = PadAll(48),
-                    .childGap = 16},
-         .cornerRadius = RadiusAll(16), .backgroundColor = COLOR_PRIMARY) {
+  DrawColumn("PrayerCard", paint_space, NULL,
+             .layout = {.sizing = {.height = Grow(), .width = Grow()},
+                        .padding = PadAll(48),
+                        .childGap = 16},
+             .cornerRadius = RadiusAll(16), .backgroundColor = COLOR_PRIMARY) {
     Text("UPCOMING PRAYER", .textColor = COLOR_ON_PRIMARY, .fontSize = FONT_SIZE_TITLE_MEDIUM);
     Text(nextName, .textColor = COLOR_ON_PRIMARY, .fontSize = FONT_SIZE_DISPLAY_LARGE,
          .fontId = a->fontManrope);
