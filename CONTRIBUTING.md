@@ -2,6 +2,10 @@
 
 Thanks for your interest in contributing! This guide will help you get started.
 
+> **Using AI tools?** Read the [AI Usage Policy](AI_POLICY.md) first. Muslimtify
+> calculates prayer times people rely on for worship, so AI-assisted
+> contributions must be disclosed, fully understood, and reviewed by you.
+
 ## Development Setup
 
 ```bash
