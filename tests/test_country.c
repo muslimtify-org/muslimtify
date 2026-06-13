@@ -64,7 +64,7 @@ static void test_table_sorted(void) {
   for (size_t i = 1; i < count; ++i) {
     if (strcmp(table[i - 1].code, table[i].code) >= 0) {
       sorted = false;
-      printf("  out-of-order at index %zu: '%s' >= '%s'\n", i, table[i - 1].code, table[i].code);
+      printf("  out-of-order at index %llu: '%s' >= '%s'\n", (unsigned long long)i, table[i - 1].code, table[i].code);
       break;
     }
   }

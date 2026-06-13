@@ -805,7 +805,7 @@ For subsequent releases, use `wingetcreate update`:
 ```powershell
 wingetcreate update rizukirr.muslimtify `
   --version X.Y.Z `
-  --urls <NEW_INSTALLER_URL> `
+  --urls <NEW_INSTALLER_URL>|x64`
   --submit `
 ```
 
