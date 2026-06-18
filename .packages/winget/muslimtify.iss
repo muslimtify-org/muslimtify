@@ -2,7 +2,9 @@
 ; Requires Inno Setup 6+
 
 #define MyAppName "Muslimtify"
-#define MyAppVersion "0.2.3"
+#ifndef MyAppVersion
+  #define MyAppVersion "0.2.3"
+#endif
 #define MyAppPublisher "rizukirr"
 #define MyAppURL "https://github.com/rizukirr/muslimtify"
 #define MyAppExeName "muslimtify.exe"

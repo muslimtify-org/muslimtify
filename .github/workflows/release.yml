@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Build Linux tarball
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake pkg-config libnotify-dev libcurl4-openssl-dev
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Stage install tree
+        env:
+          STAGE: muslimtify-${{ steps.ver.outputs.version }}-linux-x86_64
+        run: |
+          cmake --install build --prefix "dist/${STAGE}"
+          cp LICENSE README.md "dist/${STAGE}/"
+
+      - name: Package tarball
+        env:
+          STAGE: muslimtify-${{ steps.ver.outputs.version }}-linux-x86_64
+        run: tar czf "${STAGE}.tar.gz" -C dist "${STAGE}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: muslimtify-*-linux-x86_64.tar.gz
+
+  windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        shell: pwsh
+        run: "echo \"version=$($env:GITHUB_REF_NAME.TrimStart('v'))\" >> $env:GITHUB_OUTPUT"
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Stage install tree
+        run: cmake --install build --prefix installer/staging --config Release
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
+            .packages\winget\muslimtify.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/muslimtify-*-setup.exe
+
+  release:
+    name: Publish release
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Upload assets to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            Prebuilt binaries for ${{ github.ref_name }}.
+
+            - **Linux (x86_64)** — `muslimtify-*-linux-x86_64.tar.gz`. Dynamically
+              linked: install `libnotify` and `libcurl` from your distro first.
+            - **Windows** — run `muslimtify-*-setup.exe`.
+
+            For distro-native installs (Fedora COPR, Debian `.deb`, winget) see the README.
