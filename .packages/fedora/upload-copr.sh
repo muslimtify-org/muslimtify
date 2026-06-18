@@ -18,7 +18,9 @@ if ! command -v copr-cli &>/dev/null; then
 fi
 
 # --- Determine git ref ---
-COMMITTISH="${1:-$(git describe --tags --abbrev=0 2>/dev/null || git rev-parse HEAD)}"
+# Default to main so packaging-only changes (Release bumps) build without a new tag.
+# Pass an explicit ref to build something else, e.g. ./upload-copr.sh v0.2.4
+COMMITTISH="${1:-main}"
 
 echo "==> Triggering COPR build for ${COPR_PROJECT}"
 echo "    Source: ${GIT_URL}"
