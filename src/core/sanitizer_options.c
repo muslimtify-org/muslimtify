@@ -12,7 +12,13 @@
 // creation) show up as "<unknown module>" and cannot be matched by name —
 // the GUI binary disables leak detection outright instead (see muslimtify_gui.c).
 
-#if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
+// GCC lacks __has_feature; the preprocessor can't short-circuit a function-like
+// macro test, so provide a no-op fallback before using it.
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
 
 const char *__lsan_default_suppressions(void);
 

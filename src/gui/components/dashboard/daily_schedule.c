@@ -9,57 +9,7 @@
 #include <raylib.h>
 #include <stdbool.h>
 
-typedef enum {
-  PRAYER_ICON_FAJR,
-  PRAYER_ICON_SUNRISE,
-  PRAYER_ICON_DHUHR,
-  PRAYER_ICON_ASR,
-  PRAYER_ICON_MAGHRIB,
-  PRAYER_ICON_ISHA,
-} PrayerIcon;
-
-typedef struct {
-  bool isPast;
-  bool isCurrent;
-  bool isEnabled;
-  char *title;
-  char *time;
-  PrayerIcon icon;
-} DailyScheduleItem;
-
-// The daily schedule shows the five iconed prayers, mapped to their index in
-// the time-ordered TodayPrayer array (Sunrise/Dhuha are skipped — no icon).
-static const struct {
-  int index;
-  PrayerIcon icon;
-} dailyScheduleMap[] = {
-    {0, PRAYER_ICON_FAJR},  {1, PRAYER_ICON_SUNRISE}, {2, PRAYER_ICON_SUNRISE},
-    {3, PRAYER_ICON_DHUHR}, {4, PRAYER_ICON_ASR},     {5, PRAYER_ICON_MAGHRIB},
-    {6, PRAYER_ICON_ISHA},
-};
-
-static const int dailyScheduleItemsCount = sizeof(dailyScheduleMap) / sizeof(dailyScheduleMap[0]);
-
 static CC_Scroll dailyScroll;
-
-static Texture2D *PrayerIconTexture(PrayerIcon id, bool active) {
-  Assets *a = appAssets();
-  switch (id) {
-  case PRAYER_ICON_FAJR:
-    return active ? &a->fajrActive : &a->fajr;
-  case PRAYER_ICON_SUNRISE:
-    return active ? &a->sunriseActive : &a->sunrise;
-  case PRAYER_ICON_DHUHR:
-    return active ? &a->dhuhrActive : &a->dhuhr;
-  case PRAYER_ICON_ASR:
-    return active ? &a->asrActive : &a->asr;
-  case PRAYER_ICON_MAGHRIB:
-    return active ? &a->maghribActive : &a->maghrib;
-  case PRAYER_ICON_ISHA:
-    return active ? &a->ishaActive : &a->isha;
-  }
-  return &a->fajr;
-}
 
 static void DailyScheduleCard(DailyScheduleItem item, int index) {
   Assets *a = appAssets();
@@ -116,27 +66,8 @@ void DailySchedule(void) {
   TodayPrayer today[GUI_PRAYER_COUNT];
   guiTodayPrayer(guiGetPrayer(), today);
 
-  // First upcoming prayer in the full array; everything before it is past.
-  int nextIdx = -1;
-  for (int i = 0; i < GUI_PRAYER_COUNT; i++) {
-    if (today[i].next) {
-      nextIdx = i;
-      break;
-    }
-  }
-
-  DailyScheduleItem dailyScheduleItems[dailyScheduleItemsCount];
-  for (int i = 0; i < dailyScheduleItemsCount; i++) {
-    int idx = dailyScheduleMap[i].index;
-    dailyScheduleItems[i] = (DailyScheduleItem){
-        .title = today[idx].name,
-        .isEnabled = today[idx].enabled,
-        .time = today[idx].time,
-        .icon = dailyScheduleMap[i].icon,
-        .isCurrent = today[idx].next,
-        .isPast = (nextIdx == -1) || (idx < nextIdx),
-    };
-  }
+  DailyScheduleItem dailyScheduleItems[GUI_PRAYER_COUNT];
+  int dailyScheduleItemsCount = guiDailySchedule(today, dailyScheduleItems);
 
   CC_ScrollUpdate(&dailyScroll, "DailyScheduleScroll", .horizontal = true, .drag = true,
                   .wheel = true);
