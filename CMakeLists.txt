@@ -94,6 +94,7 @@ add_library(muslimtify_core OBJECT
     src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
+    src/core/daemon_loop.c
     src/core/display.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/linux/platform_linux.c>
