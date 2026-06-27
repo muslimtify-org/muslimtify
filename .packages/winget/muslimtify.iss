@@ -5,6 +5,9 @@
 #ifndef MyAppVersion
   #define MyAppVersion "0.2.3"
 #endif
+#ifndef Arch
+  #define Arch "x64"
+#endif
 #define MyAppPublisher "rizukirr"
 #define MyAppURL "https://github.com/rizukirr/muslimtify"
 #define MyAppExeName "muslimtify.exe"
@@ -21,7 +24,7 @@ DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 PrivilegesRequired=lowest
 OutputDir=..\..\dist
-OutputBaseFilename=muslimtify-{#MyAppVersion}-setup
+OutputBaseFilename=muslimtify-{#MyAppVersion}-setup-{#Arch}
 SetupIconFile=..\..\assets\muslimtify.ico
 UninstallDisplayIcon={app}\share\icons\muslimtify.ico
 Compression=lzma2
@@ -29,7 +32,13 @@ SolidCompression=yes
 ChangesEnvironment=yes
 WizardStyle=modern
 MinVersion=10.0
+#if Arch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
+ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

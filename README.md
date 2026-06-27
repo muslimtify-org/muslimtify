@@ -23,6 +23,40 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 
 ## Installation
 
+### Prebuilt Binaries (GitHub Releases)
+
+Every release ships ready-to-run binaries for Linux and Windows on the
+[Releases page](https://github.com/rizukirr/muslimtify/releases/latest).
+
+**Linux** (`x86_64` or `aarch64`) — the binaries are dynamically linked, so
+install the runtime libraries first, then extract and install:
+
+```bash
+# Ubuntu/Debian
+sudo apt install libnotify4 libcurl4
+# Fedora/RHEL
+sudo dnf install libnotify libcurl
+# Arch
+sudo pacman -S libnotify curl
+
+tar xzf muslimtify-<version>-linux-<arch>.tar.gz
+sudo cp -r muslimtify-<version>-linux-<arch>/{bin,lib,share} /usr/local/
+muslimtify daemon install
+```
+
+**Windows** (`x64` or `arm64`) — download and run the matching installer:
+
+```
+muslimtify-<version>-setup-x64.exe      # Intel/AMD
+muslimtify-<version>-setup-arm64.exe    # ARM
+```
+
+Verify any download against the published checksums:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
 ### Arch Linux (AUR)
 
 ```bash

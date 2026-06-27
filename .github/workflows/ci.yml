@@ -7,6 +7,15 @@ on:
     branches: [main]
 
 jobs:
+  versions:
+    name: Packaging version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check packaging versions agree
+        run: ./.packages/check-versions.sh
+
   lint:
     runs-on: ubuntu-latest
     steps:
