@@ -10,7 +10,9 @@ PKG_FULL_VERSION="$(grep -oP '\(\K[^)]+' "$PROJECT_DIR/.packages/debian/debian/c
 PKG_VERSION="$(echo "$PKG_FULL_VERSION" | cut -d- -f1)"
 PKG_DEBIAN_REV="$(echo "$PKG_FULL_VERSION" | cut -d- -f2)"
 PKG_NAME="muslimtify"
-GPG_KEY="47EED10975B13711"
+# Must match the OpenPGP key registered & confirmed on Launchpad
+# (launchpad.net/~rizukirr/+editpgpkeys). Full fingerprint is unambiguous.
+GPG_KEY="0918EF57B66E6636BD2AA90449026E8CED45A563"
 PPA="ppa:rizukirr/muslimtify"
 OUTPUT_DIR="$PROJECT_DIR/.packages/debian"
 
@@ -20,6 +22,13 @@ echo "==> Will upload to ${PPA}"
 # --- Ensure chroot exists ---
 if [ ! -d "$CHROOT_DIR" ]; then
     echo "==> Creating debootstrap chroot at ${CHROOT_DIR}..."
+    # debootstrap mis-detects the host arch on CachyOS: `pacman-conf Architecture`
+    # returns x86_64 plus the v2/v3 micro-arch levels, which its case statement
+    # can't match ("Unknown architecture"). It reads this override file first, so
+    # pin the host arch to amd64.
+    if [ ! -e /usr/share/debootstrap/arch ]; then
+        echo amd64 | sudo tee /usr/share/debootstrap/arch >/dev/null
+    fi
     sudo debootstrap --arch="$ARCH" "$DISTRO" "$CHROOT_DIR" http://archive.ubuntu.com/ubuntu
 fi
 
@@ -135,7 +144,9 @@ export HOME="'"${REAL_HOME}"'"
 GPG_KEY="'"${GPG_KEY}"'"
 DSC_FILE="'"${DSC_FILE}"'"
 CHANGES_FILE="'"${CHANGES_FILE}"'"
-GPG_SIGN="gpg --default-key ${GPG_KEY} --batch --yes"
+# -u/--local-user FORCES this signing key; if it is missing gpg errors out
+# instead of silently falling back to some other default secret key.
+GPG_SIGN="gpg --local-user ${GPG_KEY} --batch --yes"
 
 # 1) Sign .dsc
 ${GPG_SIGN} --clearsign --output "${DSC_FILE}.signed" "${DSC_FILE}"
