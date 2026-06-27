@@ -22,9 +22,9 @@ static void test_build_service_unit(void) {
   int written = build_service_unit("/usr/local/bin/muslimtify", unit, sizeof(unit));
 
   report_result("builder returns success", written > 0);
-  report_result("unit is a simple (long-running) service",
-                strstr(unit, "Type=simple") != NULL);
-  report_result("unit runs the loop", strstr(unit, "ExecStart=/usr/local/bin/muslimtify daemon run") != NULL);
+  report_result("unit is a simple (long-running) service", strstr(unit, "Type=simple") != NULL);
+  report_result("unit runs the loop",
+                strstr(unit, "ExecStart=/usr/local/bin/muslimtify daemon run") != NULL);
   report_result("unit installs into the user target",
                 strstr(unit, "WantedBy=default.target") != NULL);
   report_result("unit is not a timer", strstr(unit, "OnCalendar") == NULL);

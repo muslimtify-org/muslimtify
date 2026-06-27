@@ -1,8 +1,8 @@
 #define _GNU_SOURCE
-#include "cli_internal.h"
-#include "platform.h"
-#include "daemon_loop.h"
 #include "cmd_daemon.h"
+#include "cli_internal.h"
+#include "daemon_loop.h"
+#include "platform.h"
 #include <errno.h>
 #include <linux/limits.h>
 #include <pwd.h>

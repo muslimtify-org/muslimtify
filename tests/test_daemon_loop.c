@@ -21,9 +21,8 @@ static void test_seconds_until_next_minute(void) {
   report_result("one second before boundary -> 1", seconds_until_next_minute(59) == 1);
   report_result("mid-minute -> remaining", seconds_until_next_minute(30) == 30);
   report_result("next boundary -> full minute", seconds_until_next_minute(60) == 60);
-  report_result("arbitrary epoch stays in [1,60]",
-                seconds_until_next_minute(1719500000) >= 1 &&
-                    seconds_until_next_minute(1719500000) <= 60);
+  report_result("arbitrary epoch stays in [1,60]", seconds_until_next_minute(1719500000) >= 1 &&
+                                                       seconds_until_next_minute(1719500000) <= 60);
 }
 
 int main(void) {

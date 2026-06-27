@@ -95,7 +95,9 @@ add_library(muslimtify_core OBJECT
     src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
-    src/core/daemon_loop.c
+    # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
+    # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
+    $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
     src/core/display.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/linux/platform_linux.c>
