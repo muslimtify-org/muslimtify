@@ -13,15 +13,15 @@ cd "$ROOT"
 
 CMAKELISTS="CMakeLists.txt"
 SPEC=".packages/fedora/muslimtify.spec"
-PKGBUILD=".packages/muslimtify/PKGBUILD"
-SRCINFO=".packages/muslimtify/.SRCINFO"
+PKGBUILD=".packages/aur/PKGBUILD"
+SRCINFO=".packages/aur/.SRCINFO"
 CHANGELOG=".packages/debian/debian/changelog"
 ISS=".packages/winget/muslimtify.iss"
 
 SEMVER='[0-9]+\.[0-9]+\.[0-9]+'
 
 # Extract the version from a file with a Perl-regex lookbehind.
-#  - Missing file -> SKIP (the AUR dir, .packages/muslimtify/, is gitignored and
+#  - Missing file -> SKIP (the AUR dir, .packages/aur/, is gitignored and
 #    absent in CI checkouts; it is still checked locally where it exists).
 #  - File present but pattern unmatched -> hard error (the file changed shape and
 #    this check has gone blind to it).

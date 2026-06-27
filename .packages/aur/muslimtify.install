@@ -1,0 +1,65 @@
+_enable_for_user() {
+    # Best-effort: enable + start the service for the invoking user when pacman
+    # was run via sudo. Also disables the legacy timer left by pre-0.2.4 installs.
+    # In a chroot or as raw root we can't know which user to target, so we just
+    # print instructions.
+    local user="${SUDO_USER:-}"
+    if [ -z "$user" ] || [ "$user" = "root" ]; then
+        echo "==> To enable the daemon for your user, run:"
+        echo "      systemctl --user daemon-reload"
+        echo "      systemctl --user disable --now muslimtify.timer 2>/dev/null || true"
+        echo "      systemctl --user enable --now muslimtify.service"
+        echo "    Optional one-time setup (auto-detect location & method):"
+        echo "      muslimtify daemon install"
+        return
+    fi
+
+    local uid
+    uid=$(id -u "$user" 2>/dev/null) || return 0
+    local runtime="/run/user/$uid"
+
+    if [ ! -S "$runtime/bus" ]; then
+        echo "==> User '$user' has no active session bus; enable later with:"
+        echo "      systemctl --user enable --now muslimtify.service"
+        return
+    fi
+
+    runuser -u "$user" -- env XDG_RUNTIME_DIR="$runtime" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime/bus" \
+        systemctl --user daemon-reload
+    # Migrate off the old timer-based setup, if present.
+    runuser -u "$user" -- env XDG_RUNTIME_DIR="$runtime" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime/bus" \
+        systemctl --user disable --now muslimtify.timer 2>/dev/null || true
+    runuser -u "$user" -- env XDG_RUNTIME_DIR="$runtime" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime/bus" \
+        systemctl --user enable --now muslimtify.service \
+        && echo "==> muslimtify.service enabled and started for user '$user'."
+}
+
+post_install() {
+    _enable_for_user
+    echo "==> For auto-detected location and calculation method, run as your user:"
+    echo "      muslimtify daemon install"
+}
+
+post_upgrade() {
+    # Re-run enable to migrate timer-era installs onto the long-running service.
+    _enable_for_user
+}
+
+post_remove() {
+    local user="${SUDO_USER:-}"
+    if [ -n "$user" ] && [ "$user" != "root" ]; then
+        local uid
+        uid=$(id -u "$user" 2>/dev/null)
+        if [ -n "$uid" ] && [ -S "/run/user/$uid/bus" ]; then
+            runuser -u "$user" -- env XDG_RUNTIME_DIR="/run/user/$uid" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+                systemctl --user disable --now muslimtify.service 2>/dev/null || true
+            return
+        fi
+    fi
+    echo "==> Disable the daemon as your user:"
+    echo "      systemctl --user disable --now muslimtify.service"
+}

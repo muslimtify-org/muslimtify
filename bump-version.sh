@@ -69,7 +69,7 @@ fi
 # -- AUR PKGBUILD -------------------------------------------------------------
 # Reset pkgrel to 1; sha256sums is refreshed post-tag by refresh-hash.sh.
 
-PKGBUILD=".packages/muslimtify/PKGBUILD"
+PKGBUILD=".packages/aur/PKGBUILD"
 if [ -f "$PKGBUILD" ]; then
     sed -i "s/^pkgver=.*/pkgver=${VERSION}/" "$PKGBUILD"
     sed -i "s/^pkgrel=.*/pkgrel=1/" "$PKGBUILD"
@@ -107,10 +107,10 @@ fi
 if [ -f "$PKGBUILD" ]; then
     if command -v makepkg >/dev/null 2>&1; then
         ( cd "$(dirname "$PKGBUILD")" && makepkg --printsrcinfo > .SRCINFO )
-        echo "  regenerated .packages/muslimtify/.SRCINFO"
+        echo "  regenerated .packages/aur/.SRCINFO"
     else
         echo "  WARNING: makepkg not found — .SRCINFO NOT regenerated."
-        echo "           Run: (cd .packages/muslimtify && makepkg --printsrcinfo > .SRCINFO)"
+        echo "           Run: (cd .packages/aur && makepkg --printsrcinfo > .SRCINFO)"
     fi
 fi
 
