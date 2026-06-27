@@ -1,3 +1,12 @@
+muslimtify (0.2.4-1) unstable; urgency=medium
+
+  * Refactor the timer-driven daemon into a long-running systemd user service (Type=simple); drop the .timer
+  * Auto-remove the legacy systemd timer on install and upgrade
+  * Render the systemd unit from a single configure-time template
+  * Add unit tests for the service-unit builder and the loop sleep interval
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Sat, 27 Jun 2026 20:43:03 +0700
+
 muslimtify (0.2.3-2) unstable; urgency=medium
 
   * Fix the 0.2.1-1 changelog timestamp (full month name "April" -> "Apr")
