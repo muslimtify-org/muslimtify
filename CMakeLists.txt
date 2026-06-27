@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22...3.31)
-project(muslimtify VERSION 0.2.4 LANGUAGES C)
+project(muslimtify VERSION 0.2.5 LANGUAGES C)
 
 # -- Default build type --------------------------------------------------------
 
@@ -253,7 +253,6 @@ if(BUILD_TESTING)
             src/platform/windows/platform_win.c
         )
         muslimtify_set_target_defaults(test_cmd_daemon_win)
-        target_compile_definitions(test_cmd_daemon_win PRIVATE MUSLIMTIFY_CMD_DAEMON_WIN_TEST)
         add_test(NAME cmd_daemon_win COMMAND test_cmd_daemon_win)
 
         add_executable(test_notification_win
@@ -291,6 +290,13 @@ if(WIN32)
     install(TARGETS muslimtify-service DESTINATION ${CMAKE_INSTALL_BINDIR})
 
     install(CODE [[
+        # CMP0207: normalize mixed-slash paths (e.g. C:\Windows\system32/foo.dll)
+        # before matching exclude regexes. Set here because the generated install
+        # script does not inherit the top-level policy version range.
+        if(POLICY CMP0207)
+            cmake_policy(SET CMP0207 NEW)
+        endif()
+
         file(GET_RUNTIME_DEPENDENCIES
             RESOLVED_DEPENDENCIES_VAR muslimtify_resolved_deps
             UNRESOLVED_DEPENDENCIES_VAR muslimtify_unresolved_deps
