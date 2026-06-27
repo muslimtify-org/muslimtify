@@ -1,9 +1,12 @@
 [Unit]
-Description=Prayer Time Notification Check
+Description=Muslimtify prayer notification daemon
 After=network-online.target
 
 [Service]
-Type=oneshot
-ExecStart=/usr/local/bin/muslimtify check
-StandardOutput=journal
-StandardError=journal
+Type=simple
+ExecStart=/usr/local/bin/muslimtify daemon run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

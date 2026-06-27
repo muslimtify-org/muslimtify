@@ -269,7 +269,7 @@ if(WIN32)
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/)
 endif()
 
-install(FILES systemd/muslimtify.service systemd/muslimtify.timer
+install(FILES systemd/muslimtify.service
     DESTINATION lib/systemd/user/)
 
 if(WIN32)

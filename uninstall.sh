@@ -60,18 +60,18 @@ step 1 "Stopping and removing systemd units..."
 SYSTEMD_DIR="$REAL_HOME/.config/systemd/user"
 
 if [ -d "$XDG_RT" ]; then
-    if run_as_user systemctl --user is-active --quiet muslimtify.timer 2>/dev/null; then
-        run_as_user systemctl --user stop muslimtify.timer
-        ok "Stopped muslimtify.timer"
+    if run_as_user systemctl --user is-active --quiet muslimtify.service 2>/dev/null; then
+        run_as_user systemctl --user stop muslimtify.service
+        ok "Stopped muslimtify.service"
     else
-        skip "timer not running"
+        skip "service not running"
     fi
 
-    if run_as_user systemctl --user is-enabled --quiet muslimtify.timer 2>/dev/null; then
-        run_as_user systemctl --user disable muslimtify.timer
-        ok "Disabled muslimtify.timer"
+    if run_as_user systemctl --user is-enabled --quiet muslimtify.service 2>/dev/null; then
+        run_as_user systemctl --user disable muslimtify.service
+        ok "Disabled muslimtify.service"
     else
-        skip "timer not enabled"
+        skip "service not enabled"
     fi
 else
     warn "User session not active — skipping systemctl commands"
