@@ -19,7 +19,7 @@ jobs:
           - { runner: ubuntu-latest, arch: x86_64 }
           - { runner: ubuntu-24.04-arm, arch: aarch64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Resolve version
         id: ver
@@ -48,7 +48,7 @@ jobs:
           STAGE: muslimtify-${{ steps.ver.outputs.version }}-linux-${{ matrix.arch }}
         run: tar czf "${STAGE}.tar.gz" -C dist "${STAGE}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: linux-${{ matrix.arch }}
           path: muslimtify-*-linux-${{ matrix.arch }}.tar.gz
@@ -63,7 +63,7 @@ jobs:
           - { arch: x64, cmakeArch: x64 }
           - { arch: arm64, cmakeArch: ARM64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Resolve version
         id: ver
@@ -90,7 +90,7 @@ jobs:
             "/DArch=${{ matrix.arch }}" `
             .packages\winget\muslimtify.iss
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows-${{ matrix.arch }}
           path: dist/muslimtify-*-setup-${{ matrix.arch }}.exe
@@ -102,7 +102,7 @@ jobs:
     permissions:
       contents: write   # required to upload assets to the GitHub Release
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
