@@ -18,7 +18,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > - ***Add custom adzan sound notifications*** (on progress)
 > - Add GUI (see branch gui to see a progress)
 > - Distribute to Flatpak
-> - MacOS support (have no device yet)
+> - MacOS support (if devices is available)
 > - Wearable Device support
 > - Embedded Device Support
 
