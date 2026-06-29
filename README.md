@@ -19,6 +19,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > - Add GUI (see branch gui to see a progress)
 > - Distribute to Flatpak
 > - MacOS support (have no device yet)
+> - Wearable Device support
 > - Embedded Device Support
 
 > [!Important]
