@@ -23,10 +23,8 @@ int handle_show(int argc, char **argv) {
   platform_localtime(&now, &tm_buf);
   struct tm *tm_now = &tm_buf;
 
-  MethodParams params = method_params_from_config(&cfg);
   struct PrayerTimes times =
-      calculate_prayer_times(tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
-                             cfg.latitude, cfg.longitude, cfg.timezone_offset, &params);
+      prayer_times_for_config(&cfg, tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday);
 
   bool json_format = false;
   bool no_header = false;

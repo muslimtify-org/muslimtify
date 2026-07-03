@@ -180,7 +180,8 @@ static int write_json_file(FILE *f, const Config *cfg) {
       if (j < prayers[i]->reminder_count - 1)
         fprintf(f, ", ");
     }
-    fprintf(f, "]\n");
+    fprintf(f, "],\n");
+    fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
     fprintf(f, "    }%s\n", i < 6 ? "," : "");
   }
 
@@ -324,6 +325,18 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
         break;
       }
     }
+  }
+
+  char *offset_str = get_value(ctx, "offset", prayer_obj);
+  if (offset_str) {
+    int off = (int)strtol(offset_str, NULL, 10);
+    // Clamp on load: config_validate is not run on the load path, so a
+    // hand-edited/corrupted value must be bounded here to keep the invariant.
+    if (off < PRAYER_OFFSET_MIN)
+      off = PRAYER_OFFSET_MIN;
+    else if (off > PRAYER_OFFSET_MAX)
+      off = PRAYER_OFFSET_MAX;
+    pcfg->offset = off;
   }
 }
 
@@ -513,6 +526,9 @@ bool config_validate(const Config *cfg) {
         return false;
       }
     }
+    if (prayers[i]->offset < PRAYER_OFFSET_MIN || prayers[i]->offset > PRAYER_OFFSET_MAX) {
+      return false;
+    }
   }
 
   return true;
@@ -652,4 +668,32 @@ MethodParams method_params_from_config(const Config *cfg) {
   }
 
   return params;
+}
+
+// Normalize an hour-of-day into [0, 24). An offset of at most +/-60 min shifts a
+// base time in [0, 24) into (-1, 25), so a single wrap suffices.
+static double offset_wrap_day(double hours) {
+  if (hours < 0.0)
+    return hours + 24.0;
+  if (hours >= 24.0)
+    return hours - 24.0;
+  return hours;
+}
+
+struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day) {
+  MethodParams params = method_params_from_config(cfg);
+  struct PrayerTimes t = calculate_prayer_times(year, month, day, cfg->latitude, cfg->longitude,
+                                                cfg->timezone_offset, &params);
+
+  // Apply each prayer's offset to the RESULT and re-normalize into [0, 24) so a
+  // prayer pushed across midnight stays a valid minute-of-day for the cache,
+  // the checker, and format_time_hm (they otherwise diverge on an unwrapped time).
+  double *fields[] = {&t.fajr, &t.sunrise, &t.dhuha, &t.dhuhr, &t.asr, &t.maghrib, &t.isha};
+  const PrayerConfig *pcfgs[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
+                                 &cfg->asr,  &cfg->maghrib, &cfg->isha};
+  for (int i = 0; i < 7; i++) {
+    *fields[i] = offset_wrap_day(*fields[i] + pcfgs[i]->offset / 60.0);
+  }
+
+  return t;
 }

@@ -39,10 +39,8 @@ int run_check_cycle(void) {
       (cache_load(&cache) == 0 && strcmp(cache.date, today) == 0 && cache.trigger_count > 0);
 
   if (!cache_valid) {
-    MethodParams params = method_params_from_config(&cfg);
     struct PrayerTimes times =
-        calculate_prayer_times(tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
-                               cfg.latitude, cfg.longitude, cfg.timezone_offset, &params);
+        prayer_times_for_config(&cfg, tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday);
 
     cache_build_triggers(&cache, &cfg, &times, current_min, today);
     cache_save(&cache);

@@ -420,15 +420,19 @@ void display_reminders(const Config *cfg) {
 
   for (int i = 0; i < 7; i++) {
     const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
+    char off[24] = "";
+    if (pcfg->offset != 0) {
+      snprintf(off, sizeof(off), " [%+d min]", pcfg->offset);
+    }
     printf("  %-8s: ", prayer_names[i]);
 
     if (!pcfg->enabled) {
-      printf("(disabled)\n");
+      printf("(disabled)%s\n", off);
       continue;
     }
 
     if (pcfg->reminder_count == 0) {
-      printf("At prayer time only\n");
+      printf("At prayer time only%s\n", off);
       continue;
     }
 
@@ -439,7 +443,7 @@ void display_reminders(const Config *cfg) {
       if (j < pcfg->reminder_count - 1)
         printf(", ");
     }
-    printf(" min before\n");
+    printf(" min before%s\n", off);
   }
   printf("\n");
 }

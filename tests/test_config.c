@@ -147,6 +147,17 @@ static void test_validate(void) {
   check_bool("validate reminder 1441", !config_validate(&cfg));
   cfg.fajr.reminders[0] = -1;
   check_bool("validate reminder -1", !config_validate(&cfg));
+
+  // Offset boundaries
+  cfg = config_default();
+  cfg.fajr.offset = 60;
+  check_bool("validate offset 60", config_validate(&cfg));
+  cfg.fajr.offset = -60;
+  check_bool("validate offset -60", config_validate(&cfg));
+  cfg.fajr.offset = 61;
+  check_bool("validate offset 61 invalid", !config_validate(&cfg));
+  cfg.fajr.offset = -61;
+  check_bool("validate offset -61 invalid", !config_validate(&cfg));
 }
 
 // -- config_get_prayer tests -------------------------------------------------
@@ -253,6 +264,8 @@ static void test_round_trip(void) {
   out.fajr.reminder_count = 2;
   out.fajr.reminders[0] = 20;
   out.fajr.reminders[1] = 10;
+  out.fajr.offset = -7;
+  out.maghrib.offset = 5;
   out.sunrise.enabled = true;
   out.notification_timeout = 8000;
   out.notification_sound = false;
@@ -279,6 +292,9 @@ static void test_round_trip(void) {
   check_bool("rt fajr enabled", in.fajr.enabled == out.fajr.enabled);
   check_bool("rt fajr reminders", in.fajr.reminder_count == 2 && in.fajr.reminders[0] == 20 &&
                                       in.fajr.reminders[1] == 10);
+  check_bool("rt fajr offset", in.fajr.offset == -7);
+  check_bool("rt maghrib offset", in.maghrib.offset == 5);
+  check_bool("rt unset offset 0", in.dhuhr.offset == 0);
   check_bool("rt sunrise enabled", in.sunrise.enabled == true);
   check_bool("rt timeout", in.notification_timeout == 8000);
   check_bool("rt sound", in.notification_sound == false);
@@ -287,6 +303,78 @@ static void test_round_trip(void) {
   check_bool("rt urgency", strcmp(in.notification_urgency, "critical") == 0);
   check_bool("rt method", strcmp(in.calculation_method, "kemenag") == 0);
   check_bool("rt madhab", strcmp(in.madhab, "shafi") == 0);
+}
+
+static void test_offset_apply(void) {
+  printf("  offset apply...\n");
+
+  // Jakarta, Kemenag (matches other engine tests in this repo)
+  Config cfg = config_default();
+  cfg.latitude = -6.2088;
+  cfg.longitude = 106.8456;
+  cfg.timezone_offset = 7.0;
+
+  MethodParams params = method_params_from_config(&cfg);
+  struct PrayerTimes raw = calculate_prayer_times(2026, 1, 15, cfg.latitude, cfg.longitude,
+                                                  cfg.timezone_offset, &params);
+
+  cfg.fajr.offset = 12; // +0.2 h
+  cfg.asr.offset = -6;  // -0.1 h
+  // dhuhr.offset stays 0
+
+  struct PrayerTimes adj = prayer_times_for_config(&cfg, 2026, 1, 15);
+
+  check_bool("offset fajr +12", fabs(adj.fajr - (raw.fajr + 12.0 / 60.0)) < 1e-9);
+  check_bool("offset asr -6", fabs(adj.asr - (raw.asr - 6.0 / 60.0)) < 1e-9);
+  check_bool("offset dhuhr 0 identity", fabs(adj.dhuhr - raw.dhuhr) < 1e-9);
+}
+
+static void test_offset_wrap(void) {
+  printf("  offset midnight wrap...\n");
+
+  // London in June: high-latitude late Isha, near the midnight boundary.
+  Config cfg = config_default();
+  cfg.latitude = 51.5074;
+  cfg.longitude = -0.1278;
+  cfg.timezone_offset = 1.0;
+  int y = 2026, m = 6, d = 15;
+
+  MethodParams params = method_params_from_config(&cfg);
+  struct PrayerTimes raw =
+      calculate_prayer_times(y, m, d, cfg.latitude, cfg.longitude, cfg.timezone_offset, &params);
+
+  cfg.isha.offset = 60; // push Isha up to an hour later
+  struct PrayerTimes adj = prayer_times_for_config(&cfg, y, m, d);
+
+  double expected = raw.isha + 1.0;
+  if (expected >= 24.0)
+    expected -= 24.0;
+  else if (expected < 0.0)
+    expected += 24.0;
+
+  // Every field must stay a valid minute-of-day so the cache/checker/formatter agree.
+  check_bool("wrap isha in [0,24)", adj.isha >= 0.0 && adj.isha < 24.0);
+  check_bool("wrap isha value", fabs(adj.isha - expected) < 1e-9);
+  check_bool("wrap fajr in [0,24)", adj.fajr >= 0.0 && adj.fajr < 24.0);
+}
+
+static void test_offset_clamp_on_load(void) {
+  printf("  offset clamp on load...\n");
+
+  Config out = config_default();
+  out.latitude = -6.2088;
+  out.longitude = 106.8456;
+  out.timezone_offset = 7.0;
+  out.auto_detect = false;
+  out.fajr.offset = 9999; // out of range, written verbatim by config_save
+  out.isha.offset = -9999;
+
+  check_bool("clamp save ok", config_save(&out) == 0);
+
+  Config in;
+  check_bool("clamp load ok", config_load(&in) == 0);
+  check_bool("clamp fajr to max", in.fajr.offset == PRAYER_OFFSET_MAX);
+  check_bool("clamp isha to min", in.isha.offset == PRAYER_OFFSET_MIN);
 }
 
 // -- main ---------------------------------------------------------------------
@@ -302,6 +390,9 @@ int main(void) {
   test_default();
   test_path_resolution();
   test_round_trip();
+  test_offset_apply();
+  test_offset_wrap();
+  test_offset_clamp_on_load();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
