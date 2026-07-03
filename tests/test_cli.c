@@ -802,6 +802,72 @@ static void test_daemon_errors(void) {
   check_ret("daemon unknown ret", 1);
 }
 
+static void test_offset(void) {
+  printf("  offset...\n");
+  reset_config();
+
+  // offset fajr +4
+  run(4, (char *[]){"m", "offset", "fajr", "+4", NULL});
+  check_ret("offset fajr set ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("offset fajr value", cfg.fajr.offset == 4);
+  }
+
+  // offset asr -2 (negative)
+  run(4, (char *[]){"m", "offset", "asr", "-2", NULL});
+  check_ret("offset asr neg ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("offset asr value", cfg.asr.offset == -2);
+  }
+
+  // offset fajr 0 (reset)
+  run(4, (char *[]){"m", "offset", "fajr", "0", NULL});
+  check_ret("offset fajr reset ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("offset fajr reset", cfg.fajr.offset == 0);
+  }
+
+  // offset all 3 -> applies to all 7 including disabled sunrise
+  reset_config();
+  run(4, (char *[]){"m", "offset", "all", "3", NULL});
+  check_ret("offset all ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("offset all fajr", cfg.fajr.offset == 3);
+    check_bool("offset all sunrise", cfg.sunrise.offset == 3);
+    check_bool("offset all isha", cfg.isha.offset == 3);
+  }
+
+  // out of range -> rejected, config unchanged
+  reset_config();
+  run(4, (char *[]){"m", "offset", "fajr", "61", NULL});
+  check_ret("offset out of range ret", 1);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("offset unchanged after bad", cfg.fajr.offset == 0);
+  }
+
+  // non-numeric -> rejected
+  run(4, (char *[]){"m", "offset", "fajr", "abc", NULL});
+  check_ret("offset non-numeric ret", 1);
+
+  // unknown prayer -> rejected
+  run(4, (char *[]){"m", "offset", "badprayer", "4", NULL});
+  check_ret("offset bad prayer ret", 1);
+
+  // missing value -> usage error
+  run(3, (char *[]){"m", "offset", "fajr", NULL});
+  check_ret("offset missing value ret", 1);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -820,6 +886,7 @@ int main(void) {
   test_method();
   test_sound();
   test_daemon_errors();
+  test_offset();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
