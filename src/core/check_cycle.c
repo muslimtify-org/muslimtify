@@ -39,8 +39,8 @@ int run_check_cycle(void) {
       (cache_load(&cache) == 0 && strcmp(cache.date, today) == 0 && cache.trigger_count > 0);
 
   if (!cache_valid) {
-    struct PrayerTimes times = prayer_times_for_config(&cfg, tm_now->tm_year + 1900,
-                                                       tm_now->tm_mon + 1, tm_now->tm_mday);
+    struct PrayerTimes times =
+        prayer_times_for_config(&cfg, tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday);
 
     cache_build_triggers(&cache, &cfg, &times, current_min, today);
     cache_save(&cache);

@@ -315,11 +315,11 @@ static void test_offset_apply(void) {
   cfg.timezone_offset = 7.0;
 
   MethodParams params = method_params_from_config(&cfg);
-  struct PrayerTimes raw =
-      calculate_prayer_times(2026, 1, 15, cfg.latitude, cfg.longitude, cfg.timezone_offset, &params);
+  struct PrayerTimes raw = calculate_prayer_times(2026, 1, 15, cfg.latitude, cfg.longitude,
+                                                  cfg.timezone_offset, &params);
 
-  cfg.fajr.offset = 12;   // +0.2 h
-  cfg.asr.offset = -6;    // -0.1 h
+  cfg.fajr.offset = 12; // +0.2 h
+  cfg.asr.offset = -6;  // -0.1 h
   // dhuhr.offset stays 0
 
   struct PrayerTimes adj = prayer_times_for_config(&cfg, 2026, 1, 15);
@@ -366,7 +366,7 @@ static void test_offset_clamp_on_load(void) {
   out.longitude = 106.8456;
   out.timezone_offset = 7.0;
   out.auto_detect = false;
-  out.fajr.offset = 9999;   // out of range, written verbatim by config_save
+  out.fajr.offset = 9999; // out of range, written verbatim by config_save
   out.isha.offset = -9999;
 
   check_bool("clamp save ok", config_save(&out) == 0);
