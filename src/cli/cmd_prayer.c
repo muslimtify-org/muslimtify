@@ -229,8 +229,9 @@ int handle_offset(int argc, char **argv) {
 
   char *end = NULL;
   long value = strtol(value_str, &end, 10);
-  if (end == value_str || *end != '\0' || value < -60 || value > 60) {
-    fprintf(stderr, "Error: Offset must be an integer from -60 to 60\n");
+  if (end == value_str || *end != '\0' || value < PRAYER_OFFSET_MIN || value > PRAYER_OFFSET_MAX) {
+    fprintf(stderr, "Error: Offset must be an integer from %d to %d\n", PRAYER_OFFSET_MIN,
+            PRAYER_OFFSET_MAX);
     return 1;
   }
 
@@ -240,7 +241,8 @@ int handle_offset(int argc, char **argv) {
     return 1;
   }
 
-  if (strcmp(prayer_name, "all") == 0) {
+  bool is_all = strcmp(prayer_name, "all") == 0;
+  if (is_all) {
     PrayerConfig *prayers[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
                                &cfg.asr,  &cfg.maghrib, &cfg.isha};
     for (int i = 0; i < 7; i++) {
@@ -261,10 +263,6 @@ int handle_offset(int argc, char **argv) {
   }
 
   cache_invalidate();
-  if (strcmp(prayer_name, "all") == 0) {
-    printf("✓ Offset set to %+d min for all prayers\n", (int)value);
-  } else {
-    printf("✓ Offset set to %+d min for %s\n", (int)value, prayer_name);
-  }
+  printf("✓ Offset set to %+d min for %s\n", (int)value, is_all ? "all prayers" : prayer_name);
   return 0;
 }
