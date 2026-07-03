@@ -866,6 +866,14 @@ static void test_offset(void) {
   // missing value -> usage error
   run(3, (char *[]){"m", "offset", "fajr", NULL});
   check_ret("offset missing value ret", 1);
+
+  // offset annotation appears in `reminder show`
+  reset_config();
+  run(4, (char *[]){"m", "offset", "maghrib", "+7", NULL});
+  check_ret("offset maghrib for display ret", 0);
+  run(3, (char *[]){"m", "reminder", "show", NULL});
+  check_ret("reminder show ret", 0);
+  check_contains("offset shown in reminders", "[+7 min]");
 }
 
 // -- main ---------------------------------------------------------------------
