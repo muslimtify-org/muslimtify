@@ -14,6 +14,7 @@ typedef struct {
   bool enabled;
   int reminders[MAX_REMINDERS]; // Minutes before prayer
   int reminder_count;           // Number of reminders
+  int offset;                   // Signed minutes added to the calculated time (-60..60)
 } PrayerConfig;
 
 typedef struct {

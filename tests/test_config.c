@@ -253,6 +253,8 @@ static void test_round_trip(void) {
   out.fajr.reminder_count = 2;
   out.fajr.reminders[0] = 20;
   out.fajr.reminders[1] = 10;
+  out.fajr.offset = -7;
+  out.maghrib.offset = 5;
   out.sunrise.enabled = true;
   out.notification_timeout = 8000;
   out.notification_sound = false;
@@ -279,6 +281,9 @@ static void test_round_trip(void) {
   check_bool("rt fajr enabled", in.fajr.enabled == out.fajr.enabled);
   check_bool("rt fajr reminders", in.fajr.reminder_count == 2 && in.fajr.reminders[0] == 20 &&
                                       in.fajr.reminders[1] == 10);
+  check_bool("rt fajr offset", in.fajr.offset == -7);
+  check_bool("rt maghrib offset", in.maghrib.offset == 5);
+  check_bool("rt unset offset 0", in.dhuhr.offset == 0);
   check_bool("rt sunrise enabled", in.sunrise.enabled == true);
   check_bool("rt timeout", in.notification_timeout == 8000);
   check_bool("rt sound", in.notification_sound == false);

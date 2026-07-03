@@ -180,7 +180,8 @@ static int write_json_file(FILE *f, const Config *cfg) {
       if (j < prayers[i]->reminder_count - 1)
         fprintf(f, ", ");
     }
-    fprintf(f, "]\n");
+    fprintf(f, "],\n");
+    fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
     fprintf(f, "    }%s\n", i < 6 ? "," : "");
   }
 
@@ -324,6 +325,11 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
         break;
       }
     }
+  }
+
+  char *offset_str = get_value(ctx, "offset", prayer_obj);
+  if (offset_str) {
+    pcfg->offset = (int)strtol(offset_str, NULL, 10);
   }
 }
 
