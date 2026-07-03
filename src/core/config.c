@@ -519,6 +519,9 @@ bool config_validate(const Config *cfg) {
         return false;
       }
     }
+    if (prayers[i]->offset < -60 || prayers[i]->offset > 60) {
+      return false;
+    }
   }
 
   return true;

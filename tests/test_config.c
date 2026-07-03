@@ -147,6 +147,17 @@ static void test_validate(void) {
   check_bool("validate reminder 1441", !config_validate(&cfg));
   cfg.fajr.reminders[0] = -1;
   check_bool("validate reminder -1", !config_validate(&cfg));
+
+  // Offset boundaries
+  cfg = config_default();
+  cfg.fajr.offset = 60;
+  check_bool("validate offset 60", config_validate(&cfg));
+  cfg.fajr.offset = -60;
+  check_bool("validate offset -60", config_validate(&cfg));
+  cfg.fajr.offset = 61;
+  check_bool("validate offset 61 invalid", !config_validate(&cfg));
+  cfg.fajr.offset = -61;
+  check_bool("validate offset -61 invalid", !config_validate(&cfg));
 }
 
 // -- config_get_prayer tests -------------------------------------------------
