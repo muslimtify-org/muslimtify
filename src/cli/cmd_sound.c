@@ -1,3 +1,4 @@
+#include "audio.h"
 #include "cli_internal.h"
 #include "config.h"
 #include "string_util.h"
@@ -71,6 +72,23 @@ static int sound_status(int argc, char **argv) {
   return 0;
 }
 
+// TODO: not implemented yet
+static int sound_test(int argc, char **argv) {
+  (void)argv;
+  if (argc < 1) {
+    fprintf(stderr, "Usage: muslimtify sound test <path>\n");
+    return 1;
+  }
+
+  const char *path = argv[0];
+  // TODO: int ok = sanitize(path);
+
+  if (audio_play_from_file(path) != 0)
+    return 1;
+
+  return 0;
+}
+
 // muslimtify sound set <preset>   → set alarm preset (the "it's time" sound)
 static int sound_set(int argc, char **argv) {
   if (argc < 1) {
@@ -127,7 +145,7 @@ static int sound_reminder_set(int argc, char **argv) {
 static const CommandEntry sound_commands[] = {
     {"on", sound_on},       {"off", sound_off}, {"status", sound_status},
     {"show", sound_status}, {"set", sound_set}, {"reminder-set", sound_reminder_set},
-};
+    {"test", sound_test}};
 
 int handle_sound(int argc, char **argv) {
   if (argc == 0) {

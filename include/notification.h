@@ -17,6 +17,11 @@ int notify_init_once(const char *app_name);
 void notify_send(const char *title, const char *message);
 
 /**
+ * Play a sound notification
+ */
+void notify_sound(const char *prayer_name, const char *time_str, const char *path);
+
+/**
  * Send a prayer time notification with formatted time
  * minutes_before: 0 for exact time, >0 for reminder
  * sound_preset: "reminder", "alarm", "default", or NULL to silence.

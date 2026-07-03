@@ -63,6 +63,7 @@ if(WIN32)
     FetchContent_MakeAvailable(curl)
 else()
     find_package(PkgConfig REQUIRED)
+    find_package(Threads REQUIRED)
     pkg_check_modules(LIBNOTIFY REQUIRED libnotify)
     pkg_check_modules(LIBCURL REQUIRED libcurl)
 endif()
@@ -108,6 +109,8 @@ add_library(muslimtify_core OBJECT
     src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
+    src/core/miniaudio.c
+    src/core/audio.c
     # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
     # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
     $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
@@ -143,6 +146,7 @@ else()
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
     target_include_directories(muslimtify_cli  PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+    target_link_libraries(muslimtify_core PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 
 # -- Main executable ----------------------------------------------------------
