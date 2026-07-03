@@ -305,6 +305,30 @@ static void test_round_trip(void) {
   check_bool("rt madhab", strcmp(in.madhab, "shafi") == 0);
 }
 
+static void test_offset_apply(void) {
+  printf("  offset apply...\n");
+
+  // Jakarta, Kemenag (matches other engine tests in this repo)
+  Config cfg = config_default();
+  cfg.latitude = -6.2088;
+  cfg.longitude = 106.8456;
+  cfg.timezone_offset = 7.0;
+
+  MethodParams params = method_params_from_config(&cfg);
+  struct PrayerTimes raw =
+      calculate_prayer_times(2026, 1, 15, cfg.latitude, cfg.longitude, cfg.timezone_offset, &params);
+
+  cfg.fajr.offset = 12;   // +0.2 h
+  cfg.asr.offset = -6;    // -0.1 h
+  // dhuhr.offset stays 0
+
+  struct PrayerTimes adj = prayer_times_for_config(&cfg, 2026, 1, 15);
+
+  check_bool("offset fajr +12", fabs(adj.fajr - (raw.fajr + 12.0 / 60.0)) < 1e-9);
+  check_bool("offset asr -6", fabs(adj.asr - (raw.asr - 6.0 / 60.0)) < 1e-9);
+  check_bool("offset dhuhr 0 identity", fabs(adj.dhuhr - raw.dhuhr) < 1e-9);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -318,6 +342,7 @@ int main(void) {
   test_default();
   test_path_resolution();
   test_round_trip();
+  test_offset_apply();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

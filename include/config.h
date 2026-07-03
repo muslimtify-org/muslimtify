@@ -99,6 +99,8 @@ void config_format_reminders(const PrayerConfig *prayer, char *buffer, size_t bu
 #include "prayertimes.h"
 MethodParams method_params_from_config(const Config *cfg);
 
+struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day);
+
 #ifdef __cplusplus
 }
 #endif

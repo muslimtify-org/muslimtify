@@ -662,3 +662,20 @@ MethodParams method_params_from_config(const Config *cfg) {
 
   return params;
 }
+
+struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day) {
+  MethodParams params = method_params_from_config(cfg);
+  struct PrayerTimes t =
+      calculate_prayer_times(year, month, day, cfg->latitude, cfg->longitude,
+                             cfg->timezone_offset, &params);
+
+  t.fajr += cfg->fajr.offset / 60.0;
+  t.sunrise += cfg->sunrise.offset / 60.0;
+  t.dhuha += cfg->dhuha.offset / 60.0;
+  t.dhuhr += cfg->dhuhr.offset / 60.0;
+  t.asr += cfg->asr.offset / 60.0;
+  t.maghrib += cfg->maghrib.offset / 60.0;
+  t.isha += cfg->isha.offset / 60.0;
+
+  return t;
+}
