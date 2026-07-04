@@ -10,10 +10,16 @@ extern "C" {
 
 #define MAX_REMINDERS 10 // Maximum reminders per prayer
 
+// Allowed range for a per-prayer time offset, in minutes. Enforced by the CLI
+// (handle_offset), config_validate, and clamped on load (parse_prayer_config).
+#define PRAYER_OFFSET_MIN (-60)
+#define PRAYER_OFFSET_MAX 60
+
 typedef struct {
   bool enabled;
   int reminders[MAX_REMINDERS]; // Minutes before prayer
   int reminder_count;           // Number of reminders
+  int offset;                   // Signed minutes added to the calculated time (see PRAYER_OFFSET_*)
 } PrayerConfig;
 
 typedef struct {
@@ -97,6 +103,8 @@ void config_format_reminders(const PrayerConfig *prayer, char *buffer, size_t bu
 
 #include "prayertimes.h"
 MethodParams method_params_from_config(const Config *cfg);
+
+struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day);
 
 #ifdef __cplusplus
 }

@@ -7,15 +7,25 @@
 // --- top-level dispatch table -----------------------
 
 static const CommandEntry top_commands[] = {
-    {"show", handle_show},         {"check", handle_check},
-    {"next", handle_next},         {"config", handle_config},
-    {"location", handle_location}, {"enable", handle_enable},
-    {"disable", handle_disable},   {"list", handle_list},
-    {"reminder", handle_reminder}, {"daemon", handle_daemon},
-    {"method", handle_method},     {"notification", handle_notification},
-    {"sound", handle_sound},       {"version", handle_version},
-    {"--version", handle_version}, {"-v", handle_version},
-    {"help", handle_help},         {"--help", handle_help},
+    {"show", handle_show},
+    {"check", handle_check},
+    {"next", handle_next},
+    {"config", handle_config},
+    {"location", handle_location},
+    {"enable", handle_enable},
+    {"disable", handle_disable},
+    {"list", handle_list},
+    {"reminder", handle_reminder},
+    {"offset", handle_offset},
+    {"daemon", handle_daemon},
+    {"method", handle_method},
+    {"notification", handle_notification},
+    {"sound", handle_sound},
+    {"version", handle_version},
+    {"--version", handle_version},
+    {"-v", handle_version},
+    {"help", handle_help},
+    {"--help", handle_help},
     {"-h", handle_help},
 };
 
@@ -169,6 +179,17 @@ void cli_print_help(void) {
   printf("\n");
 
   /*
+   * OFFSET
+   */
+  printf("Offset Commands:\n");
+
+  printf("  %-30s %s\n", "offset <prayer> <±min>", "Adjust a prayer time (-60..60)");
+
+  printf("  %-30s %s\n", "offset all <±min>", "Adjust all prayer times");
+
+  printf("\n");
+
+  /*
    * SOUND
    */
   printf("Sound Commands:\n");
@@ -229,6 +250,8 @@ void cli_print_help(void) {
   printf("  %-55s %s\n", "muslimtify enable fajr", "# Enable Fajr notification");
 
   printf("  %-55s %s\n", "muslimtify reminder fajr 30,15,5", "# Set reminders");
+
+  printf("  %-55s %s\n", "muslimtify offset fajr +4", "# Shift Fajr 4 min later");
 
   printf("  %-55s %s\n", "muslimtify location set --lat=-6.21 --long=106.84", "# Set coordinates");
 
