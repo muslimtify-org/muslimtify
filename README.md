@@ -15,7 +15,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > ## Roadmap
 > - ~Merge command  `location auto` and `method auto` into (only) `config auto` and optimize auto detection per (249) country~
 > - ~Refactor from timer-driven into a portable long-running loop~
-> - ***Add custom adzan sound notifications*** (on progress)
+> - ***Add custom adhan sound notifications*** (on progress)
 > - Add read lat/long from user GPS
 > - Add GUI (see branch gui to see a progress)
 > - Distribute to Flatpak
@@ -160,7 +160,7 @@ muslimtify location set --city=Jakarta  # add a city label
 muslimtify method list            # list all 23 available calculation methods
 muslimtify method set mwl         # set calculation method
 muslimtify method madhab hanafi   # set madhab (shafi/hanafi)
-muslimtify reminder all 30,15,5   # set all reminders to 30, 15, and 5 minutes before adzan
+muslimtify reminder all 30,15,5   # set all reminders to 30, 15, and 5 minutes before adhan
 muslimtify config show            # show current configuration
 muslimtify config validate        # run sanity checks on config file
 muslimtify config reset           # restore default config file
@@ -216,30 +216,37 @@ prayers, reminder offsets, notification settings, or location data.
   "prayers": {
     "fajr": {
       "enabled": true,
+      "reminder_sound": "default",
       "reminders": [30, 15, 5]
     },
     "sunrise": {
       "enabled": false,
+      "reminder_sound": "default",
       "reminders": []
     },
     "dhuha": {
       "enabled": false,
+      "reminder_sound": "default",
       "reminders": []
     },
     "dhuhr": {
       "enabled": true,
+      "reminder_sound": "default",
       "reminders": [30, 15, 5]
     },
     "asr": {
       "enabled": true,
+      "reminder_sound": "default",
       "reminders": [30, 15, 5]
     },
     "maghrib": {
       "enabled": true,
+      "reminder_sound": "default",
       "reminders": [30, 15, 5]
     },
     "isha": {
       "enabled": true,
+      "reminder_sound": "default",
       "reminders": [30, 15, 5]
     }
   },
