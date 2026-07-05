@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+#define MAX_ADHAN_PATH 512
+#define DEFAULT_ADHAN ""
 #define MAX_REMINDERS 10 // Maximum reminders per prayer
 
 // Allowed range for a per-prayer time offset, in minutes. Enforced by the CLI
@@ -17,9 +19,11 @@ extern "C" {
 
 typedef struct {
   bool enabled;
+  bool adhan_enabled;
   int reminders[MAX_REMINDERS]; // Minutes before prayer
   int reminder_count;           // Number of reminders
   int offset;                   // Signed minutes added to the calculated time (see PRAYER_OFFSET_*)
+  char adhan[MAX_ADHAN_PATH];   // path to adhan sound
 } PrayerConfig;
 
 typedef struct {

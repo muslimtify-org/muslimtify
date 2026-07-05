@@ -57,28 +57,56 @@ Config config_default(void) {
   cfg.fajr.enabled = true;
   memcpy(cfg.fajr.reminders, default_reminders, sizeof(default_reminders));
   cfg.fajr.reminder_count = 3;
+  if (!copy_string(cfg.fajr.adhan, sizeof(cfg.fajr.adhan), DEFAULT_ADHAN)) {
+    log_truncation("fajr.adhan");
+  }
+  cfg.fajr.adhan_enabled = true;
 
   cfg.sunrise.enabled = false; // DISABLED BY DEFAULT
   cfg.sunrise.reminder_count = 0;
+  if (!copy_string(cfg.sunrise.adhan, sizeof(cfg.sunrise.adhan), DEFAULT_ADHAN)) {
+    log_truncation("sunrise.adhan");
+  }
+  cfg.sunrise.adhan_enabled = false;
 
   cfg.dhuha.enabled = false; // DISABLED BY DEFAULT
   cfg.dhuha.reminder_count = 0;
+  if (!copy_string(cfg.dhuha.adhan, sizeof(cfg.dhuha.adhan), DEFAULT_ADHAN)) {
+    log_truncation("dhuha.adhan");
+  }
+  cfg.dhuha.adhan_enabled = false;
 
   cfg.dhuhr.enabled = true;
   memcpy(cfg.dhuhr.reminders, default_reminders, sizeof(default_reminders));
   cfg.dhuhr.reminder_count = 3;
+  if (!copy_string(cfg.dhuhr.adhan, sizeof(cfg.dhuhr.adhan), DEFAULT_ADHAN)) {
+    log_truncation("dhuhr.adhan");
+  }
+  cfg.dhuhr.adhan_enabled = true;
 
   cfg.asr.enabled = true;
   memcpy(cfg.asr.reminders, default_reminders, sizeof(default_reminders));
   cfg.asr.reminder_count = 3;
+  if (!copy_string(cfg.asr.adhan, sizeof(cfg.asr.adhan), DEFAULT_ADHAN)) {
+    log_truncation("asr.adhan");
+  }
+  cfg.asr.adhan_enabled = true;
 
   cfg.maghrib.enabled = true;
   memcpy(cfg.maghrib.reminders, default_reminders, sizeof(default_reminders));
   cfg.maghrib.reminder_count = 3;
+  if (!copy_string(cfg.maghrib.adhan, sizeof(cfg.maghrib.adhan), DEFAULT_ADHAN)) {
+    log_truncation("maghrib.adhan");
+  }
+  cfg.maghrib.adhan_enabled = true;
 
   cfg.isha.enabled = true;
   memcpy(cfg.isha.reminders, default_reminders, sizeof(default_reminders));
   cfg.isha.reminder_count = 3;
+  if (!copy_string(cfg.isha.adhan, sizeof(cfg.isha.adhan), DEFAULT_ADHAN)) {
+    log_truncation("isha.adhan");
+  }
+  cfg.isha.adhan_enabled = true;
 
   // Notification defaults
   cfg.notification_timeout = 5000;
@@ -174,6 +202,10 @@ static int write_json_file(FILE *f, const Config *cfg) {
   for (int i = 0; i < 7; i++) {
     fprintf(f, "    \"%s\": {\n", prayer_names[i]);
     fprintf(f, "      \"enabled\": %s,\n", prayers[i]->enabled ? "true" : "false");
+    fprintf(f, "      \"adhan\": ");
+    json_escape_string(f, prayers[i]->adhan);
+    fprintf(f, ",\n");
+    fprintf(f, "      \"adhan_enabled\": %s,\n", prayers[i]->adhan_enabled ? "true" : "false");
     fprintf(f, "      \"reminders\": [");
     for (int j = 0; j < prayers[i]->reminder_count; j++) {
       fprintf(f, "%d", prayers[i]->reminders[j]);
@@ -300,6 +332,18 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
   char *enabled_str = get_value(ctx, "enabled", prayer_obj);
   if (enabled_str) {
     pcfg->enabled = strcmp(enabled_str, "true") == 0;
+  }
+
+  char *adhan_str = get_value(ctx, "adhan", prayer_obj);
+  if (adhan_str) {
+    if (!copy_string(pcfg->adhan, sizeof(pcfg->adhan), adhan_str)) {
+      log_truncation("adhan");
+    }
+  }
+
+  char *adhan_enabled_str = get_value(ctx, "adhan_enabled", prayer_obj);
+  if (adhan_enabled_str) {
+    pcfg->adhan_enabled = strcmp(adhan_enabled_str, "true") == 0;
   }
 
   char *reminders_str = get_value(ctx, "reminders", prayer_obj);
