@@ -424,6 +424,10 @@ void display_reminders(const Config *cfg) {
     if (pcfg->offset != 0) {
       snprintf(off, sizeof(off), " [%+d min]", pcfg->offset);
     }
+    char snd[MAX_ADHAN_PATH + 16] = "";
+    if (pcfg->adhan[0] != '\0') {
+      snprintf(snd, sizeof(snd), " (sound: %s)", pcfg->adhan_enabled ? pcfg->adhan : "disabled");
+    }
     printf("  %-8s: ", prayer_names[i]);
 
     if (!pcfg->enabled) {
@@ -443,7 +447,7 @@ void display_reminders(const Config *cfg) {
       if (j < pcfg->reminder_count - 1)
         printf(", ");
     }
-    printf(" min before%s\n", off);
+    printf(" min before%s%s\n", off, snd);
   }
   printf("\n");
 }
