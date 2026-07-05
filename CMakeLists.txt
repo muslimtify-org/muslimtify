@@ -286,18 +286,21 @@ endif()
 # -- Install ------------------------------------------------------------------
 
 install(TARGETS muslimtify DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES assets/adhan.mp3
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/muslimtify/)
 
-install(FILES assets/muslimtify.png
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps/)
-install(FILES assets/muslimtify.png
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps/)
 if(WIN32)
     install(FILES assets/muslimtify.ico
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/)
+else()
+    install(FILES assets/muslimtify.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps/)
+    install(FILES assets/muslimtify.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps/)
+    install(FILES ${CMAKE_BINARY_DIR}/systemd/muslimtify.service
+        DESTINATION lib/systemd/user/)
 endif()
 
-install(FILES ${CMAKE_BINARY_DIR}/systemd/muslimtify.service
-    DESTINATION lib/systemd/user/)
 
 if(WIN32)
     add_executable(muslimtify-service WIN32 src/platform/windows/muslimtify_service_win.c)
