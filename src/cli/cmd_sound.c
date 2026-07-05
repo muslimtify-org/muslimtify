@@ -1,4 +1,3 @@
-#include "audio.h"
 #include "cli_internal.h"
 #include "config.h"
 #include "string_util.h"
@@ -23,9 +22,9 @@ static int save_cfg_or_fail(const Config *cfg) {
 }
 
 static void print_status(const Config *cfg) {
-  printf("Sound:           %s\n", cfg->notification_sound ? "on" : "off");
-  printf("Alarm preset:    %s  (it's-time notification)\n", cfg->notification_sound_alarm);
-  printf("Reminder preset: %s  (pre-prayer reminder notifications)\n",
+  printf("Sound:\t%s\n", cfg->notification_sound ? "on" : "off");
+  printf("Alarm preset:\t%s  (it's-time notification)\n", cfg->notification_sound_alarm);
+  printf("Reminder preset:\t%s  (pre-prayer reminder notifications)\n",
          cfg->notification_sound_reminder);
   printf("\nAvailable presets: reminder, alarm, default\n");
 }
@@ -69,23 +68,6 @@ static int sound_status(int argc, char **argv) {
     return 1;
   }
   print_status(&cfg);
-  return 0;
-}
-
-// TODO: not implemented yet
-static int sound_test(int argc, char **argv) {
-  (void)argv;
-  if (argc < 1) {
-    fprintf(stderr, "Usage: muslimtify sound test <path>\n");
-    return 1;
-  }
-
-  const char *path = argv[0];
-  // TODO: int ok = sanitize(path);
-
-  if (audio_play_from_file(path) != 0)
-    return 1;
-
   return 0;
 }
 
@@ -145,7 +127,7 @@ static int sound_reminder_set(int argc, char **argv) {
 static const CommandEntry sound_commands[] = {
     {"on", sound_on},       {"off", sound_off}, {"status", sound_status},
     {"show", sound_status}, {"set", sound_set}, {"reminder-set", sound_reminder_set},
-    {"test", sound_test}};
+};
 
 int handle_sound(int argc, char **argv) {
   if (argc == 0) {

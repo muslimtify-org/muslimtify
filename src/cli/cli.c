@@ -200,7 +200,7 @@ void cli_print_help(void) {
 
   printf("  %-30s %s\n", "sound status", "Show sound status");
 
-  printf("  %-30s %s\n", "sound set", "Set adzan sound");
+  printf("  %-30s %s\n", "sound set", "Set adhan sound");
 
   printf("  %-30s %s\n", "sound reminder-set", "Set reminder sound");
 
