@@ -106,8 +106,16 @@ int config_parse_reminders(const char *reminder_str, int *reminders, int max_rem
 void config_format_reminders(const PrayerConfig *prayer, char *buffer, size_t bufsize);
 
 #include "prayertimes.h"
+
+/**
+ * Build calculation parameters from a config, applying the configured method,
+ * madhab (asr school), and any custom fajr/isha angles.
+ */
 MethodParams method_params_from_config(const Config *cfg);
 
+/**
+ * Compute prayer times for the config's location/method on the given date.
+ */
 struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day);
 
 #ifdef __cplusplus
