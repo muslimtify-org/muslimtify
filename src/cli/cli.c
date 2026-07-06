@@ -1,5 +1,6 @@
 #include "cli.h"
 #include "cli_internal.h"
+#include "config.h"
 #include "prayertimes.h"
 #include "version.h"
 #include <stdio.h>
