@@ -79,6 +79,7 @@ function(muslimtify_set_target_defaults target)
     target_include_directories(${target} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/vendor
         ${CMAKE_BINARY_DIR}/generated
     )
     if(MSVC)
