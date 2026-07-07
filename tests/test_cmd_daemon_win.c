@@ -6,6 +6,17 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Link-only stubs. cmd_daemon_win.c references the toast-activator functions
+   from its install/register handlers, but these tests only exercise
+   build_windows_task_action. The real implementations live in
+   toast_activator_win.c, intentionally not linked into this unit test. */
+int register_toast_activator(void) {
+  return 0;
+}
+int unregister_toast_activator(void) {
+  return 0;
+}
+
 static int total = 0;
 static int failures = 0;
 

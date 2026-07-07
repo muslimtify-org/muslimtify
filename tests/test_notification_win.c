@@ -9,6 +9,32 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+/* Link-only stubs. notification_win.c references audio_start/audio_is_playing/
+   audio_stop from notify_adhan, but these tests exercise only the XML and
+   path-resolution helpers via the *_for_test hooks and never invoke
+   notify_adhan. The real implementations live in src/core/audio.c, which is
+   linked into the main executable but intentionally not into this lightweight
+   standalone notification test. */
+int audio_start(const char *path) {
+  (void)path;
+  return -1;
+}
+int audio_is_playing(void) {
+  return 0;
+}
+void audio_stop(void) {}
+
+/* Link-only stubs for the toast-activator symbols notification_win.c references
+   (real impls live in toast_activator_win.c, not linked into this test). */
+int toast_activator_register_running(unsigned long *cookie) {
+  if (cookie)
+    *cookie = 0;
+  return -1;
+}
+void toast_activator_revoke_running(unsigned long cookie) {
+  (void)cookie;
+}
+
 static int total = 0;
 static int failures = 0;
 
@@ -16,6 +42,9 @@ BOOL notification_win_resolve_toast_icon_path_for_test(const wchar_t *base_dir, 
                                                        size_t buffer_size);
 wchar_t *notification_win_build_toast_xml_for_test(const wchar_t *base_dir, const wchar_t *wtitle,
                                                    const wchar_t *wmsg, const char *urgency);
+wchar_t *notification_win_build_adhan_xml_for_test(const wchar_t *wtitle, const wchar_t *wmsg);
+BOOL notification_win_resolve_adhan_path_for_test(const wchar_t *base_dir, wchar_t *buffer,
+                                                  size_t buffer_size);
 
 static void report_result(const char *label, bool pass) {
   total++;
@@ -225,12 +254,58 @@ static void test_no_icon_fallback_behavior(void) {
   free(xml);
 }
 
+static void test_adhan_xml_has_stop_button_and_silent_audio(void) {
+  printf("test_adhan_xml_has_stop_button_and_silent_audio\n");
+
+  wchar_t *xml =
+      notification_win_build_adhan_xml_for_test(L"Prayer Time: Fajr", L"It's time for Fajr prayer");
+  report_result("adhan XML builds", xml != NULL);
+  report_result("adhan XML silences the toast's own sound",
+                xml != NULL && wcsstr(xml, L"<audio silent=\"true\"/>") != NULL);
+  report_result("adhan XML has a Stop action button",
+                xml != NULL && wcsstr(xml, L"arguments=\"stop\"") != NULL);
+  free(xml);
+}
+
+static void test_adhan_path_installed_layout(void) {
+  printf("test_adhan_path_installed_layout\n");
+
+  wchar_t root_dir[MAX_PATH];
+  wchar_t exe_dir[MAX_PATH];
+  wchar_t adhan_path[MAX_PATH];
+  wchar_t resolved[MAX_PATH];
+
+  if (!make_test_root_dir(L"adhan", root_dir, sizeof(root_dir) / sizeof(root_dir[0]))) {
+    report_result("create base dir", false);
+    return;
+  }
+  if (!join_path(root_dir, L"bin", exe_dir, sizeof(exe_dir) / sizeof(exe_dir[0]))) {
+    report_result("build executable dir", false);
+    return;
+  }
+  if (!join_path(exe_dir, L"..\\share\\muslimtify\\adhan.mp3", adhan_path,
+                 sizeof(adhan_path) / sizeof(adhan_path[0]))) {
+    report_result("build installed adhan path", false);
+    return;
+  }
+
+  report_result("create installed adhan file", create_empty_file(adhan_path));
+
+  resolved[0] = L'\0';
+  report_result("adhan resolver returns success",
+                notification_win_resolve_adhan_path_for_test(
+                    exe_dir, resolved, sizeof(resolved) / sizeof(resolved[0])));
+  report_result("adhan resolver finds installed adhan", wide_equals(resolved, adhan_path));
+}
+
 int main(void) {
   printf("=== notification_win icon resolution tests ===\n\n");
 
   test_installed_layout_resolution_preference();
   test_development_layout_resolution_preference();
   test_no_icon_fallback_behavior();
+  test_adhan_xml_has_stop_button_and_silent_audio();
+  test_adhan_path_installed_layout();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;

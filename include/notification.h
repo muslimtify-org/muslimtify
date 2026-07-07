@@ -17,6 +17,18 @@ int notify_init_once(const char *app_name);
 void notify_send(const char *title, const char *message);
 
 /**
+ * Play an adhan sound notification
+ */
+void notify_adhan(const char *prayer_name, const char *time_str, const char *path);
+
+/**
+ * Signal an in-progress adhan (started by notify_adhan) to stop playing.
+ * Works across processes (e.g. the scheduled-task daemon). Windows-only.
+ * Returns: 0 if a running adhan was signaled to stop, -1 if none was playing.
+ */
+int notify_adhan_stop(void);
+
+/**
  * Send a prayer time notification with formatted time
  * minutes_before: 0 for exact time, >0 for reminder
  * sound_preset: "reminder", "alarm", "default", or NULL to silence.

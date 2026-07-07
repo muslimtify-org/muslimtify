@@ -100,14 +100,39 @@ struct PrayerTimes {
   double isha;
 };
 
+/**
+ * Format a decimal-hours time (e.g. 5.5) into "HH:MM" in outBuffer.
+ * Minutes are rounded up (Kemenag convention).
+ */
 void format_time_hm(double timeHours, char *outBuffer, size_t bufSize);
 
+/**
+ * Format a decimal-hours time into "HH:MM:SS" in outBuffer.
+ */
 void format_time_hms(double timeHours, char *outBuffer, size_t bufSize);
 
+/**
+ * Look up the parameter set for a calculation method.
+ * Returns: pointer to a static MethodParams, or NULL if method is out of range.
+ */
 const MethodParams *method_params_get(CalcMethod method);
+
+/**
+ * Map a method key string (e.g. "kemenag") to its CalcMethod.
+ * Returns: the matching method, or CALC_CUSTOM if name is NULL or unknown.
+ */
 CalcMethod method_from_string(const char *name);
+
+/**
+ * Map a CalcMethod back to its key string (e.g. "kemenag").
+ * Returns: the key, or "custom" if the method has no key.
+ */
 const char *method_to_string(CalcMethod method);
 
+/**
+ * Compute all prayer times for a date and location using the given method.
+ * Returns times as decimal hours in local time; high-latitude fallbacks apply.
+ */
 struct PrayerTimes calculate_prayer_times(int year, int month, int day, double latitude,
                                           double longitude, double timezone,
                                           const MethodParams *params);

@@ -235,6 +235,21 @@ static void test_default(void) {
   check_bool("default sound on", cfg.notification_sound == true);
   check_bool("default sound_alarm", strcmp(cfg.notification_sound_alarm, "alarm") == 0);
   check_bool("default sound_reminder", strcmp(cfg.notification_sound_reminder, "reminder") == 0);
+  check_bool("default adhan", strcmp(cfg.fajr.adhan, "") == 0);
+  check_bool("default adhan", strcmp(cfg.sunrise.adhan, "") == 0);
+  check_bool("default adhan", strcmp(cfg.dhuha.adhan, "") == 0);
+  check_bool("default adhan", strcmp(cfg.dhuhr.adhan, "") == 0);
+  check_bool("default adhan", strcmp(cfg.asr.adhan, "") == 0);
+  check_bool("default adhan", strcmp(cfg.maghrib.adhan, "") == 0);
+  check_bool("default adhan", strcmp(cfg.isha.adhan, "") == 0);
+
+  check_bool("default adhan enabled", cfg.fajr.adhan_enabled == true);
+  check_bool("default adhan enabled", cfg.sunrise.adhan_enabled == false);
+  check_bool("default adhan enabled", cfg.dhuha.adhan_enabled == false);
+  check_bool("default adhan enabled", cfg.dhuhr.adhan_enabled == true);
+  check_bool("default adhan enabled", cfg.asr.adhan_enabled == true);
+  check_bool("default adhan enabled", cfg.maghrib.adhan_enabled == true);
+  check_bool("default adhan enabled", cfg.isha.adhan_enabled == true);
 }
 
 // -- round-trip save/load test -----------------------------------------------
@@ -266,6 +281,8 @@ static void test_round_trip(void) {
   out.fajr.reminders[1] = 10;
   out.fajr.offset = -7;
   out.maghrib.offset = 5;
+  strncpy(out.fajr.adhan, "/tmp/custom-fajr.mp3", sizeof(out.fajr.adhan) - 1);
+  out.fajr.adhan_enabled = false; // default is true; flip it to prove it round-trips
   out.sunrise.enabled = true;
   out.notification_timeout = 8000;
   out.notification_sound = false;
@@ -303,6 +320,9 @@ static void test_round_trip(void) {
   check_bool("rt urgency", strcmp(in.notification_urgency, "critical") == 0);
   check_bool("rt method", strcmp(in.calculation_method, "kemenag") == 0);
   check_bool("rt madhab", strcmp(in.madhab, "shafi") == 0);
+  check_bool("rt fajr adhan", strcmp(in.fajr.adhan, "/tmp/custom-fajr.mp3") == 0);
+  check_bool("rt fajr adhan_enabled", in.fajr.adhan_enabled == false);
+  check_bool("rt dhuhr adhan default empty", in.dhuhr.adhan[0] == '\0');
 }
 
 static void test_offset_apply(void) {

@@ -1,7 +1,6 @@
 #ifndef CLI_INTERNAL_H
 #define CLI_INTERNAL_H
 
-#include "config.h"
 #include <string.h>
 
 typedef int (*HandlerFn)(int argc, char **argv);

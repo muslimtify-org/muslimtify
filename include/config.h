@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+#define MAX_ADHAN_PATH 512
+#define DEFAULT_ADHAN ""
 #define MAX_REMINDERS 10 // Maximum reminders per prayer
 
 // Allowed range for a per-prayer time offset, in minutes. Enforced by the CLI
@@ -17,9 +19,11 @@ extern "C" {
 
 typedef struct {
   bool enabled;
+  bool adhan_enabled;
   int reminders[MAX_REMINDERS]; // Minutes before prayer
   int reminder_count;           // Number of reminders
   int offset;                   // Signed minutes added to the calculated time (see PRAYER_OFFSET_*)
+  char adhan[MAX_ADHAN_PATH];   // path to adhan sound
 } PrayerConfig;
 
 typedef struct {
@@ -102,8 +106,16 @@ int config_parse_reminders(const char *reminder_str, int *reminders, int max_rem
 void config_format_reminders(const PrayerConfig *prayer, char *buffer, size_t bufsize);
 
 #include "prayertimes.h"
+
+/**
+ * Build calculation parameters from a config, applying the configured method,
+ * madhab (asr school), and any custom fajr/isha angles.
+ */
 MethodParams method_params_from_config(const Config *cfg);
 
+/**
+ * Compute prayer times for the config's location/method on the given date.
+ */
 struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day);
 
 #ifdef __cplusplus

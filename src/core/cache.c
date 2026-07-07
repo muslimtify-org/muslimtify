@@ -159,6 +159,17 @@ int cache_load(PrayerCache *cache) {
     if (pt_str)
       t->prayer_time = strtod(pt_str, NULL);
 
+    char *ae_str = get_value(ctx, "adhan_enabled", obj_start);
+    if (ae_str)
+      t->adhan_enabled = strcmp(ae_str, "true") == 0;
+
+    char *adhan_str = get_value(ctx, "adhan", obj_start);
+    if (adhan_str) {
+      if (!copy_string(t->adhan, sizeof(t->adhan), adhan_str)) {
+        cache_log_trunc("adhan");
+      }
+    }
+
     cache->trigger_count++;
 
     *(obj_end + 1) = saved;
@@ -192,9 +203,10 @@ int cache_save(const PrayerCache *cache) {
     const CacheTrigger *t = &cache->triggers[i];
     fprintf(f,
             "    {\"prayer\": \"%s\", \"minute\": %d, "
-            "\"minutes_before\": %d, \"prayer_time\": %.4f}%s\n",
+            "\"minutes_before\": %d, \"prayer_time\": %.4f, \"adhan_enabled\": %s, \"adhan\": "
+            "\"%s\"}%s\n",
             t->prayer, t->minute, t->minutes_before, t->prayer_time,
-            i < cache->trigger_count - 1 ? "," : "");
+            t->adhan_enabled ? "true" : "false", t->adhan, i < cache->trigger_count - 1 ? "," : "");
   }
 
   fprintf(f, "  ]\n");
@@ -262,6 +274,10 @@ int cache_build_triggers(PrayerCache *cache, const Config *cfg, const struct Pra
       t->minute = prayer_min;
       t->minutes_before = 0;
       t->prayer_time = pt;
+      t->adhan_enabled = pcfg->adhan_enabled;
+      if (!copy_string(t->adhan, sizeof(t->adhan), pcfg->adhan)) {
+        cache_log_trunc("adhan");
+      }
       cache->trigger_count++;
     }
 

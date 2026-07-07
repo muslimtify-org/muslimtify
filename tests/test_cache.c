@@ -158,6 +158,8 @@ static void test_save_load_roundtrip(void) {
   original.triggers[0].minute = 266;
   original.triggers[0].minutes_before = 0;
   original.triggers[0].prayer_time = 4.4333;
+  original.triggers[0].adhan_enabled = true;
+  strcpy(original.triggers[0].adhan, "/tmp/fajr.mp3");
   strcpy(original.triggers[1].prayer, "Dhuhr");
   original.triggers[1].minute = 724;
   original.triggers[1].minutes_before = 0;
@@ -177,6 +179,8 @@ static void test_save_load_roundtrip(void) {
   check_bool("minute[0] matches", loaded.triggers[0].minute == 266);
   check_bool("prayer[1] matches", strcmp(loaded.triggers[1].prayer, "Dhuhr") == 0);
   check_bool("prayer_time[1] close", fabs(loaded.triggers[1].prayer_time - 12.0667) < 0.01);
+  check_bool("adhan[0] matches", strcmp(loaded.triggers[0].adhan, "/tmp/fajr.mp3") == 0);
+  check_bool("adhan_enabled[0] matches", loaded.triggers[0].adhan_enabled == true);
 
   cache_invalidate();
   check_bool("cache file removed", platform_file_exists(cache_get_path()) == 0);
@@ -216,6 +220,28 @@ static void test_save_load_roundtrip(void) {
   unsetenv("XDG_CACHE_HOME");
 }
 
+static void test_build_triggers_carries_adhan(void) {
+  printf("  build triggers carries adhan...\n");
+  Config cfg = test_config();
+  strncpy(cfg.dhuhr.adhan, "/tmp/dhuhr.mp3", sizeof(cfg.dhuhr.adhan) - 1);
+  cfg.dhuhr.adhan_enabled = true;
+  struct PrayerTimes times = jakarta_times();
+  PrayerCache cache = {0};
+
+  cache_build_triggers(&cache, &cfg, &times, 0, "2026-03-22");
+
+  bool found = false;
+  for (int i = 0; i < cache.trigger_count; i++) {
+    if (strcmp(cache.triggers[i].prayer, "Dhuhr") == 0 && cache.triggers[i].minutes_before == 0) {
+      found = true;
+      check_bool("trigger carries adhan path",
+                 strcmp(cache.triggers[i].adhan, "/tmp/dhuhr.mp3") == 0);
+      check_bool("trigger carries adhan_enabled", cache.triggers[i].adhan_enabled == true);
+    }
+  }
+  check_bool("found dhuhr exact trigger", found);
+}
+
 int main(void) {
   printf("Running cache tests...\n");
 
@@ -225,6 +251,7 @@ int main(void) {
   test_build_triggers_includes_reminders();
   test_remove_trigger();
   test_save_load_roundtrip();
+  test_build_triggers_carries_adhan();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   return failed > 0 ? 1 : 0;

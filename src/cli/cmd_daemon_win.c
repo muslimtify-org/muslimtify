@@ -1,6 +1,7 @@
 #include "cmd_daemon_win.h"
 #include "cli_internal.h"
 #include "platform.h"
+#include "toast_activator.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -177,6 +178,16 @@ static int daemon_install_handler(int argc, char **argv) {
        I/O here so silent/unattended installs (e.g. winget) never block. */
     printf("Prayer times will be checked every minute.\n");
   }
+
+  /* Register the toast activator (HKCU + Start-Menu shortcut) so the adhan
+     notification's Stop button routes back to us. Independent of the scheduled
+     task; a failure here does not fail the install. */
+  if (register_toast_activator() == 0) {
+    printf("Adhan notification Stop button registered.\n");
+  } else {
+    fprintf(stderr, "Warning: could not register the toast Stop button "
+                    "(notifications still work; stop via 'muslimtify sound stop').\n");
+  }
   return result;
 }
 
@@ -188,7 +199,27 @@ static int daemon_uninstall_handler(int argc, char **argv) {
   if (result == 0) {
     printf("Scheduled task 'muslimtify' removed.\n");
   }
+  unregister_toast_activator();
   return result;
+}
+
+static int daemon_register_handler(int argc, char **argv) {
+  (void)argc;
+  (void)argv;
+  if (register_toast_activator() != 0) {
+    fprintf(stderr, "Error: failed to register the toast activator\n");
+    return 1;
+  }
+  printf("Adhan notification Stop button registered.\n");
+  return 0;
+}
+
+static int daemon_unregister_handler(int argc, char **argv) {
+  (void)argc;
+  (void)argv;
+  unregister_toast_activator();
+  printf("Adhan notification Stop button unregistered.\n");
+  return 0;
 }
 
 static int daemon_status_handler(int argc, char **argv) {
@@ -199,9 +230,9 @@ static int daemon_status_handler(int argc, char **argv) {
 }
 
 static const CommandEntry daemon_commands[] = {
-    {"install", daemon_install_handler},
-    {"uninstall", daemon_uninstall_handler},
-    {"status", daemon_status_handler},
+    {"install", daemon_install_handler},       {"uninstall", daemon_uninstall_handler},
+    {"status", daemon_status_handler},         {"register", daemon_register_handler},
+    {"unregister", daemon_unregister_handler},
 };
 
 int handle_daemon(int argc, char **argv) {
@@ -212,7 +243,7 @@ int handle_daemon(int argc, char **argv) {
       return sub->handler(argc - 1, argv + 1);
 
     fprintf(stderr, "Error: Unknown daemon subcommand '%s'\n", argv[0]);
-    fprintf(stderr, "Usage: muslimtify daemon [install|uninstall|status]\n");
+    fprintf(stderr, "Usage: muslimtify daemon [install|uninstall|status|register|unregister]\n");
     return 1;
   }
 

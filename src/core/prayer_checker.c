@@ -1,4 +1,5 @@
 #include "prayer_checker.h"
+#include "prayertimes.h"
 #include <math.h>
 #include <stdio.h>
 

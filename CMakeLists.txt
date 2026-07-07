@@ -63,6 +63,7 @@ if(WIN32)
     FetchContent_MakeAvailable(curl)
 else()
     find_package(PkgConfig REQUIRED)
+    find_package(Threads REQUIRED)
     pkg_check_modules(LIBNOTIFY REQUIRED libnotify)
     pkg_check_modules(LIBCURL REQUIRED libcurl)
 endif()
@@ -78,6 +79,7 @@ function(muslimtify_set_target_defaults target)
     target_include_directories(${target} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/vendor
         ${CMAKE_BINARY_DIR}/generated
     )
     if(MSVC)
@@ -108,11 +110,14 @@ add_library(muslimtify_core OBJECT
     src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
+    src/core/miniaudio.c
+    src/core/audio.c
     # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
     # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
     $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
     src/core/display.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
+    $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/linux/platform_linux.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/timezone.c,src/platform/linux/timezone.c>
 )
@@ -143,6 +148,7 @@ else()
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
     target_include_directories(muslimtify_cli  PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+    target_link_libraries(muslimtify_core PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 
 # -- Main executable ----------------------------------------------------------
@@ -282,18 +288,21 @@ endif()
 # -- Install ------------------------------------------------------------------
 
 install(TARGETS muslimtify DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES assets/adhan.mp3
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/muslimtify/)
 
-install(FILES assets/muslimtify.png
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps/)
-install(FILES assets/muslimtify.png
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps/)
 if(WIN32)
     install(FILES assets/muslimtify.ico
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/)
+else()
+    install(FILES assets/muslimtify.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps/)
+    install(FILES assets/muslimtify.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps/)
+    install(FILES ${CMAKE_BINARY_DIR}/systemd/muslimtify.service
+        DESTINATION lib/systemd/user/)
 endif()
 
-install(FILES ${CMAKE_BINARY_DIR}/systemd/muslimtify.service
-    DESTINATION lib/systemd/user/)
 
 if(WIN32)
     add_executable(muslimtify-service WIN32 src/platform/windows/muslimtify_service_win.c)
