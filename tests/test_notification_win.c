@@ -17,6 +17,8 @@ BOOL notification_win_resolve_toast_icon_path_for_test(const wchar_t *base_dir, 
 wchar_t *notification_win_build_toast_xml_for_test(const wchar_t *base_dir, const wchar_t *wtitle,
                                                    const wchar_t *wmsg, const char *urgency);
 wchar_t *notification_win_build_adhan_xml_for_test(const wchar_t *wtitle, const wchar_t *wmsg);
+BOOL notification_win_resolve_adhan_path_for_test(const wchar_t *base_dir, wchar_t *buffer,
+                                                  size_t buffer_size);
 
 static void report_result(const char *label, bool pass) {
   total++;
@@ -239,6 +241,37 @@ static void test_adhan_xml_has_stop_action_and_silent_audio(void) {
   free(xml);
 }
 
+static void test_adhan_path_installed_layout(void) {
+  printf("test_adhan_path_installed_layout\n");
+
+  wchar_t root_dir[MAX_PATH];
+  wchar_t exe_dir[MAX_PATH];
+  wchar_t adhan_path[MAX_PATH];
+  wchar_t resolved[MAX_PATH];
+
+  if (!make_test_root_dir(L"adhan", root_dir, sizeof(root_dir) / sizeof(root_dir[0]))) {
+    report_result("create base dir", false);
+    return;
+  }
+  if (!join_path(root_dir, L"bin", exe_dir, sizeof(exe_dir) / sizeof(exe_dir[0]))) {
+    report_result("build executable dir", false);
+    return;
+  }
+  if (!join_path(exe_dir, L"..\\share\\muslimtify\\adhan.mp3", adhan_path,
+                 sizeof(adhan_path) / sizeof(adhan_path[0]))) {
+    report_result("build installed adhan path", false);
+    return;
+  }
+
+  report_result("create installed adhan file", create_empty_file(adhan_path));
+
+  resolved[0] = L'\0';
+  report_result("adhan resolver returns success",
+                notification_win_resolve_adhan_path_for_test(
+                    exe_dir, resolved, sizeof(resolved) / sizeof(resolved[0])));
+  report_result("adhan resolver finds installed adhan", wide_equals(resolved, adhan_path));
+}
+
 int main(void) {
   printf("=== notification_win icon resolution tests ===\n\n");
 
@@ -246,6 +279,7 @@ int main(void) {
   test_development_layout_resolution_preference();
   test_no_icon_fallback_behavior();
   test_adhan_xml_has_stop_action_and_silent_audio();
+  test_adhan_path_installed_layout();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;

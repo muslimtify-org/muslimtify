@@ -440,6 +440,50 @@ static BOOL resolve_toast_icon_path(wchar_t *buffer, size_t buffer_size) {
   return resolve_toast_icon_path_from_base(base_dir, buffer, buffer_size);
 }
 
+static BOOL resolve_adhan_path_from_base(const wchar_t *base_dir, wchar_t *buffer,
+                                         size_t buffer_size) {
+  static const wchar_t *const candidates[] = {
+      L"..\\share\\muslimtify\\adhan.mp3",
+      L"..\\assets\\adhan.mp3",
+      L"assets\\adhan.mp3",
+      L"..\\..\\share\\muslimtify\\adhan.mp3",
+      L"..\\..\\assets\\adhan.mp3",
+      L"..\\..\\..\\assets\\adhan.mp3",
+  };
+  wchar_t candidate_path[WINDOWS_PATH_MAX];
+  size_t i;
+
+  if (!base_dir || base_dir[0] == L'\0' || !buffer || buffer_size == 0)
+    return FALSE;
+
+  buffer[0] = L'\0';
+
+  for (i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+    if (!build_executable_relative_path(base_dir, candidates[i], candidate_path,
+                                        sizeof(candidate_path) / sizeof(candidate_path[0]))) {
+      continue;
+    }
+    if (wide_file_exists(candidate_path)) {
+      if (swprintf(buffer, buffer_size, L"%ls", candidate_path) > 0)
+        return TRUE;
+      buffer[0] = L'\0';
+      return FALSE;
+    }
+  }
+
+  buffer[0] = L'\0';
+  return FALSE;
+}
+
+static BOOL resolve_adhan_path(wchar_t *buffer, size_t buffer_size) {
+  wchar_t base_dir[WINDOWS_PATH_MAX];
+
+  if (!get_executable_dir(base_dir, sizeof(base_dir) / sizeof(base_dir[0])))
+    return FALSE;
+
+  return resolve_adhan_path_from_base(base_dir, buffer, buffer_size);
+}
+
 static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, const wchar_t *wicon,
                                 const char *urgency, const char *sound_preset,
                                 BOOL with_stop_action);
@@ -502,6 +546,11 @@ done:
   free(escaped_title);
   free(escaped_message);
   return xml;
+}
+
+BOOL notification_win_resolve_adhan_path_for_test(const wchar_t *base_dir, wchar_t *buffer,
+                                                  size_t buffer_size) {
+  return resolve_adhan_path_from_base(base_dir, buffer, buffer_size);
 }
 #endif
 
