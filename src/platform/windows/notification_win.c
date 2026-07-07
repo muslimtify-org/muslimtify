@@ -1,4 +1,3 @@
-#include <corecrt.h>
 #define UNICODE
 #define _UNICODE
 #define COBJMACROS
