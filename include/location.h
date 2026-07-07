@@ -20,9 +20,9 @@ double parse_timezone_offset(const char *tz_name, time_t when);
 
 /**
  * Return true iff `tz_name` is a safe IANA-style timezone string: non-NULL,
- * non-empty, at most 64 chars, no leading ':', and every character in
- * [A-Za-z0-9_+-/]. Guards the setenv("TZ")/tzset() path against hostile
- * ipinfo.io responses and corrupted config values.
+ * non-empty, at most 64 chars, no leading ':', and every character is ASCII
+ * alphanumeric or one of '_', '+', '-', '/'. Guards the setenv("TZ")/tzset()
+ * path against hostile ipinfo.io responses and corrupted config values.
  */
 bool timezone_name_is_valid(const char *tz_name);
 
