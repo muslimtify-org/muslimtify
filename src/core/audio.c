@@ -23,11 +23,6 @@ static void sleep_ms(int ms) {
 }
 
 int audio_start(const char *path) {
-  // `path` is local-trust-only: it comes from the user's own config.json
-  // (`adhan` field) or a CLI argument, i.e. the same trust boundary as the
-  // user running the program, so no sanitization is required here. This
-  // assumption must be revisited if the adhan path ever becomes settable from
-  // an untrusted source (e.g. a synced/remote config).
   if (g_is_playing)
     audio_stop();
 
