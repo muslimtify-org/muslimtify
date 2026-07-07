@@ -1,5 +1,6 @@
 #include "cli_internal.h"
 #include "config.h"
+#include "notification.h"
 #include "string_util.h"
 #include <stdio.h>
 #include <string.h>
@@ -124,9 +125,26 @@ static int sound_reminder_set(int argc, char **argv) {
   return 0;
 }
 
+#ifdef _WIN32
+// muslimtify sound stop  → stop an adhan that is currently playing
+static int sound_stop(int argc, char **argv) {
+  (void)argc;
+  (void)argv;
+  if (notify_adhan_stop() == 0) {
+    printf("Adhan playback stopped\n");
+  } else {
+    printf("No adhan is currently playing\n");
+  }
+  return 0;
+}
+#endif
+
 static const CommandEntry sound_commands[] = {
-    {"on", sound_on},       {"off", sound_off}, {"status", sound_status},
-    {"show", sound_status}, {"set", sound_set}, {"reminder-set", sound_reminder_set},
+    {"on", sound_on},       {"off", sound_off},   {"status", sound_status},
+    {"show", sound_status}, {"set", sound_set},   {"reminder-set", sound_reminder_set},
+#ifdef _WIN32
+    {"stop", sound_stop},
+#endif
 };
 
 int handle_sound(int argc, char **argv) {
@@ -145,6 +163,9 @@ int handle_sound(int argc, char **argv) {
   fprintf(stderr, "  muslimtify sound set <preset>      Set alarm sound preset\n");
   fprintf(stderr, "  muslimtify sound reminder-set <preset>\n");
   fprintf(stderr, "                                     Set reminder sound preset\n");
+#ifdef _WIN32
+  fprintf(stderr, "  muslimtify sound stop              Stop a currently playing adhan\n");
+#endif
   fprintf(stderr, "\nPresets: reminder, alarm, default\n");
   return 1;
 }

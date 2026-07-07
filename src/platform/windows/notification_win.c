@@ -508,8 +508,7 @@ static BOOL resolve_adhan_path(wchar_t *buffer, size_t buffer_size) {
 }
 
 static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, const wchar_t *wicon,
-                                const char *urgency, const char *sound_preset,
-                                BOOL with_stop_action);
+                                const char *urgency, const char *sound_preset);
 
 #ifdef MUSLIMTIFY_NOTIFICATION_WIN_TEST
 BOOL notification_win_resolve_toast_icon_path_for_test(const wchar_t *base_dir, wchar_t *buffer,
@@ -540,7 +539,7 @@ wchar_t *notification_win_build_toast_xml_for_test(const wchar_t *base_dir, cons
       goto fail;
   }
 
-  xml = build_toast_xml(escaped_title, escaped_message, wicon, urgency, "default", FALSE);
+  xml = build_toast_xml(escaped_title, escaped_message, wicon, urgency, "default");
 
 fail:
   free(escaped_title);
@@ -563,7 +562,7 @@ wchar_t *notification_win_build_adhan_xml_for_test(const wchar_t *wtitle, const 
     goto done;
 
   /* NULL preset => <audio silent="true"/>; TRUE => Stop action. Matches notify_adhan. */
-  xml = build_toast_xml(escaped_title, escaped_message, NULL, "critical", NULL, TRUE);
+  xml = build_toast_xml(escaped_title, escaped_message, NULL, "critical", NULL);
 
 done:
   free(escaped_title);
@@ -644,8 +643,7 @@ static BOOL append_audio_element(wchar_t **xml, size_t *len, size_t *cap,
 }
 
 static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, const wchar_t *wicon,
-                                const char *urgency, const char *sound_preset,
-                                BOOL with_stop_action) {
+                                const char *urgency, const char *sound_preset) {
   wchar_t *xml = NULL;
   size_t xml_len = 0;
   size_t xml_cap = 0;
@@ -686,14 +684,6 @@ static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, cons
   }
   if (!append_audio_element(&xml, &xml_len, &xml_cap, sound_preset)) {
     goto fail;
-  }
-  if (with_stop_action) {
-    if (!append_wide_segment(
-            &xml, &xml_len, &xml_cap,
-            L"<actions><action content=\"Stop\" arguments=\"stop\" "
-            L"activationType=\"foreground\"/></actions>")) {
-      goto fail;
-    }
   }
   if (!append_wide_segment(&xml, &xml_len, &xml_cap, L"</toast>")) {
     goto fail;
@@ -808,7 +798,7 @@ static void send_notification(const char *title, const char *message, const char
   }
 
   /* Build toast XML */
-  wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, urgency, sound_preset, FALSE);
+  wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, urgency, sound_preset);
   free(wtitle);
   free(wmsg);
   free(wicon);
@@ -820,64 +810,16 @@ static void send_notification(const char *title, const char *message, const char
   free(xml);
 }
 
-/* -- Stop-button / dismiss event handler ------------------------------------ */
-/* Minimal ITypedEventHandler: Invoke signals a manual-reset event. The same
-   object is registered for both add_Activated (Stop button) and add_Dismissed
-   (toast closed). QueryInterface answers only IUnknown + IAgileObject (agile so
-   the MTA runtime invokes it without marshaling); AddRef/Release are no-ops
-   because the object is file-static and outlives every registration. */
-
-static const GUID GUID_IUnknown_ = {
-    0x00000000, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
-static const GUID GUID_IAgileObject_ = {
-    0x94ea2b94, 0xe9cc, 0x49e0, {0xc0, 0xff, 0xee, 0x64, 0xca, 0x8f, 0x5b, 0x90}};
-
-typedef struct AdhanHandlerVtbl {
-  HRESULT(STDMETHODCALLTYPE *QueryInterface)(void *This, REFIID riid, void **ppv);
-  ULONG(STDMETHODCALLTYPE *AddRef)(void *This);
-  ULONG(STDMETHODCALLTYPE *Release)(void *This);
-  HRESULT(STDMETHODCALLTYPE *Invoke)(void *This, void *sender, void *args);
-} AdhanHandlerVtbl;
-
-typedef struct AdhanHandler {
-  const AdhanHandlerVtbl *lpVtbl;
-  HANDLE stop_event;
-} AdhanHandler;
-
-static HRESULT STDMETHODCALLTYPE adhan_handler_QI(void *This, REFIID riid, void **ppv) {
-  if (!ppv)
-    return E_POINTER;
-  if (IsEqualGUID(riid, &GUID_IUnknown_) || IsEqualGUID(riid, &GUID_IAgileObject_)) {
-    *ppv = This;
-    return S_OK;
-  }
-  *ppv = NULL;
-  return E_NOINTERFACE;
-}
-
-static ULONG STDMETHODCALLTYPE adhan_handler_AddRef(void *This) {
-  (void)This;
-  return 2;
-}
-
-static ULONG STDMETHODCALLTYPE adhan_handler_Release(void *This) {
-  (void)This;
-  return 1;
-}
-
-static HRESULT STDMETHODCALLTYPE adhan_handler_Invoke(void *This, void *sender, void *args) {
-  AdhanHandler *self = (AdhanHandler *)This;
-  (void)sender;
-  (void)args;
-  if (self && self->stop_event)
-    SetEvent(self->stop_event);
-  return S_OK;
-}
-
-static const AdhanHandlerVtbl g_adhan_handler_vtbl = {
-    adhan_handler_QI, adhan_handler_AddRef, adhan_handler_Release, adhan_handler_Invoke};
-
-static AdhanHandler g_adhan_handler = {&g_adhan_handler_vtbl, NULL};
+/* -- Adhan stop signal ------------------------------------------------------ */
+/* Toast buttons cannot deliver a callback to an unpackaged Win32 app without a
+   registered COM activator (ToastActivatorCLSID) + AUMID shortcut, so we do not
+   rely on toast interaction to stop the adhan. Instead notify_adhan creates a
+   named manual-reset event while the adhan plays and waits on it; a separate
+   process (`muslimtify sound stop`) opens the event by name and signals it via
+   notify_adhan_stop(). The event existing also means "an adhan is playing".
+   Session-local namespace is correct: the interactive scheduled task and the
+   user's shell share one logon session. */
+static const wchar_t ADHAN_STOP_EVENT_NAME[] = L"Local\\MuslimtifyAdhanStop";
 static HANDLE g_adhan_stop_event = NULL;
 
 /* -- API implementation ----------------------------------------------------- */
@@ -961,7 +903,8 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
     }
   }
 
-  /* Build the toast: title/message, silent audio, Stop action. */
+  /* Build the toast: title/message, silent audio, no Stop button (unpackaged
+     toasts can't route a button click back — stop is via notify_adhan_stop). */
   char title[128];
   char message[256];
   _snprintf_s(title, sizeof(title), _TRUNCATE, "Prayer Time: %s", prayer_name);
@@ -982,7 +925,7 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
     if (resolve_toast_icon_path(icon_path, sizeof(icon_path) / sizeof(icon_path[0])))
       wicon = xml_escape(icon_path);
 
-    wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, "critical", NULL, TRUE);
+    wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, "critical", NULL);
     free(wicon);
     if (xml) {
       toast = create_toast_from_xml(xml);
@@ -992,24 +935,16 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
   free(wtitle);
   free(wmsg);
 
-  /* Arm the stop event + handlers before showing the toast. */
-  EventRegistrationToken tok_activated = {0};
-  EventRegistrationToken tok_dismissed = {0};
-  if (toast) {
-    if (!g_adhan_stop_event)
-      g_adhan_stop_event = CreateEventW(NULL, TRUE, FALSE, NULL); /* manual-reset */
-    else
-      ResetEvent(g_adhan_stop_event);
-    g_adhan_handler.stop_event = g_adhan_stop_event;
+  /* Create the named stop event: its existence marks "an adhan is playing", and
+     `muslimtify sound stop` signals it via notify_adhan_stop(). */
+  if (g_adhan_stop_event)
+    CloseHandle(g_adhan_stop_event);
+  g_adhan_stop_event = CreateEventW(NULL, TRUE, FALSE, ADHAN_STOP_EVENT_NAME); /* manual-reset */
 
-    if (g_adhan_stop_event) {
-      toast->lpVtbl->add_Activated(toast, &g_adhan_handler, &tok_activated);
-      toast->lpVtbl->add_Dismissed(toast, &g_adhan_handler, &tok_dismissed);
-    }
+  if (toast)
     g_state.notifier->lpVtbl->Show(g_state.notifier, toast);
-  }
 
-  /* Play + block until the adhan ends, Stop is clicked, or the toast is closed. */
+  /* Play + block until the adhan ends or `sound stop` signals the event. */
   if (adhan_path && audio_start(adhan_path) == 0) {
     while (audio_is_playing()) {
       if (g_adhan_stop_event && WaitForSingleObject(g_adhan_stop_event, 100) == WAIT_OBJECT_0)
@@ -1020,9 +955,27 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
     audio_stop();
   }
 
+  /* Close the event so it no longer advertises a playing adhan. */
+  if (g_adhan_stop_event) {
+    CloseHandle(g_adhan_stop_event);
+    g_adhan_stop_event = NULL;
+  }
+
   if (toast)
     toast->lpVtbl->Release(toast);
   free(resolved_utf8);
+}
+
+/* Signal an in-progress adhan (started by notify_adhan, possibly in another
+   process such as the scheduled-task daemon) to stop. Returns 0 if a running
+   adhan was signaled, -1 if none is playing. */
+int notify_adhan_stop(void) {
+  HANDLE ev = OpenEventW(EVENT_MODIFY_STATE, FALSE, ADHAN_STOP_EVENT_NAME);
+  if (!ev)
+    return -1; /* event absent => no adhan currently playing */
+  SetEvent(ev);
+  CloseHandle(ev);
+  return 0;
 }
 
 void notify_send(const char *title, const char *message) {
