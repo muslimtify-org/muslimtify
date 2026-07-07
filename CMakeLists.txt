@@ -117,6 +117,7 @@ add_library(muslimtify_core OBJECT
     $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
     src/core/display.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
+    $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/linux/platform_linux.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/timezone.c,src/platform/linux/timezone.c>
 )

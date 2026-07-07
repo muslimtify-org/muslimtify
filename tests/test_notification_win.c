@@ -22,6 +22,15 @@ int audio_start(const char *path) {
 int audio_is_playing(void) { return 0; }
 void audio_stop(void) {}
 
+/* Link-only stubs for the toast-activator symbols notification_win.c references
+   (real impls live in toast_activator_win.c, not linked into this test). */
+int toast_activator_register_running(unsigned long *cookie) {
+  if (cookie)
+    *cookie = 0;
+  return -1;
+}
+void toast_activator_revoke_running(unsigned long cookie) { (void)cookie; }
+
 static int total = 0;
 static int failures = 0;
 
@@ -241,16 +250,16 @@ static void test_no_icon_fallback_behavior(void) {
   free(xml);
 }
 
-static void test_adhan_xml_is_silent_no_button(void) {
-  printf("test_adhan_xml_is_silent_no_button\n");
+static void test_adhan_xml_has_stop_button_and_silent_audio(void) {
+  printf("test_adhan_xml_has_stop_button_and_silent_audio\n");
 
   wchar_t *xml = notification_win_build_adhan_xml_for_test(L"Prayer Time: Fajr",
                                                            L"It's time for Fajr prayer");
   report_result("adhan XML builds", xml != NULL);
   report_result("adhan XML silences the toast's own sound",
                 xml != NULL && wcsstr(xml, L"<audio silent=\"true\"/>") != NULL);
-  report_result("adhan XML has no toast action button",
-                xml != NULL && wcsstr(xml, L"<actions>") == NULL);
+  report_result("adhan XML has a Stop action button",
+                xml != NULL && wcsstr(xml, L"arguments=\"stop\"") != NULL);
   free(xml);
 }
 
@@ -291,7 +300,7 @@ int main(void) {
   test_installed_layout_resolution_preference();
   test_development_layout_resolution_preference();
   test_no_icon_fallback_behavior();
-  test_adhan_xml_is_silent_no_button();
+  test_adhan_xml_has_stop_button_and_silent_audio();
   test_adhan_path_installed_layout();
 
   printf("\n%d/%d tests passed\n", total - failures, total);

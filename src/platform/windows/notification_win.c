@@ -4,6 +4,7 @@
 
 #include "audio.h"
 #include "notification.h"
+#include "toast_activator.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -260,6 +261,10 @@ ROAPI HRESULT WINAPI RoActivateInstance(HSTRING activatableClassId, IInspectable
 ROAPI void WINAPI RoUninitialize(void);
 #endif
 
+/* SetCurrentProcessExplicitAppUserModelID (shell32) -- declared manually to
+   avoid including shell headers that clash with our hand-rolled WinRT types. */
+DECLSPEC_IMPORT HRESULT WINAPI SetCurrentProcessExplicitAppUserModelID(PCWSTR AppID);
+
 /* -- AUMID for unpackaged app ----------------------------------------------- */
 
 static const WCHAR MUSLIMTIFY_AUMID[] = L"Muslimtify";
@@ -508,7 +513,8 @@ static BOOL resolve_adhan_path(wchar_t *buffer, size_t buffer_size) {
 }
 
 static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, const wchar_t *wicon,
-                                const char *urgency, const char *sound_preset);
+                                const char *urgency, const char *sound_preset,
+                                BOOL with_stop_action);
 
 #ifdef MUSLIMTIFY_NOTIFICATION_WIN_TEST
 BOOL notification_win_resolve_toast_icon_path_for_test(const wchar_t *base_dir, wchar_t *buffer,
@@ -539,7 +545,7 @@ wchar_t *notification_win_build_toast_xml_for_test(const wchar_t *base_dir, cons
       goto fail;
   }
 
-  xml = build_toast_xml(escaped_title, escaped_message, wicon, urgency, "default");
+  xml = build_toast_xml(escaped_title, escaped_message, wicon, urgency, "default", FALSE);
 
 fail:
   free(escaped_title);
@@ -562,7 +568,7 @@ wchar_t *notification_win_build_adhan_xml_for_test(const wchar_t *wtitle, const 
     goto done;
 
   /* NULL preset => <audio silent="true"/>; TRUE => Stop action. Matches notify_adhan. */
-  xml = build_toast_xml(escaped_title, escaped_message, NULL, "critical", NULL);
+  xml = build_toast_xml(escaped_title, escaped_message, NULL, "critical", NULL, TRUE);
 
 done:
   free(escaped_title);
@@ -643,7 +649,8 @@ static BOOL append_audio_element(wchar_t **xml, size_t *len, size_t *cap,
 }
 
 static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, const wchar_t *wicon,
-                                const char *urgency, const char *sound_preset) {
+                                const char *urgency, const char *sound_preset,
+                                BOOL with_stop_action) {
   wchar_t *xml = NULL;
   size_t xml_len = 0;
   size_t xml_cap = 0;
@@ -684,6 +691,14 @@ static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, cons
   }
   if (!append_audio_element(&xml, &xml_len, &xml_cap, sound_preset)) {
     goto fail;
+  }
+  if (with_stop_action) {
+    if (!append_wide_segment(
+            &xml, &xml_len, &xml_cap,
+            L"<actions><action content=\"Stop\" arguments=\"stop\" "
+            L"activationType=\"foreground\"/></actions>")) {
+      goto fail;
+    }
   }
   if (!append_wide_segment(&xml, &xml_len, &xml_cap, L"</toast>")) {
     goto fail;
@@ -798,7 +813,7 @@ static void send_notification(const char *title, const char *message, const char
   }
 
   /* Build toast XML */
-  wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, urgency, sound_preset);
+  wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, urgency, sound_preset, FALSE);
   free(wtitle);
   free(wmsg);
   free(wicon);
@@ -834,6 +849,10 @@ int notify_init_once(const char *app_name) {
     fprintf(stderr, "muslimtify: RoInitialize failed\n");
     return 0;
   }
+
+  /* Attribute this process to our AUMID so Windows maps toast activations to the
+     registered AppUserModelId / ToastActivatorCLSID. */
+  SetCurrentProcessExplicitAppUserModelID(MUSLIMTIFY_AUMID);
 
   /* Get ToastNotificationManager factory */
   HSTRING_HEADER hsh_mgr;
@@ -925,7 +944,7 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
     if (resolve_toast_icon_path(icon_path, sizeof(icon_path) / sizeof(icon_path[0])))
       wicon = xml_escape(icon_path);
 
-    wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, "critical", NULL);
+    wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, "critical", NULL, TRUE);
     free(wicon);
     if (xml) {
       toast = create_toast_from_xml(xml);
@@ -941,10 +960,15 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
     CloseHandle(g_adhan_stop_event);
   g_adhan_stop_event = CreateEventW(NULL, TRUE, FALSE, ADHAN_STOP_EVENT_NAME); /* manual-reset */
 
+  /* Serve toast activations in this running process so a Stop click routes here
+     on an RPC thread (registry-AUMID path) and signals the event below. */
+  unsigned long activator_cookie = 0;
+  toast_activator_register_running(&activator_cookie);
+
   if (toast)
     g_state.notifier->lpVtbl->Show(g_state.notifier, toast);
 
-  /* Play + block until the adhan ends or `sound stop` signals the event. */
+  /* Play + block until the adhan ends, the Stop button, or `sound stop`. */
   if (adhan_path && audio_start(adhan_path) == 0) {
     while (audio_is_playing()) {
       if (g_adhan_stop_event && WaitForSingleObject(g_adhan_stop_event, 100) == WAIT_OBJECT_0)
@@ -954,6 +978,8 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
     }
     audio_stop();
   }
+
+  toast_activator_revoke_running(activator_cookie);
 
   /* Close the event so it no longer advertises a playing adhan. */
   if (g_adhan_stop_event) {
