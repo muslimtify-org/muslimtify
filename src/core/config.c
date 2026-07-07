@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #define JSON_IMPLEMENTATION
 #include "config.h"
 #include "json.h"
@@ -8,6 +9,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
 
 // Refuse to load a config file larger than this; a sane config is a few KB.
 #define MAX_CONFIG_FILE_BYTES (1024L * 1024L)
@@ -279,6 +284,12 @@ int config_save(const Config *cfg) {
     fprintf(stderr, "Error: Cannot write config file: %s\n", errbuf);
     return -1;
   }
+
+#ifndef _WIN32
+  // Owner-only: the config records the user's coordinates; keep it out of
+  // other local users' reach. Set on the temp file before the atomic rename.
+  (void)fchmod(fileno(f), S_IRUSR | S_IWUSR);
+#endif
 
   if (write_json_file(f, cfg) != 0 || fflush(f) != 0 || fclose(f) != 0) {
     int err = errno;

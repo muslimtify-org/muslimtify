@@ -7,6 +7,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
+
 static int passed = 0;
 static int failed = 0;
 
@@ -417,6 +421,19 @@ static void test_config_size_cap(void) {
   check_bool("cap: oversize config rejected", config_load(&loaded) == -1);
 }
 
+static void test_config_perms(void) {
+#ifndef _WIN32
+  printf("  config_perms...\n");
+  Config cfg = config_default();
+  check_bool("perms: save", config_save(&cfg) == 0);
+  struct stat st;
+  check_bool("perms: stat", stat(config_get_path(), &st) == 0);
+  check_bool("perms: owner-only (0600)", (st.st_mode & 077) == 0);
+#else
+  (void)0;
+#endif
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -434,6 +451,7 @@ int main(void) {
   test_offset_wrap();
   test_offset_clamp_on_load();
   test_config_size_cap();
+  test_config_perms();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

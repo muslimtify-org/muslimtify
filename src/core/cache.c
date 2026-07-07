@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "cache.h"
 #include "json.h"
 #include "platform.h"
@@ -8,6 +9,10 @@
 #include <string.h>
 
 #include "string_util.h"
+
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
 
 // Refuse to load a cache file larger than this; a sane cache is a few KB.
 #define MAX_CACHE_FILE_BYTES (1024L * 1024L)
@@ -202,6 +207,10 @@ int cache_save(const PrayerCache *cache) {
   FILE *f = platform_file_open(tmp_path, "w");
   if (!f)
     return -1;
+
+#ifndef _WIN32
+  (void)fchmod(fileno(f), S_IRUSR | S_IWUSR);
+#endif
 
   fprintf(f, "{\n");
   fprintf(f, "  \"date\": \"%s\",\n", cache->date);
