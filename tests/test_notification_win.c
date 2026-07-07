@@ -9,6 +9,19 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+/* Link-only stubs. notification_win.c references audio_start/audio_is_playing/
+   audio_stop from notify_adhan, but these tests exercise only the XML and
+   path-resolution helpers via the *_for_test hooks and never invoke
+   notify_adhan. The real implementations live in src/core/audio.c, which is
+   linked into the main executable but intentionally not into this lightweight
+   standalone notification test. */
+int audio_start(const char *path) {
+  (void)path;
+  return -1;
+}
+int audio_is_playing(void) { return 0; }
+void audio_stop(void) {}
+
 static int total = 0;
 static int failures = 0;
 

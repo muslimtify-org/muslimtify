@@ -293,6 +293,23 @@ static wchar_t *utf8_to_utf16(const char *utf8) {
   return wide;
 }
 
+/* Convert UTF-16 to UTF-8. Caller must free() the result. */
+static char *utf16_to_utf8(const wchar_t *wide) {
+  int len;
+  char *utf8;
+
+  if (!wide)
+    return NULL;
+  len = WideCharToMultiByte(CP_UTF8, 0, wide, -1, NULL, 0, NULL, NULL);
+  if (len <= 0)
+    return NULL;
+  utf8 = (char *)malloc((size_t)len);
+  if (!utf8)
+    return NULL;
+  WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, len, NULL, NULL);
+  return utf8;
+}
+
 /* XML-escape a UTF-16 string. Caller must free() the result. */
 static wchar_t *xml_escape(const wchar_t *src) {
   if (!src)
@@ -804,6 +821,66 @@ static void send_notification(const char *title, const char *message, const char
   free(xml);
 }
 
+/* -- Stop-button / dismiss event handler ------------------------------------ */
+/* Minimal ITypedEventHandler: Invoke signals a manual-reset event. The same
+   object is registered for both add_Activated (Stop button) and add_Dismissed
+   (toast closed). QueryInterface answers only IUnknown + IAgileObject (agile so
+   the MTA runtime invokes it without marshaling); AddRef/Release are no-ops
+   because the object is file-static and outlives every registration. */
+
+static const GUID GUID_IUnknown_ = {
+    0x00000000, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+static const GUID GUID_IAgileObject_ = {
+    0x94ea2b94, 0xe9cc, 0x49e0, {0xc0, 0xff, 0xee, 0x64, 0xca, 0x8f, 0x5b, 0x90}};
+
+typedef struct AdhanHandlerVtbl {
+  HRESULT(STDMETHODCALLTYPE *QueryInterface)(void *This, REFIID riid, void **ppv);
+  ULONG(STDMETHODCALLTYPE *AddRef)(void *This);
+  ULONG(STDMETHODCALLTYPE *Release)(void *This);
+  HRESULT(STDMETHODCALLTYPE *Invoke)(void *This, void *sender, void *args);
+} AdhanHandlerVtbl;
+
+typedef struct AdhanHandler {
+  const AdhanHandlerVtbl *lpVtbl;
+  HANDLE stop_event;
+} AdhanHandler;
+
+static HRESULT STDMETHODCALLTYPE adhan_handler_QI(void *This, REFIID riid, void **ppv) {
+  if (!ppv)
+    return E_POINTER;
+  if (IsEqualGUID(riid, &GUID_IUnknown_) || IsEqualGUID(riid, &GUID_IAgileObject_)) {
+    *ppv = This;
+    return S_OK;
+  }
+  *ppv = NULL;
+  return E_NOINTERFACE;
+}
+
+static ULONG STDMETHODCALLTYPE adhan_handler_AddRef(void *This) {
+  (void)This;
+  return 2;
+}
+
+static ULONG STDMETHODCALLTYPE adhan_handler_Release(void *This) {
+  (void)This;
+  return 1;
+}
+
+static HRESULT STDMETHODCALLTYPE adhan_handler_Invoke(void *This, void *sender, void *args) {
+  AdhanHandler *self = (AdhanHandler *)This;
+  (void)sender;
+  (void)args;
+  if (self && self->stop_event)
+    SetEvent(self->stop_event);
+  return S_OK;
+}
+
+static const AdhanHandlerVtbl g_adhan_handler_vtbl = {
+    adhan_handler_QI, adhan_handler_AddRef, adhan_handler_Release, adhan_handler_Invoke};
+
+static AdhanHandler g_adhan_handler = {&g_adhan_handler_vtbl, NULL};
+static HANDLE g_adhan_stop_event = NULL;
+
 /* -- API implementation ----------------------------------------------------- */
 
 int notify_init_once(const char *app_name) {
@@ -871,16 +948,82 @@ fail:
 }
 
 void notify_adhan(const char *prayer_name, const char *time_str, const char *path) {
-  (void)path;
+  if (!g_state.initialized)
+    return;
 
+  /* Resolve the audio file: caller path, else bundled adhan.mp3. */
+  char *resolved_utf8 = NULL;
+  const char *adhan_path = (path && path[0] != '\0') ? path : NULL;
+  if (!adhan_path) {
+    wchar_t wresolved[WINDOWS_PATH_MAX];
+    if (resolve_adhan_path(wresolved, sizeof(wresolved) / sizeof(wresolved[0]))) {
+      resolved_utf8 = utf16_to_utf8(wresolved);
+      adhan_path = resolved_utf8;
+    }
+  }
+
+  /* Build the toast: title/message, silent audio, Stop action. */
   char title[128];
   char message[256];
-
   _snprintf_s(title, sizeof(title), _TRUNCATE, "Prayer Time: %s", prayer_name);
   _snprintf_s(message, sizeof(message), _TRUNCATE, "It's time for %s prayer\nTime: %s", prayer_name,
               time_str);
 
-  send_notification(title, message, "critical", "default");
+  wchar_t *wtitle_raw = utf8_to_utf16(title);
+  wchar_t *wmsg_raw = utf8_to_utf16(message);
+  wchar_t *wtitle = xml_escape(wtitle_raw);
+  wchar_t *wmsg = xml_escape(wmsg_raw);
+  free(wtitle_raw);
+  free(wmsg_raw);
+
+  IToastNotification *toast = NULL;
+  if (wtitle && wmsg) {
+    wchar_t icon_path[WINDOWS_PATH_MAX];
+    wchar_t *wicon = NULL;
+    if (resolve_toast_icon_path(icon_path, sizeof(icon_path) / sizeof(icon_path[0])))
+      wicon = xml_escape(icon_path);
+
+    wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, "critical", NULL, TRUE);
+    free(wicon);
+    if (xml) {
+      toast = create_toast_from_xml(xml);
+      free(xml);
+    }
+  }
+  free(wtitle);
+  free(wmsg);
+
+  /* Arm the stop event + handlers before showing the toast. */
+  EventRegistrationToken tok_activated = {0};
+  EventRegistrationToken tok_dismissed = {0};
+  if (toast) {
+    if (!g_adhan_stop_event)
+      g_adhan_stop_event = CreateEventW(NULL, TRUE, FALSE, NULL); /* manual-reset */
+    else
+      ResetEvent(g_adhan_stop_event);
+    g_adhan_handler.stop_event = g_adhan_stop_event;
+
+    if (g_adhan_stop_event) {
+      toast->lpVtbl->add_Activated(toast, &g_adhan_handler, &tok_activated);
+      toast->lpVtbl->add_Dismissed(toast, &g_adhan_handler, &tok_dismissed);
+    }
+    g_state.notifier->lpVtbl->Show(g_state.notifier, toast);
+  }
+
+  /* Play + block until the adhan ends, Stop is clicked, or the toast is closed. */
+  if (adhan_path && audio_start(adhan_path) == 0) {
+    while (audio_is_playing()) {
+      if (g_adhan_stop_event && WaitForSingleObject(g_adhan_stop_event, 100) == WAIT_OBJECT_0)
+        break;
+      if (!g_adhan_stop_event)
+        Sleep(100);
+    }
+    audio_stop();
+  }
+
+  if (toast)
+    toast->lpVtbl->Release(toast);
+  free(resolved_utf8);
 }
 
 void notify_send(const char *title, const char *message) {
