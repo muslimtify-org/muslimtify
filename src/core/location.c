@@ -97,6 +97,18 @@ int location_fetch(Config *cfg) {
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(curl, CURLOPT_MAXFILESIZE, 65536L);
+  // Explicit TLS verification (defense-in-depth over libcurl defaults) and
+  // restrict transfer + redirects to https so a redirect cannot downgrade to
+  // http/file/etc.
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+#if LIBCURL_VERSION_NUM >= 0x075500 /* 7.85.0: string protocol API */
+  curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
+  curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "https");
+#else
+  curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+  curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS);
+#endif
 
   CURLcode res = curl_easy_perform(curl);
 
