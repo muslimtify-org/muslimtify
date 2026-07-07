@@ -82,6 +82,8 @@ static const wchar_t *iana_to_windows_zone(const char *tz_name) {
 }
 
 double parse_timezone_offset(const char *tz_name, time_t when) {
+  if (!timezone_name_is_valid(tz_name))
+    return 0.0;
   const wchar_t *win_zone = iana_to_windows_zone(tz_name);
   if (!win_zone)
     return 0.0;

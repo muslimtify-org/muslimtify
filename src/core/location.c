@@ -10,6 +10,23 @@
 #include <string.h>
 #include <time.h>
 
+bool timezone_name_is_valid(const char *tz_name) {
+  if (!tz_name || tz_name[0] == '\0' || tz_name[0] == ':')
+    return false;
+
+  size_t len = 0;
+  for (const char *p = tz_name; *p; p++) {
+    unsigned char c = (unsigned char)*p;
+    bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '+' || c == '-' || c == '/';
+    if (!ok)
+      return false;
+    if (++len > 64)
+      return false;
+  }
+  return true;
+}
+
 typedef struct {
   char *data;
   size_t size;
@@ -122,13 +139,18 @@ int location_fetch(Config *cfg) {
     }
   }
 
-  // Parse timezone
+  // Parse timezone. Reject a hostile/garbage value from the network before it
+  // reaches setenv("TZ")/tzset() or gets persisted to config.
   char *tz_str = get_value(ctx, "timezone", response.data);
   if (tz_str) {
-    if (!copy_string(cfg->timezone, sizeof(cfg->timezone), tz_str)) {
-      location_log_trunc("timezone");
+    if (!timezone_name_is_valid(tz_str)) {
+      fprintf(stderr, "location: ignoring invalid timezone from API\n");
+    } else {
+      if (!copy_string(cfg->timezone, sizeof(cfg->timezone), tz_str)) {
+        location_log_trunc("timezone");
+      }
+      cfg->timezone_offset = parse_timezone_offset(tz_str, time(NULL));
     }
-    cfg->timezone_offset = parse_timezone_offset(tz_str, time(NULL));
   }
 
   // Note: ipinfo's "city" field is intentionally NOT read. The city label is

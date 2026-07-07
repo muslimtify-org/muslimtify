@@ -290,6 +290,47 @@ static void test_get_system_timezone(void) {
   }
 }
 
+static void test_timezone_name_is_valid(void) {
+  printf("\n-- timezone_name_is_valid --\n");
+
+  struct { const char *tz; bool expect; const char *label; } cases[] = {
+    {"Asia/Jakarta", true, "valid Asia/Jakarta"},
+    {"UTC", true, "valid UTC"},
+    {"America/New_York", true, "valid America/New_York"},
+    {"America/Argentina/Buenos_Aires", true, "valid nested zone"},
+    {"Etc/GMT+5", true, "valid with plus"},
+    {NULL, false, "reject NULL"},
+    {"", false, "reject empty"},
+    {":/etc/passwd", false, "reject leading colon"},
+    {"a;b", false, "reject semicolon"},
+    {"a b", false, "reject space"},
+    {"a\tb", false, "reject tab"},
+    {"Region/$(whoami)", false, "reject shell metachars"},
+  };
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    total++;
+    bool got = timezone_name_is_valid(cases[i].tz);
+    if (got == cases[i].expect) {
+      printf("  PASS: tz %s\n", cases[i].label);
+    } else {
+      printf("  FAIL: tz %s (got %d, expected %d)\n", cases[i].label, got, cases[i].expect);
+      failures++;
+    }
+  }
+
+  // Over-length (>64) is rejected.
+  char longtz[80];
+  memset(longtz, 'A', sizeof(longtz));
+  longtz[sizeof(longtz) - 1] = '\0';
+  total++;
+  if (!timezone_name_is_valid(longtz)) {
+    printf("  PASS: tz reject >64 chars\n");
+  } else {
+    printf("  FAIL: tz over-length not rejected\n");
+    failures++;
+  }
+}
+
 int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
@@ -304,6 +345,7 @@ int main(void) {
   test_windows_zone_to_iana();
 #endif
   test_get_system_timezone();
+  test_timezone_name_is_valid();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;
