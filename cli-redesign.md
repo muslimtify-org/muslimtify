@@ -161,3 +161,74 @@ timezone=Asia/Jakarta
 gmt=UTC+7.0
 ```
 
+### `set`
+
+Update your saved location. Pass only the fields you want to change — anything you leave out keeps its current value.
+
+- `--lat <latitude>` / `--long <longitude>` — set coordinates by hand, e.g. `muslimtify location set --lat=-6.2146 --long=106.8451`
+- `--timezone <iana>` — set the IANA timezone, e.g. `--timezone=Asia/Jakarta`
+- `--city <name>` — set the city label shown in `location`, e.g. `--city=Jakarta`
+- `--country <iso2>` — set the ISO-2 country code, e.g. `--country=ID`
+- `--auto` — figure everything out for you (coordinates, city, country, timezone) from your IP address: `muslimtify location set --auto`
+
+Flags combine: `muslimtify location set --lat=-6.2146 --long=106.8451 --timezone=Asia/Jakarta --city=Jakarta --country=ID`
+
+## `muslimtify notification`
+
+Control whether and how muslimtify notifies you at prayer times. With no argument it prints the current notification settings.
+
+### `enable` / `disable`
+
+Turn prayer-time notifications on or off.
+
+- `muslimtify notification enable` — start showing notifications
+- `muslimtify notification disable` — stop showing them
+
+### `--urgency <normal|critical|low>`
+
+How insistent the notification is. `critical` stays on screen until you dismiss it; `normal` and `low` follow the system's usual timeout.
+
+- Usage: `muslimtify notification --urgency critical`
+
+### `--reminder [--all] <prayer-name> <minutes...>`
+
+Add "pre-prayer" reminders — extra notifications a few minutes *before* a prayer.
+
+- `muslimtify notification --reminder fajr 30 15 5` — remind 30, 15, and 5 minutes before Fajr
+- `muslimtify notification --reminder --all 10` — set a single 10-minute reminder for every prayer
+
+### `--adhan [enable <prayer>] [disable <prayer>] [set <path>]`
+
+Control the adhan (call to prayer) audio that plays at the exact prayer time.
+
+- `muslimtify notification --adhan enable fajr` — play the adhan at Fajr
+- `muslimtify notification --adhan disable fajr` — don't play the adhan at Fajr
+- `muslimtify notification --adhan set <path>` — use your own adhan file (mp3/wav/flac); leave it unset to use the bundled adhan
+
+While the adhan plays it can be stopped from the notification (Stop button) or with `muslimtify sound stop`.
+
+## `muslimtify method`
+
+Set the calculation method used to compute prayer times. With no argument it shows the current method and madzhab.
+
+- Usage: `muslimtify method <name>`, e.g. `muslimtify method kemenag`
+
+| Key | Authority |
+| --- | --- |
+| `mwl` | Muslim World League |
+| `makkah` | Umm al-Qura University, Makkah |
+| `isna` | Islamic Society of North America |
+| `egypt` | Egyptian General Authority of Survey |
+| `karachi` | University of Islamic Sciences, Karachi |
+| `kemenag` | Kementerian Agama, Indonesia (default) |
+
+Run `muslimtify method list` to print them with your current choice marked.
+
+## `muslimtify madzhab`
+
+Set the madzhab (school of jurisprudence), which changes how the **Asr** time is calculated.
+
+- Usage: `muslimtify madzhab <shafi|hanafi>`, e.g. `muslimtify madzhab hanafi`
+- `shafi` — Asr starts when an object's shadow equals its length (default; also Maliki/Hanbali)
+- `hanafi` — Asr starts when the shadow is twice the object's length, so Asr falls later
+
