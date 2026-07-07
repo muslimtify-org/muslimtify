@@ -16,6 +16,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > - ~Merge command  `location auto` and `method auto` into (only) `config auto` and optimize auto detection per (249) country~
 > - ~Refactor from timer-driven into a portable long-running loop~
 > - ***Add custom adzan sound notifications*** (on progress)
+> - Re-design command-line (BREAKING CHANGES)
 > - Add read lat/long from user GPS
 > - Add GUI (see branch gui to see a progress)
 > - Distribute to Flatpak
