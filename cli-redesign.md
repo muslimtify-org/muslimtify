@@ -21,7 +21,7 @@ muslimtify madzhab <name>
 
 ## `muslimtify show`
 
-Show today's prayer time is ascii table presentation
+Show today's prayer times as an ASCII table.
 
 +------------+----------+----------+-----------------------+
 | Prayer     | Time     | Status   | Reminders             |
@@ -37,7 +37,7 @@ Show today's prayer time is ascii table presentation
 
 ### `--json`
 
-Usage: `muslimtify show --json` - show today's prayer time in json presentation
+Usage: `muslimtify show --json` — show today's prayer times in JSON format
 
 ```json
 {
@@ -81,11 +81,11 @@ Usage: `muslimtify show --json` - show today's prayer time in json presentation
 }
 ```
 
-Note that you cannot use this flag with `--headless` together
+Note: this flag cannot be combined with `--headless`.
 
 ### `--headless`
 
-Usage: `muslimtify show --headless` show today's prayer time in plain key=value presentation
+Usage: `muslimtify show --headless` — show today's prayer times in plain key=value format
 
 ```bash
 fajr=04:44
@@ -95,14 +95,14 @@ maghrib=17:53
 isha=19:08
 ```
 
-Note that you cannot use this flat together with `--json` flag
+Note: this flag cannot be combined with `--json`.
 
 ### `--date`
 
-Show prayer time on desire date with date format dd/mm/yyyy
+Show prayer times for a specific date (date format dd/mm/yyyy).
 
- - Usage: `muslimtify show --date <date>`, show prayer time in desire date for example `muslimtify show --date 07/07/2026` will show prayer time on 07 july 2026, can be show using `--json` or `--headless`, by default using table presentation
- - Usage: `muslimtify show --date <start> --to <end>` is show prayer time from start date to end date, for example `muslimtify show --date 07/07/2026 --to 08/08/2026`, can be show using `--json` or `--headless` default is table presentation:
+ - Usage: `muslimtify show --date <date>` — show prayer times for a specific date. For example, `muslimtify show --date 07/07/2026` shows the times for 07 July 2026. Works with `--json` or `--headless`; the default is the table.
+ - Usage: `muslimtify show --date <start> --to <end>` — show prayer times for a date range. For example, `muslimtify show --date 07/07/2026 --to 08/08/2026`. Works with `--json` or `--headless`; the default is the table:
 
 +-----------------------------------------------------------------------------+
 | Date       | Fajr   | Sunrise | Dhuha  | Dhuhr  | Asr    | Maghrib | Isha   |
@@ -123,12 +123,12 @@ Remaining=00:39
 
 ## `muslimtify location`
 
-Show location information from current muslimtify config
+Show location information from the current muslimtify config.
 
 +------------------------------+
 | Name       | Value           |
 +------------------------------+
-| corditates | -6.2146,106.845 |
+| coordinates| -6.2146,106.845 |
 | city       | Jakarta         |
 | country    | ID              |
 | timezone   | Asia/Jakarta    |
@@ -137,7 +137,7 @@ Show location information from current muslimtify config
 
 ### `--json`
 
-Show location information on json format
+Show location information in JSON format.
 
 ```json
 {
@@ -154,7 +154,7 @@ Show location information on json format
 Show location information in plain key=value format
 
 ```bash
-cordinates=-6.2146, 106.8451
+coordinates=-6.2146, 106.8451
 city=Jakarta
 country=ID
 timezone=Asia/Jakarta
