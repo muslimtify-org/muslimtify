@@ -4,12 +4,17 @@
 
 #include "location.h"
 
+#include <curl/curl.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+// Defined (non-static) in src/core/location.c; declared here test-only to keep
+// <curl/curl.h> out of the public location.h header.
+extern CURLcode location_harden_curl(CURL *curl);
 
 static int total = 0;
 static int failures = 0;
@@ -293,19 +298,23 @@ static void test_get_system_timezone(void) {
 static void test_timezone_name_is_valid(void) {
   printf("\n-- timezone_name_is_valid --\n");
 
-  struct { const char *tz; bool expect; const char *label; } cases[] = {
-    {"Asia/Jakarta", true, "valid Asia/Jakarta"},
-    {"UTC", true, "valid UTC"},
-    {"America/New_York", true, "valid America/New_York"},
-    {"America/Argentina/Buenos_Aires", true, "valid nested zone"},
-    {"Etc/GMT+5", true, "valid with plus"},
-    {NULL, false, "reject NULL"},
-    {"", false, "reject empty"},
-    {":/etc/passwd", false, "reject leading colon"},
-    {"a;b", false, "reject semicolon"},
-    {"a b", false, "reject space"},
-    {"a\tb", false, "reject tab"},
-    {"Region/$(whoami)", false, "reject shell metachars"},
+  struct {
+    const char *tz;
+    bool expect;
+    const char *label;
+  } cases[] = {
+      {"Asia/Jakarta", true, "valid Asia/Jakarta"},
+      {"UTC", true, "valid UTC"},
+      {"America/New_York", true, "valid America/New_York"},
+      {"America/Argentina/Buenos_Aires", true, "valid nested zone"},
+      {"Etc/GMT+5", true, "valid with plus"},
+      {NULL, false, "reject NULL"},
+      {"", false, "reject empty"},
+      {":/etc/passwd", false, "reject leading colon"},
+      {"a;b", false, "reject semicolon"},
+      {"a b", false, "reject space"},
+      {"a\tb", false, "reject tab"},
+      {"Region/$(whoami)", false, "reject shell metachars"},
   };
   for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
     total++;
@@ -331,6 +340,29 @@ static void test_timezone_name_is_valid(void) {
   }
 }
 
+static void test_location_harden_curl(void) {
+  printf("\n-- location_harden_curl --\n");
+
+  // Every hardening option must be accepted by the linked libcurl. A typo'd
+  // option enum or an "https" protocol string this build does not recognize
+  // would surface here as a non-OK CURLcode, without any network round-trip.
+  total++;
+  CURL *curl = curl_easy_init();
+  if (!curl) {
+    printf("  FAIL: curl_easy_init returned NULL\n");
+    failures++;
+    return;
+  }
+  CURLcode rc = location_harden_curl(curl);
+  if (rc == CURLE_OK) {
+    printf("  PASS: all hardening options accepted by libcurl\n");
+  } else {
+    printf("  FAIL: hardening rejected: %s\n", curl_easy_strerror(rc));
+    failures++;
+  }
+  curl_easy_cleanup(curl);
+}
+
 int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
@@ -346,6 +378,7 @@ int main(void) {
 #endif
   test_get_system_timezone();
   test_timezone_name_is_valid();
+  test_location_harden_curl();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;
