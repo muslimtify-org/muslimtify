@@ -4,7 +4,11 @@ Muslimtify keeps you consistent with your daily prayers by delivering accurate p
 
 Muslimtify supports **21 international calculation methods** including MWL, ISNA, Umm al-Qura (Makkah), Egyptian General Authority, Kemenag (Indonesia), JAKIM (Malaysia), Diyanet (Turkey), and more. The default method is Kemenag. With persistent configuration and minimal setup, Muslimtify integrates seamlessly into your daily routine without interrupting your workflow.
 
+> [!Note]
 > Prayer time calculations are powered by [libmuslim](https://github.com/rizukirr/libmuslim), a portable library extracted from this project to enable a more flexible and reusable ecosystem for Muslim developers.
+
+> [!Important]
+> In the next release, I will be redesigning the Muslimtify CLI flags and arguments. This will introduce breaking changes, however, most of them simply rename existing flags (keeping the same behavior) while adding a few new features. Muslimtify will still function exactly as it does today, as these changes only affect the command-line naming and do not touch the core functionality. This decision was made to improve simplicity, consistency, and flexibility for the future of Muslimtify.
 
 
 | Linux | Windows |
@@ -15,7 +19,8 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > ## Roadmap
 > - ~Merge command  `location auto` and `method auto` into (only) `config auto` and optimize auto detection per (249) country~
 > - ~Refactor from timer-driven into a portable long-running loop~
-> - ***Add custom adhan sound notifications*** (on progress)
+> - ***Add custom adzan sound notifications*** (on progress)
+> - Re-design command-line (BREAKING CHANGES)
 > - Add read lat/long from user GPS
 > - Add GUI (see branch gui to see a progress)
 > - Distribute to Flatpak
