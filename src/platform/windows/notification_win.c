@@ -122,6 +122,11 @@ interface IXmlDocumentIO {
   CONST_VTBL struct IXmlDocumentIOVtbl *lpVtbl;
 };
 
+/* EventRegistrationToken (from eventtoken.h) */
+typedef struct EventRegistrationToken {
+  __int64 value;
+} EventRegistrationToken;
+
 /* IToastNotification */
 typedef struct IToastNotificationVtbl {
   BEGIN_INTERFACE
@@ -138,9 +143,11 @@ typedef struct IToastNotificationVtbl {
   void *get_Content;
   void *put_ExpirationTime;
   void *get_ExpirationTime;
-  void *add_Dismissed;
+  HRESULT(STDMETHODCALLTYPE *add_Dismissed)
+  (IToastNotification *This, void *handler, EventRegistrationToken *token);
   void *remove_Dismissed;
-  void *add_Activated;
+  HRESULT(STDMETHODCALLTYPE *add_Activated)
+  (IToastNotification *This, void *handler, EventRegistrationToken *token);
   void *remove_Activated;
   void *add_Failed;
   void *remove_Failed;
@@ -687,59 +694,68 @@ static HRESULT make_hstring_ref(const WCHAR *str, HSTRING_HEADER *header, HSTRIN
   return WindowsCreateStringReference(str, (UINT32)wcslen(str), header, hstr);
 }
 
-/* Send a pre-built toast XML wide string through the WinRT pipeline */
-static void send_toast_xml(const wchar_t *xml) {
-  /* Create XmlDocument */
+/* Build a toast object from pre-built XML. Returns a live IToastNotification*
+   the caller must Release, or NULL on failure. Does NOT show it. */
+static IToastNotification *create_toast_from_xml(const wchar_t *xml) {
   HSTRING_HEADER hsh_xml_cls;
   HSTRING hs_xml_cls = NULL;
   IInspectable *inspectable = NULL;
+  IXmlDocument *xml_doc = NULL;
+  IXmlDocumentIO *xml_io = NULL;
+  IToastNotification *toast = NULL;
+  HSTRING_HEADER hsh_xml;
+  HSTRING hs_xml = NULL;
+  HRESULT hr;
+
   if (!SUCCEEDED(make_hstring_ref(RuntimeClass_XmlDocument, &hsh_xml_cls, &hs_xml_cls)))
-    return;
+    return NULL;
   if (!SUCCEEDED(RoActivateInstance(hs_xml_cls, &inspectable))) {
     fprintf(stderr, "muslimtify: failed to create XmlDocument\n");
-    return;
+    return NULL;
   }
 
-  /* Query IXmlDocument */
-  IXmlDocument *xml_doc = NULL;
-  if (!SUCCEEDED(
-          inspectable->lpVtbl->QueryInterface(inspectable, &IID_IXmlDocument, (void **)&xml_doc))) {
+  if (!SUCCEEDED(inspectable->lpVtbl->QueryInterface(inspectable, &IID_IXmlDocument,
+                                                     (void **)&xml_doc))) {
     inspectable->lpVtbl->Release(inspectable);
-    return;
+    return NULL;
   }
   inspectable->lpVtbl->Release(inspectable);
 
-  /* Query IXmlDocumentIO and load XML */
-  IXmlDocumentIO *xml_io = NULL;
   if (!SUCCEEDED(xml_doc->lpVtbl->QueryInterface(xml_doc, &IID_IXmlDocumentIO, (void **)&xml_io))) {
     xml_doc->lpVtbl->Release(xml_doc);
-    return;
+    return NULL;
   }
 
-  HSTRING_HEADER hsh_xml;
-  HSTRING hs_xml = NULL;
   if (!SUCCEEDED(WindowsCreateStringReference(xml, (UINT32)wcslen(xml), &hsh_xml, &hs_xml))) {
     xml_io->lpVtbl->Release(xml_io);
     xml_doc->lpVtbl->Release(xml_doc);
-    return;
+    return NULL;
   }
-  HRESULT hr = xml_io->lpVtbl->LoadXml(xml_io, hs_xml);
+  hr = xml_io->lpVtbl->LoadXml(xml_io, hs_xml);
   xml_io->lpVtbl->Release(xml_io);
   if (!SUCCEEDED(hr)) {
     fprintf(stderr, "muslimtify: LoadXml failed\n");
     xml_doc->lpVtbl->Release(xml_doc);
-    return;
+    return NULL;
   }
 
-  /* Create and show toast */
-  IToastNotification *toast = NULL;
   if (!SUCCEEDED(
           g_state.factory->lpVtbl->CreateToastNotification(g_state.factory, xml_doc, &toast))) {
     fprintf(stderr, "muslimtify: CreateToastNotification failed\n");
     xml_doc->lpVtbl->Release(xml_doc);
-    return;
+    return NULL;
   }
   xml_doc->lpVtbl->Release(xml_doc);
+  return toast;
+}
+
+/* Send a pre-built toast XML wide string through the WinRT pipeline */
+static void send_toast_xml(const wchar_t *xml) {
+  IToastNotification *toast = create_toast_from_xml(xml);
+  HRESULT hr;
+
+  if (!toast)
+    return;
 
   hr = g_state.notifier->lpVtbl->Show(g_state.notifier, toast);
   if (!SUCCEEDED(hr)) {
