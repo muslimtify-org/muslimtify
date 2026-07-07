@@ -397,6 +397,26 @@ static void test_offset_clamp_on_load(void) {
   check_bool("clamp isha to min", in.isha.offset == PRAYER_OFFSET_MIN);
 }
 
+static void test_config_size_cap(void) {
+  printf("  config_size_cap...\n");
+
+  // Seed a valid config so the dir + path exist.
+  Config cfg = config_default();
+  check_bool("cap: initial save", config_save(&cfg) == 0);
+
+  // Overwrite it with a >1 MiB blob; config_load must refuse it.
+  FILE *f = fopen(config_get_path(), "w");
+  check_bool("cap: reopen for overwrite", f != NULL);
+  if (f) {
+    for (long i = 0; i < (1024L * 1024L) + 16L; i++)
+      fputc(' ', f);
+    fclose(f);
+  }
+
+  Config loaded;
+  check_bool("cap: oversize config rejected", config_load(&loaded) == -1);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -413,6 +433,7 @@ int main(void) {
   test_offset_apply();
   test_offset_wrap();
   test_offset_clamp_on_load();
+  test_config_size_cap();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

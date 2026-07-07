@@ -9,6 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Refuse to load a config file larger than this; a sane config is a few KB.
+#define MAX_CONFIG_FILE_BYTES (1024L * 1024L)
+
 static bool config_trunc_logged = false;
 
 static void log_truncation(const char *key) {
@@ -307,6 +310,11 @@ static char *read_file(const char *path) {
   fseek(f, 0, SEEK_END);
   long size = ftell(f);
   if (size < 0) {
+    fclose(f);
+    return NULL;
+  }
+  if (size > MAX_CONFIG_FILE_BYTES) {
+    fprintf(stderr, "config: file too large (%ld bytes), refusing to load\n", size);
     fclose(f);
     return NULL;
   }

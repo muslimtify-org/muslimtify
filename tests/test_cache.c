@@ -150,6 +150,25 @@ static void test_save_load_roundtrip(void) {
   check_bool("cache path includes muslimtify dir",
              strstr(cache_get_path(), "/muslimtify/next_prayer.json") != NULL);
 
+  {
+    // Size cap: an oversize cache file must be refused by cache_load.
+    // Write a valid cache first (creates the dir and gives cache_load
+    // parseable JSON), then pad it past 1 MiB with trailing whitespace so the
+    // only reason to reject it is the size cap, not a parse failure.
+    PrayerCache seed = {0};
+    strcpy(seed.date, "2026-03-22");
+    check_bool("cache: initial save", cache_save(&seed) == 0);
+    FILE *cf = fopen(cache_get_path(), "a");
+    check_bool("cache: reopen for padding", cf != NULL);
+    if (cf) {
+      for (long i = 0; i < (1024L * 1024L) + 16L; i++)
+        fputc(' ', cf);
+      fclose(cf);
+    }
+    PrayerCache big;
+    check_bool("cache: oversize file rejected", cache_load(&big) == -1);
+  }
+
   // Build a cache
   PrayerCache original = {0};
   strcpy(original.date, "2026-03-22");
