@@ -1,7 +1,9 @@
+#include <corecrt.h>
 #define UNICODE
 #define _UNICODE
 #define COBJMACROS
 
+#include "audio.h"
 #include "notification.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -769,6 +771,19 @@ fail:
   }
   RoUninitialize();
   return 0;
+}
+
+void notify_adhan(const char *prayer_name, const char *time_str, const char *path) {
+  (void)path;
+
+  char title[128];
+  char message[256];
+
+  _snprintf_s(title, sizeof(title), _TRUNCATE, "Prayer Time: %s", prayer_name);
+  _snprintf_s(message, sizeof(message), _TRUNCATE, "It's time for %s prayer\nTime: %s", prayer_name,
+              time_str);
+
+  send_notification(title, message, "critical", "default");
 }
 
 void notify_send(const char *title, const char *message) {
