@@ -7,6 +7,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
+
 static int passed = 0;
 static int failed = 0;
 
@@ -397,6 +401,39 @@ static void test_offset_clamp_on_load(void) {
   check_bool("clamp isha to min", in.isha.offset == PRAYER_OFFSET_MIN);
 }
 
+static void test_config_size_cap(void) {
+  printf("  config_size_cap...\n");
+
+  // Seed a valid config so the dir + path exist.
+  Config cfg = config_default();
+  check_bool("cap: initial save", config_save(&cfg) == 0);
+
+  // Overwrite it with a >1 MiB blob; config_load must refuse it.
+  FILE *f = fopen(config_get_path(), "w");
+  check_bool("cap: reopen for overwrite", f != NULL);
+  if (f) {
+    for (long i = 0; i < (1024L * 1024L) + 16L; i++)
+      fputc(' ', f);
+    fclose(f);
+  }
+
+  Config loaded;
+  check_bool("cap: oversize config rejected", config_load(&loaded) == -1);
+}
+
+static void test_config_perms(void) {
+#ifndef _WIN32
+  printf("  config_perms...\n");
+  Config cfg = config_default();
+  check_bool("perms: save", config_save(&cfg) == 0);
+  struct stat st;
+  check_bool("perms: stat", stat(config_get_path(), &st) == 0);
+  check_bool("perms: owner-only (0600)", (st.st_mode & 077) == 0);
+#else
+  (void)0;
+#endif
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -413,6 +450,8 @@ int main(void) {
   test_offset_apply();
   test_offset_wrap();
   test_offset_clamp_on_load();
+  test_config_size_cap();
+  test_config_perms();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

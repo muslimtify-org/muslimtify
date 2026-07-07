@@ -19,6 +19,14 @@ extern "C" {
 double parse_timezone_offset(const char *tz_name, time_t when);
 
 /**
+ * Return true iff `tz_name` is a safe IANA-style timezone string: non-NULL,
+ * non-empty, at most 64 chars, no leading ':', and every character is ASCII
+ * alphanumeric or one of '_', '+', '-', '/'. Guards the setenv("TZ")/tzset()
+ * path against hostile ipinfo.io responses and corrupted config values.
+ */
+bool timezone_name_is_valid(const char *tz_name);
+
+/**
  * Write the host system's IANA timezone name (e.g. "Asia/Jakarta") into
  * `buf` (capacity `cap`, NUL-terminated). Used by `location set` to refresh
  * the timezone after the user supplies coordinates without going through

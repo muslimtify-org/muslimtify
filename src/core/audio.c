@@ -23,7 +23,6 @@ static void sleep_ms(int ms) {
 }
 
 int audio_start(const char *path) {
-  // TODO: sanitize path
   if (g_is_playing)
     audio_stop();
 
