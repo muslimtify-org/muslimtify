@@ -42,7 +42,9 @@ static const IID IID_IClassFactory_ = {
 static const IID IID_INotificationActivationCallback_ = {
     0x53e31837, 0x6600, 0x4a81, {0x93, 0x95, 0x75, 0xcf, 0xfe, 0x74, 0x6f, 0x94}};
 
-static void dbg(const char *msg) { OutputDebugStringA(msg); }
+static void dbg(const char *msg) {
+  OutputDebugStringA(msg);
+}
 
 /* -- INotificationActivationCallback ---------------------------------------- */
 
@@ -57,8 +59,8 @@ typedef struct ActivationCallbackVtbl {
   ULONG(STDMETHODCALLTYPE *AddRef)(ActivationCallback *);
   ULONG(STDMETHODCALLTYPE *Release)(ActivationCallback *);
   HRESULT(STDMETHODCALLTYPE *Activate)
-  (ActivationCallback *, LPCWSTR appUserModelId, LPCWSTR invokedArgs,
-   const NOTIF_INPUT_DATA *data, ULONG count);
+  (ActivationCallback *, LPCWSTR appUserModelId, LPCWSTR invokedArgs, const NOTIF_INPUT_DATA *data,
+   ULONG count);
 } ActivationCallbackVtbl;
 struct ActivationCallback {
   const ActivationCallbackVtbl *lpVtbl;
@@ -197,8 +199,8 @@ static int register_clsid_localserver(const wchar_t *exe) {
   swprintf(keypath, sizeof(keypath) / sizeof(keypath[0]),
            L"Software\\Classes\\CLSID\\%ls\\LocalServer32", clsid_str);
 
-  rc = RegCreateKeyExW(HKEY_CURRENT_USER, keypath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL,
-                       &hk, NULL);
+  rc = RegCreateKeyExW(HKEY_CURRENT_USER, keypath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE,
+                       NULL, &hk, NULL);
   if (rc != ERROR_SUCCESS)
     return -1;
 
@@ -225,10 +227,10 @@ static int register_aumid(void) {
                       (int)(sizeof(clsid_str) / sizeof(clsid_str[0]))) == 0)
     return -1;
 
-  swprintf(keypath, sizeof(keypath) / sizeof(keypath[0]),
-           L"Software\\Classes\\AppUserModelId\\%ls", MUSLIMTIFY_AUMID);
-  rc = RegCreateKeyExW(HKEY_CURRENT_USER, keypath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL,
-                       &hk, NULL);
+  swprintf(keypath, sizeof(keypath) / sizeof(keypath[0]), L"Software\\Classes\\AppUserModelId\\%ls",
+           MUSLIMTIFY_AUMID);
+  rc = RegCreateKeyExW(HKEY_CURRENT_USER, keypath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE,
+                       NULL, &hk, NULL);
   if (rc != ERROR_SUCCESS)
     return -1;
 
@@ -287,8 +289,8 @@ int unregister_toast_activator(void) {
              clsid_str);
     RegDeleteTreeW(HKEY_CURRENT_USER, keypath);
   }
-  swprintf(keypath, sizeof(keypath) / sizeof(keypath[0]),
-           L"Software\\Classes\\AppUserModelId\\%ls", MUSLIMTIFY_AUMID);
+  swprintf(keypath, sizeof(keypath) / sizeof(keypath[0]), L"Software\\Classes\\AppUserModelId\\%ls",
+           MUSLIMTIFY_AUMID);
   RegDeleteTreeW(HKEY_CURRENT_USER, keypath);
   return 0;
 }

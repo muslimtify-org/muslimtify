@@ -19,7 +19,9 @@ int audio_start(const char *path) {
   (void)path;
   return -1;
 }
-int audio_is_playing(void) { return 0; }
+int audio_is_playing(void) {
+  return 0;
+}
 void audio_stop(void) {}
 
 /* Link-only stubs for the toast-activator symbols notification_win.c references
@@ -29,7 +31,9 @@ int toast_activator_register_running(unsigned long *cookie) {
     *cookie = 0;
   return -1;
 }
-void toast_activator_revoke_running(unsigned long cookie) { (void)cookie; }
+void toast_activator_revoke_running(unsigned long cookie) {
+  (void)cookie;
+}
 
 static int total = 0;
 static int failures = 0;
@@ -253,8 +257,8 @@ static void test_no_icon_fallback_behavior(void) {
 static void test_adhan_xml_has_stop_button_and_silent_audio(void) {
   printf("test_adhan_xml_has_stop_button_and_silent_audio\n");
 
-  wchar_t *xml = notification_win_build_adhan_xml_for_test(L"Prayer Time: Fajr",
-                                                           L"It's time for Fajr prayer");
+  wchar_t *xml =
+      notification_win_build_adhan_xml_for_test(L"Prayer Time: Fajr", L"It's time for Fajr prayer");
   report_result("adhan XML builds", xml != NULL);
   report_result("adhan XML silences the toast's own sound",
                 xml != NULL && wcsstr(xml, L"<audio silent=\"true\"/>") != NULL);

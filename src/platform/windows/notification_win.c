@@ -693,10 +693,9 @@ static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, cons
     goto fail;
   }
   if (with_stop_action) {
-    if (!append_wide_segment(
-            &xml, &xml_len, &xml_cap,
-            L"<actions><action content=\"Stop\" arguments=\"stop\" "
-            L"activationType=\"foreground\"/></actions>")) {
+    if (!append_wide_segment(&xml, &xml_len, &xml_cap,
+                             L"<actions><action content=\"Stop\" arguments=\"stop\" "
+                             L"activationType=\"foreground\"/></actions>")) {
       goto fail;
     }
   }
@@ -735,8 +734,8 @@ static IToastNotification *create_toast_from_xml(const wchar_t *xml) {
     return NULL;
   }
 
-  if (!SUCCEEDED(inspectable->lpVtbl->QueryInterface(inspectable, &IID_IXmlDocument,
-                                                     (void **)&xml_doc))) {
+  if (!SUCCEEDED(
+          inspectable->lpVtbl->QueryInterface(inspectable, &IID_IXmlDocument, (void **)&xml_doc))) {
     inspectable->lpVtbl->Release(inspectable);
     return NULL;
   }

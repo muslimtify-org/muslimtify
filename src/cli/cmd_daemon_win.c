@@ -230,8 +230,8 @@ static int daemon_status_handler(int argc, char **argv) {
 }
 
 static const CommandEntry daemon_commands[] = {
-    {"install", daemon_install_handler},     {"uninstall", daemon_uninstall_handler},
-    {"status", daemon_status_handler},       {"register", daemon_register_handler},
+    {"install", daemon_install_handler},       {"uninstall", daemon_uninstall_handler},
+    {"status", daemon_status_handler},         {"register", daemon_register_handler},
     {"unregister", daemon_unregister_handler},
 };
 
@@ -243,8 +243,7 @@ int handle_daemon(int argc, char **argv) {
       return sub->handler(argc - 1, argv + 1);
 
     fprintf(stderr, "Error: Unknown daemon subcommand '%s'\n", argv[0]);
-    fprintf(stderr,
-            "Usage: muslimtify daemon [install|uninstall|status|register|unregister]\n");
+    fprintf(stderr, "Usage: muslimtify daemon [install|uninstall|status|register|unregister]\n");
     return 1;
   }
 

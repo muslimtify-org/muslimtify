@@ -140,8 +140,8 @@ static int sound_stop(int argc, char **argv) {
 #endif
 
 static const CommandEntry sound_commands[] = {
-    {"on", sound_on},       {"off", sound_off},   {"status", sound_status},
-    {"show", sound_status}, {"set", sound_set},   {"reminder-set", sound_reminder_set},
+    {"on", sound_on},       {"off", sound_off}, {"status", sound_status},
+    {"show", sound_status}, {"set", sound_set}, {"reminder-set", sound_reminder_set},
 #ifdef _WIN32
     {"stop", sound_stop},
 #endif
