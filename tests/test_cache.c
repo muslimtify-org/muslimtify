@@ -8,6 +8,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
+
 static int passed = 0;
 static int failed = 0;
 
@@ -188,6 +192,13 @@ static void test_save_load_roundtrip(void) {
   int save_ok = cache_save(&original);
   check_bool("save succeeds", save_ok == 0);
   check_bool("cache file exists", platform_file_exists(cache_get_path()) == 1);
+
+#ifndef _WIN32
+  // Owner-only (0600): the cache mirrors config's fchmod hardening.
+  struct stat cache_st;
+  check_bool("cache: stat", stat(cache_get_path(), &cache_st) == 0);
+  check_bool("cache: owner-only (0600)", (cache_st.st_mode & 077) == 0);
+#endif
 
   PrayerCache loaded = {0};
   int load_ok = cache_load(&loaded);
