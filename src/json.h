@@ -637,8 +637,8 @@ static char *json_extract_value(JsonArena *JSON_RESTRICT arena,
   } else {
     // Number, boolean, or null - find end
     value_end = cursor;
-    while (*value_end && !isspace((unsigned char)*value_end) && *value_end != ',' && *value_end != '}' &&
-           *value_end != ']') {
+    while (*value_end && !isspace((unsigned char)*value_end) && *value_end != ',' &&
+           *value_end != '}' && *value_end != ']') {
       value_end++;
     }
 
