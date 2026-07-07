@@ -441,7 +441,8 @@ static BOOL resolve_toast_icon_path(wchar_t *buffer, size_t buffer_size) {
 }
 
 static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, const wchar_t *wicon,
-                                const char *urgency, const char *sound_preset);
+                                const char *urgency, const char *sound_preset,
+                                BOOL with_stop_action);
 
 #ifdef MUSLIMTIFY_NOTIFICATION_WIN_TEST
 BOOL notification_win_resolve_toast_icon_path_for_test(const wchar_t *base_dir, wchar_t *buffer,
@@ -472,12 +473,34 @@ wchar_t *notification_win_build_toast_xml_for_test(const wchar_t *base_dir, cons
       goto fail;
   }
 
-  xml = build_toast_xml(escaped_title, escaped_message, wicon, urgency, "default");
+  xml = build_toast_xml(escaped_title, escaped_message, wicon, urgency, "default", FALSE);
 
 fail:
   free(escaped_title);
   free(escaped_message);
   free(wicon);
+  return xml;
+}
+
+wchar_t *notification_win_build_adhan_xml_for_test(const wchar_t *wtitle, const wchar_t *wmsg) {
+  wchar_t *escaped_title = NULL;
+  wchar_t *escaped_message = NULL;
+  wchar_t *xml = NULL;
+
+  if (!wtitle || !wmsg)
+    return NULL;
+
+  escaped_title = xml_escape(wtitle);
+  escaped_message = xml_escape(wmsg);
+  if (!escaped_title || !escaped_message)
+    goto done;
+
+  /* NULL preset => <audio silent="true"/>; TRUE => Stop action. Matches notify_adhan. */
+  xml = build_toast_xml(escaped_title, escaped_message, NULL, "critical", NULL, TRUE);
+
+done:
+  free(escaped_title);
+  free(escaped_message);
   return xml;
 }
 #endif
@@ -549,7 +572,8 @@ static BOOL append_audio_element(wchar_t **xml, size_t *len, size_t *cap,
 }
 
 static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, const wchar_t *wicon,
-                                const char *urgency, const char *sound_preset) {
+                                const char *urgency, const char *sound_preset,
+                                BOOL with_stop_action) {
   wchar_t *xml = NULL;
   size_t xml_len = 0;
   size_t xml_cap = 0;
@@ -590,6 +614,14 @@ static wchar_t *build_toast_xml(const wchar_t *wtitle, const wchar_t *wmsg, cons
   }
   if (!append_audio_element(&xml, &xml_len, &xml_cap, sound_preset)) {
     goto fail;
+  }
+  if (with_stop_action) {
+    if (!append_wide_segment(
+            &xml, &xml_len, &xml_cap,
+            L"<actions><action content=\"Stop\" arguments=\"stop\" "
+            L"activationType=\"foreground\"/></actions>")) {
+      goto fail;
+    }
   }
   if (!append_wide_segment(&xml, &xml_len, &xml_cap, L"</toast>")) {
     goto fail;
@@ -695,7 +727,7 @@ static void send_notification(const char *title, const char *message, const char
   }
 
   /* Build toast XML */
-  wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, urgency, sound_preset);
+  wchar_t *xml = build_toast_xml(wtitle, wmsg, wicon, urgency, sound_preset, FALSE);
   free(wtitle);
   free(wmsg);
   free(wicon);

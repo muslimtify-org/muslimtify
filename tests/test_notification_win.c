@@ -16,6 +16,7 @@ BOOL notification_win_resolve_toast_icon_path_for_test(const wchar_t *base_dir, 
                                                        size_t buffer_size);
 wchar_t *notification_win_build_toast_xml_for_test(const wchar_t *base_dir, const wchar_t *wtitle,
                                                    const wchar_t *wmsg, const char *urgency);
+wchar_t *notification_win_build_adhan_xml_for_test(const wchar_t *wtitle, const wchar_t *wmsg);
 
 static void report_result(const char *label, bool pass) {
   total++;
@@ -225,12 +226,26 @@ static void test_no_icon_fallback_behavior(void) {
   free(xml);
 }
 
+static void test_adhan_xml_has_stop_action_and_silent_audio(void) {
+  printf("test_adhan_xml_has_stop_action_and_silent_audio\n");
+
+  wchar_t *xml = notification_win_build_adhan_xml_for_test(L"Prayer Time: Fajr",
+                                                           L"It's time for Fajr prayer");
+  report_result("adhan XML builds", xml != NULL);
+  report_result("adhan XML has a Stop action",
+                xml != NULL && wcsstr(xml, L"arguments=\"stop\"") != NULL);
+  report_result("adhan XML silences the toast's own sound",
+                xml != NULL && wcsstr(xml, L"<audio silent=\"true\"/>") != NULL);
+  free(xml);
+}
+
 int main(void) {
   printf("=== notification_win icon resolution tests ===\n\n");
 
   test_installed_layout_resolution_preference();
   test_development_layout_resolution_preference();
   test_no_icon_fallback_behavior();
+  test_adhan_xml_has_stop_action_and_silent_audio();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;
