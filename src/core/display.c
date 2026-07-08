@@ -357,7 +357,7 @@ void display_location(const Config *cfg) {
   snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
 
   const char *rows[][2] = {
-      {"coordinates", coords}, {"city", cfg->city},   {"country", cfg->country},
+      {"coordinates", coords},     {"city", cfg->city}, {"country", cfg->country},
       {"timezone", cfg->timezone}, {"gmt", gmt},
   };
 

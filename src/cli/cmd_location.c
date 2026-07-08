@@ -157,8 +157,7 @@ static int location_set_handler(int argc, char **argv) {
       set_city(&cfg, override_city);
     if (override_country) {
       if (!country_is_valid_alpha2(override_country)) {
-        fprintf(stderr,
-                "Error: Invalid country code '%s' (expected ISO 3166-1 alpha-2, e.g. ID)\n",
+        fprintf(stderr, "Error: Invalid country code '%s' (expected ISO 3166-1 alpha-2, e.g. ID)\n",
                 override_country);
         return 1;
       }
@@ -300,8 +299,9 @@ int handle_location(int argc, char **argv) {
     return location_set_handler(argc - 1, argv + 1);
 
   if (argc > 0 && strcmp(argv[0], "show") == 0) {
-    fprintf(stderr,
-            "Error: 'location show' was removed; use 'location' (optionally --json / --headless)\n");
+    fprintf(
+        stderr,
+        "Error: 'location show' was removed; use 'location' (optionally --json / --headless)\n");
     return 1;
   }
   if (argc > 0 && strcmp(argv[0], "refresh") == 0) {
