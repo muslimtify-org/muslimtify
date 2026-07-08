@@ -168,39 +168,6 @@ static void test_version_and_help(void) {
   check_contains("unknown out", "Unknown command");
 }
 
-static void test_config(void) {
-  printf("  config...\n");
-  reset_config();
-
-  // config (no subcommand) → defaults to show
-  run(2, (char *[]){"m", "config", NULL});
-  check_ret("config bare ret", 0);
-  check_contains("config bare out", "Configuration:");
-
-  // config show
-  run(3, (char *[]){"m", "config", "show", NULL});
-  check_ret("config show ret", 0);
-  check_contains("config show out", "Configuration:");
-
-  // config validate
-  run(3, (char *[]){"m", "config", "validate", NULL});
-  check_ret("config validate ret", 0);
-  check_contains("config validate out", "valid");
-
-  // config unknown
-  run(3, (char *[]){"m", "config", "bogus", NULL});
-  check_ret("config unknown ret", 1);
-
-  // config reset
-  run(3, (char *[]){"m", "config", "reset", NULL});
-  check_ret("config reset ret", 0);
-  // Verify config is back to default (auto_detect=true, lat=0)
-  Config cfg;
-  config_load(&cfg);
-  check_bool("config reset auto_detect", cfg.auto_detect == true);
-  check_bool("config reset lat", cfg.latitude == 0.0);
-}
-
 static void test_location(void) {
   printf("  location...\n");
   reset_config();
@@ -918,7 +885,6 @@ int main(void) {
   printf("Running CLI tests...\n");
   test_version_and_help();
   test_output_helpers();
-  test_config();
   test_location();
   test_removed_top_level();
   test_show();

@@ -36,7 +36,6 @@ bool cli_wants_help(int argc, char **argv);
 int cli_unknown_prayer(const char *name);
 
 int handle_show(int argc, char **argv);
-int handle_config(int argc, char **argv);
 int handle_location(int argc, char **argv);
 int handle_offset(int argc, char **argv);
 int handle_daemon(int argc, char **argv);

@@ -74,25 +74,15 @@ static int removed_sound(int a, char **v) {
 // --- top-level dispatch table -----------------------
 
 static const CommandEntry top_commands[] = {
-    {"show", handle_show},
-    {"config", handle_config},
-    {"location", handle_location},
-    {"enable", removed_enable},
-    {"disable", removed_disable},
-    {"list", removed_list},
-    {"reminder", removed_reminder},
-    {"sound", removed_sound},
-    {"offset", handle_offset},
-    {"daemon", handle_daemon},
-    {"method", handle_method},
-    {"madzhab", handle_madzhab},
-    {"notification", handle_notification},
-    {"version", handle_version},
-    {"--version", handle_version},
-    {"-v", handle_version},
-    {"help", handle_help},
-    {"--help", handle_help},
-    {"-h", handle_help},
+    {"show", handle_show},       {"location", handle_location},
+    {"enable", removed_enable},  {"disable", removed_disable},
+    {"list", removed_list},      {"reminder", removed_reminder},
+    {"sound", removed_sound},    {"offset", handle_offset},
+    {"daemon", handle_daemon},   {"method", handle_method},
+    {"madzhab", handle_madzhab}, {"notification", handle_notification},
+    {"version", handle_version}, {"--version", handle_version},
+    {"-v", handle_version},      {"help", handle_help},
+    {"--help", handle_help},     {"-h", handle_help},
 };
 
 // --- version / help -----------------------
@@ -177,23 +167,6 @@ void cli_print_help(void) {
   printf("\n");
 
   /*
-   * CONFIG
-   */
-  printf("Configuration Commands:\n");
-
-  printf("  %-30s %s\n", "config show", "Show current configuration");
-
-  printf("  %-30s %s\n", "config validate", "Validate configuration");
-
-  printf("  %-30s %s\n", "config reset", "Reset configuration");
-
-  printf("  %-30s %s\n", "config auto", "Auto-detect location and method");
-
-  printf("  %-30s %s\n", "", "Uses ipinfo.io for detection");
-
-  printf("\n");
-
-  /*
    * METHOD
    */
   printf("Calculation Method Commands:\n");
@@ -267,8 +240,6 @@ void cli_print_help(void) {
   printf("Examples:\n");
 
   printf("  %-55s %s\n", "muslimtify show --next", "# Show next prayer");
-
-  printf("  %-55s %s\n", "muslimtify config auto", "# Auto detect configuration");
 
   printf("  %-55s %s\n", "muslimtify method mwl", "# Set calculation method");
 

@@ -126,7 +126,6 @@ muslimtify_set_target_defaults(muslimtify_core)
 add_library(muslimtify_cli OBJECT
     src/cli/cli.c
     src/cli/cmd_show.c
-    src/cli/cmd_config.c
     src/cli/cmd_location.c
     src/cli/cmd_prayer.c
     $<IF:$<BOOL:${WIN32}>,src/cli/cmd_daemon_win.c,src/cli/cmd_daemon.c>
