@@ -74,6 +74,13 @@ void display_prayer_list(const Config *cfg);
  */
 void display_reminders(const Config *cfg);
 
+/** Display notification settings as a table */
+void display_notification_settings(const Config *cfg);
+/** Display notification settings as JSON */
+void display_notification_settings_json(const Config *cfg);
+/** Display notification settings as lowercase key=value */
+void display_notification_settings_headless(const Config *cfg);
+
 #ifdef __cplusplus
 }
 #endif

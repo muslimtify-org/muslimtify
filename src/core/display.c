@@ -507,3 +507,65 @@ void display_reminders(const Config *cfg) {
   }
   printf("\n");
 }
+
+void display_notification_settings(const Config *cfg) {
+  const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
+  const PrayerConfig *pc[] = {&cfg->fajr,    &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
+                              &cfg->asr,      &cfg->maghrib, &cfg->isha};
+
+  printf("+---------+---------+---------------+-------+\n");
+  printf("| %-7s | %-7s | %-13s | %-5s |\n", "Prayer", "Enabled", "Reminders", "Adhan");
+  printf("+---------+---------+---------------+-------+\n");
+  for (int i = 0; i < 7; i++) {
+    char reminders[64];
+    config_format_reminders(pc[i], reminders, sizeof(reminders));
+    printf("| %-7s | %-7s | %-13s | %-5s |\n", names[i], pc[i]->enabled ? "yes" : "no", reminders,
+           pc[i]->adhan_enabled ? "on" : "off");
+  }
+  printf("+---------+---------+---------------+-------+\n");
+  printf("sound: %s\n", cfg->notification_sound);
+  printf("urgency: %s\n", cfg->notification_urgency);
+}
+
+void display_notification_settings_headless(const Config *cfg) {
+  const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
+  const PrayerConfig *pc[] = {&cfg->fajr,    &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
+                              &cfg->asr,      &cfg->maghrib, &cfg->isha};
+
+  printf("sound=%s\n", cfg->notification_sound);
+  printf("urgency=%s\n", cfg->notification_urgency);
+  for (int i = 0; i < 7; i++) {
+    char reminders[64];
+    config_format_reminders(pc[i], reminders, sizeof(reminders));
+    printf("%s.enabled=%s\n", names[i], pc[i]->enabled ? "true" : "false");
+    printf("%s.reminders=%s\n", names[i], reminders);
+    printf("%s.adhan=%s\n", names[i], pc[i]->adhan_enabled ? "true" : "false");
+  }
+}
+
+void display_notification_settings_json(const Config *cfg) {
+  const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
+  const PrayerConfig *pc[] = {&cfg->fajr,    &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
+                              &cfg->asr,      &cfg->maghrib, &cfg->isha};
+
+  printf("{\n");
+  printf("  \"sound\": ");
+  json_str(cfg->notification_sound);
+  printf(",\n");
+  printf("  \"urgency\": ");
+  json_str(cfg->notification_urgency);
+  printf(",\n");
+  printf("  \"prayers\": {\n");
+  for (int i = 0; i < 7; i++) {
+    printf("    \"%s\": { \"enabled\": %s, \"reminders\": [", names[i],
+           pc[i]->enabled ? "true" : "false");
+    for (int j = 0; j < pc[i]->reminder_count; j++) {
+      printf("%d", pc[i]->reminders[j]);
+      if (j < pc[i]->reminder_count - 1)
+        printf(", ");
+    }
+    printf("], \"adhan\": %s }%s\n", pc[i]->adhan_enabled ? "true" : "false", i < 6 ? "," : "");
+  }
+  printf("  }\n");
+  printf("}\n");
+}
