@@ -729,129 +729,6 @@ static void test_method(void) {
   check_ret("method auto removed ret", 1);
 }
 
-static void test_sound(void) {
-  printf("  sound...\n");
-  reset_config();
-
-  // sound (bare) → status output, ret 0
-  run(2, (char *[]){"m", "sound", NULL});
-  check_ret("sound bare ret", 0);
-  check_contains("sound bare out", "Sound:");
-  check_contains("sound bare alarm line", "Alarm preset:");
-  check_contains("sound bare reminder line", "Reminder preset:");
-
-  // sound status (explicit)
-  run(3, (char *[]){"m", "sound", "status", NULL});
-  check_ret("sound status ret", 0);
-  check_contains("sound status out", "Sound:");
-
-  // sound show (alias)
-  run(3, (char *[]){"m", "sound", "show", NULL});
-  check_ret("sound show ret", 0);
-  check_contains("sound show out", "Sound:");
-
-  // sound off
-  run(3, (char *[]){"m", "sound", "off", NULL});
-  check_ret("sound off ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound off cfg", cfg.notification_sound == false);
-  }
-
-  // sound on
-  run(3, (char *[]){"m", "sound", "on", NULL});
-  check_ret("sound on ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound on cfg", cfg.notification_sound == true);
-  }
-
-  // sound set alarm
-  run(4, (char *[]){"m", "sound", "set", "alarm", NULL});
-  check_ret("sound set alarm ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound set alarm cfg", strcmp(cfg.notification_sound_alarm, "alarm") == 0);
-  }
-
-  // sound set default
-  run(4, (char *[]){"m", "sound", "set", "default", NULL});
-  check_ret("sound set default ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound set default cfg", strcmp(cfg.notification_sound_alarm, "default") == 0);
-  }
-
-  // sound set reminder
-  run(4, (char *[]){"m", "sound", "set", "reminder", NULL});
-  check_ret("sound set reminder ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound set reminder cfg", strcmp(cfg.notification_sound_alarm, "reminder") == 0);
-  }
-
-  // sound reminder-set alarm
-  run(4, (char *[]){"m", "sound", "reminder-set", "alarm", NULL});
-  check_ret("sound reminder-set alarm ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound reminder-set alarm cfg",
-               strcmp(cfg.notification_sound_reminder, "alarm") == 0);
-  }
-
-  // sound reminder-set default
-  run(4, (char *[]){"m", "sound", "reminder-set", "default", NULL});
-  check_ret("sound reminder-set default ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound reminder-set default cfg",
-               strcmp(cfg.notification_sound_reminder, "default") == 0);
-  }
-
-  // sound reminder-set reminder (restore default)
-  run(4, (char *[]){"m", "sound", "reminder-set", "reminder", NULL});
-  check_ret("sound reminder-set reminder ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound reminder-set reminder cfg",
-               strcmp(cfg.notification_sound_reminder, "reminder") == 0);
-  }
-
-  // sound set (no arg) → error
-  run(3, (char *[]){"m", "sound", "set", NULL});
-  check_ret("sound set noarg ret", 1);
-
-  // sound reminder-set (no arg) → error
-  run(3, (char *[]){"m", "sound", "reminder-set", NULL});
-  check_ret("sound reminder-set noarg ret", 1);
-
-  // sound set bogus → error, config unchanged
-  reset_config();
-  run(4, (char *[]){"m", "sound", "set", "bogus", NULL});
-  check_ret("sound set bogus ret", 1);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound set bogus unchanged", strcmp(cfg.notification_sound_alarm, "alarm") == 0);
-  }
-
-  // sound reminder-set bogus → error
-  run(4, (char *[]){"m", "sound", "reminder-set", "bogus", NULL});
-  check_ret("sound reminder-set bogus ret", 1);
-
-  // sound unknown subcommand → error
-  run(3, (char *[]){"m", "sound", "bogus", NULL});
-  check_ret("sound unknown ret", 1);
-}
-
 static void test_daemon_errors(void) {
   printf("  daemon errors...\n");
   reset_config();
@@ -970,7 +847,6 @@ int main(void) {
   test_next();
   test_check();
   test_method();
-  test_sound();
   test_daemon_errors();
   test_offset();
 

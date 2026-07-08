@@ -40,7 +40,7 @@ static const CommandEntry top_commands[] = {
     {"list", handle_list},         {"reminder", handle_reminder},
     {"offset", handle_offset},     {"daemon", handle_daemon},
     {"method", handle_method},     {"notification", handle_notification},
-    {"sound", handle_sound},       {"version", handle_version},
+    {"version", handle_version},
     {"--version", handle_version}, {"-v", handle_version},
     {"help", handle_help},         {"--help", handle_help},
     {"-h", handle_help},
@@ -199,23 +199,6 @@ void cli_print_help(void) {
   printf("  %-30s %s\n", "offset <prayer> <±min>", "Adjust a prayer time (-60..60)");
 
   printf("  %-30s %s\n", "offset all <±min>", "Adjust all prayer times");
-
-  printf("\n");
-
-  /*
-   * SOUND
-   */
-  printf("Sound Commands:\n");
-
-  printf("  %-30s %s\n", "sound on", "Enable notification sound");
-
-  printf("  %-30s %s\n", "sound off", "Disable notification sound");
-
-  printf("  %-30s %s\n", "sound status", "Show sound status");
-
-  printf("  %-30s %s\n", "sound set", "Set adhan sound");
-
-  printf("  %-30s %s\n", "sound reminder-set", "Set reminder sound");
 
   printf("\n");
 

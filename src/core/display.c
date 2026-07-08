@@ -417,7 +417,7 @@ void display_config(const Config *cfg) {
   printf("Notification Settings:\n");
   printf("  Timeout: %d ms\n", cfg->notification_timeout);
   printf("  Urgency: %s\n", cfg->notification_urgency);
-  printf("  Sound: %s\n", cfg->notification_sound ? "enabled" : "disabled");
+  printf("  Sound: %s\n", cfg->notification_sound);
   printf("  Icon: %s\n\n", cfg->notification_icon);
 
   CalcMethod method = method_from_string(cfg->calculation_method);

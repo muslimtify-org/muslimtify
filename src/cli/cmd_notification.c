@@ -37,7 +37,8 @@ static int notification_test(int argc, char **argv) {
 
   char time_str[16];
   format_time_hm(prayer_get_time(&times, next), time_str, sizeof(time_str));
-  const char *sound_preset = cfg.notification_sound ? cfg.notification_sound_alarm : NULL;
+  const char *sound_preset =
+      strcmp(cfg.notification_sound, "off") != 0 ? cfg.notification_sound_alarm : NULL;
   if (argc > 0 && strcmp(argv[0], "--adhan") == 0) {
     // Use the next prayer's configured adhan; notify_adhan falls back to the
     // bundled adhan when the configured path is empty.
