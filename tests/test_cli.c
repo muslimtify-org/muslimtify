@@ -205,10 +205,6 @@ static void test_location(void) {
   printf("  location...\n");
   reset_config();
 
-  // location (default = show)
-  run(2, (char *[]){"m", "location", NULL});
-  check_ret("location bare ret", 0);
-
   // location (default: table)
   run(2, (char *[]){"m", "location", NULL});
   check_ret("location default ret", 0);
@@ -410,6 +406,12 @@ static void test_location(void) {
   // location auto removed -> unknown subcommand
   run(3, (char *[]){"m", "location", "auto", NULL});
   check_ret("location auto removed ret", 1);
+
+  // JSON escapes a special character in a field value
+  run(6, (char *[]){"m", "location", "set", "--lat=-6.21", "--long=106.84", "--city=a\"b", NULL});
+  check_ret("location set escape-city ret", 0);
+  run(3, (char *[]){"m", "location", "--json", NULL});
+  check_contains("location json escapes quote", "a\\\"b");
 }
 
 static void test_enable_disable(void) {

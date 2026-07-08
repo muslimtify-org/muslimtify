@@ -170,7 +170,7 @@ static int location_set_handler(int argc, char **argv) {
     }
     cache_invalidate();
 
-    printf("Location detected: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
+    printf("✓ Location detected: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
     printf("  Timezone: %s (UTC%+.1f)\n", cfg.timezone, cfg.timezone_offset);
     if (cfg.city[0] != '\0')
       printf("  City: %s\n", cfg.city);
