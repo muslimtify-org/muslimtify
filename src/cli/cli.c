@@ -74,16 +74,25 @@ static int removed_sound(int a, char **v) {
 // --- top-level dispatch table -----------------------
 
 static const CommandEntry top_commands[] = {
-    {"show", handle_show},       {"check", handle_check},
-    {"config", handle_config},   {"location", handle_location},
-    {"enable", removed_enable},  {"disable", removed_disable},
-    {"list", removed_list},      {"reminder", removed_reminder},
-    {"sound", removed_sound},    {"offset", handle_offset},
-    {"daemon", handle_daemon},   {"method", handle_method},
-    {"madzhab", handle_madzhab}, {"notification", handle_notification},
-    {"version", handle_version}, {"--version", handle_version},
-    {"-v", handle_version},      {"help", handle_help},
-    {"--help", handle_help},     {"-h", handle_help},
+    {"show", handle_show},
+    {"config", handle_config},
+    {"location", handle_location},
+    {"enable", removed_enable},
+    {"disable", removed_disable},
+    {"list", removed_list},
+    {"reminder", removed_reminder},
+    {"sound", removed_sound},
+    {"offset", handle_offset},
+    {"daemon", handle_daemon},
+    {"method", handle_method},
+    {"madzhab", handle_madzhab},
+    {"notification", handle_notification},
+    {"version", handle_version},
+    {"--version", handle_version},
+    {"-v", handle_version},
+    {"help", handle_help},
+    {"--help", handle_help},
+    {"-h", handle_help},
 };
 
 // --- version / help -----------------------
@@ -137,8 +146,6 @@ void cli_print_help(void) {
   printf("  %-30s %s\n", "    --json", "Output prayer times as JSON");
 
   printf("  %-30s %s\n", "    --next", "Show next prayer");
-
-  printf("  %-30s %s\n", "check", "Check and send notifications");
 
   printf("\n");
 
@@ -220,9 +227,9 @@ void cli_print_help(void) {
    */
   printf("Offset Commands:\n");
 
-  printf("  %-30s %s\n", "offset <prayer> <±min>", "Adjust a prayer time (-60..60)");
+  printf("  %-30s %s\n", "offset <prayer> <min>", "Adjust a prayer time (+/-60)");
 
-  printf("  %-30s %s\n", "offset all <±min>", "Adjust all prayer times");
+  printf("  %-30s %s\n", "    all <min>", "Adjust every prayer time");
 
   printf("\n");
 
@@ -235,11 +242,11 @@ void cli_print_help(void) {
   printf("Daemon Commands:\n");
 #endif
 
-  printf("  %-30s %s\n", "daemon install", "Install daemon");
+  printf("  %-30s %s\n", "daemon install", "Install and start the daemon");
 
-  printf("  %-30s %s\n", "daemon uninstall", "Remove daemon");
+  printf("  %-30s %s\n", "    uninstall", "Stop and remove the daemon");
 
-  printf("  %-30s %s\n", "daemon status", "Show daemon status");
+  printf("  %-30s %s\n", "    status", "Show status (also the default)");
 
   printf("\n");
 
@@ -267,9 +274,9 @@ void cli_print_help(void) {
 
   printf("  %-55s %s\n", "muslimtify madzhab hanafi", "# Set madzhab");
 
-  printf("  %-55s %s\n", "muslimtify enable fajr", "# Enable Fajr notification");
+  printf("  %-55s %s\n", "muslimtify notification enable fajr", "# Enable Fajr notification");
 
-  printf("  %-55s %s\n", "muslimtify reminder fajr 30,15,5", "# Set reminders");
+  printf("  %-55s %s\n", "muslimtify notification --reminder fajr 30 15 5", "# Set reminders");
 
   printf("  %-55s %s\n", "muslimtify offset fajr +4", "# Shift Fajr 4 min later");
 

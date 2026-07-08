@@ -1,4 +1,3 @@
-#include "check_cycle.h"
 #include "cli_internal.h"
 #include "config.h"
 #include "display.h"
@@ -106,10 +105,4 @@ int handle_show(int argc, char **argv) {
   }
 
   return 0;
-}
-
-int handle_check(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
-  return run_check_cycle();
 }

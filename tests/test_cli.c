@@ -525,17 +525,6 @@ static void test_next(void) {
   check_contains("bare next removed msg", "Unknown command");
 }
 
-static void test_check(void) {
-  printf("  check...\n");
-  reset_config();
-
-  // Disable all prayers so check won't try to send a notification
-  run(4, (char *[]){"m", "notification", "disable", "all", NULL});
-
-  run(2, (char *[]){"m", "check", NULL});
-  check_ret("check disabled ret", 0);
-}
-
 static void test_method(void) {
   printf("  method...\n");
   reset_config();
@@ -923,7 +912,6 @@ int main(void) {
   test_removed_top_level();
   test_show();
   test_next();
-  test_check();
   test_method();
   test_madzhab();
   test_notification();
