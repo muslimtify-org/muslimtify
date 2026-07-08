@@ -273,66 +273,72 @@ void display_prayer_times_json(const struct PrayerTimes *times, const Config *cf
   printf("}\n");
 }
 
-void display_next_prayer(const struct PrayerTimes *times, const Config *cfg,
-                         struct tm *current_time) {
+// Resolve the next upcoming prayer and format its fields. Returns false (and
+// writes nothing) when there is no upcoming prayer. `name` is the display name
+// as-is (capitalized); callers that need a lowercase key run lower_copy on it.
+static bool next_prayer_info(const struct PrayerTimes *times, const Config *cfg,
+                             struct tm *current_time, const char **name, char *time_str,
+                             size_t time_cap, char *remaining, size_t rem_cap) {
   int minutes_until = 0;
   PrayerType next = prayer_get_next(cfg, current_time, (struct PrayerTimes *)times, &minutes_until);
-  if (next == PRAYER_NONE) {
+  if (next == PRAYER_NONE)
+    return false;
+
+  *name = prayer_get_name(next);
+  format_time_hm(prayer_get_time(times, next), time_str, time_cap);
+  snprintf(remaining, rem_cap, "%02d:%02d", minutes_until / 60, minutes_until % 60);
+  return true;
+}
+
+void display_next_prayer(const struct PrayerTimes *times, const Config *cfg,
+                         struct tm *current_time) {
+  const char *name;
+  char time_str[16], remaining[16];
+  if (!next_prayer_info(times, cfg, current_time, &name, time_str, sizeof(time_str), remaining,
+                        sizeof(remaining))) {
     printf("No upcoming prayers enabled.\n");
     return;
   }
 
-  double prayer_time = prayer_get_time(times, next);
-  char time_str[16];
-  format_time_hm(prayer_time, time_str, sizeof(time_str));
-  char remaining[16];
-  snprintf(remaining, sizeof(remaining), "%02d:%02d", minutes_until / 60, minutes_until % 60);
-
   printf("+------------+----------+-----------+\n");
   printf("| %-10s | %-8s | %-9s |\n", "Prayer", "Time", "Remaining");
   printf("+------------+----------+-----------+\n");
-  printf("| %-10s | %-8s | %-9s |\n", prayer_get_name(next), time_str, remaining);
+  printf("| %-10s | %-8s | %-9s |\n", name, time_str, remaining);
   printf("+------------+----------+-----------+\n");
 }
 
 void display_next_prayer_headless(const struct PrayerTimes *times, const Config *cfg,
                                   struct tm *current_time) {
-  int minutes_until = 0;
-  PrayerType next = prayer_get_next(cfg, current_time, (struct PrayerTimes *)times, &minutes_until);
-  if (next == PRAYER_NONE) {
+  const char *name;
+  char time_str[16], remaining[16];
+  if (!next_prayer_info(times, cfg, current_time, &name, time_str, sizeof(time_str), remaining,
+                        sizeof(remaining))) {
     printf("No upcoming prayers enabled.\n");
     return;
   }
 
-  double prayer_time = prayer_get_time(times, next);
-  char time_str[16];
-  format_time_hm(prayer_time, time_str, sizeof(time_str));
   char lname[16];
-  lower_copy(lname, sizeof(lname), prayer_get_name(next));
-
+  lower_copy(lname, sizeof(lname), name);
   printf("%s=%s\n", lname, time_str);
-  printf("remaining=%02d:%02d\n", minutes_until / 60, minutes_until % 60);
+  printf("remaining=%s\n", remaining);
 }
 
 void display_next_prayer_json(const struct PrayerTimes *times, const Config *cfg,
                               struct tm *current_time) {
-  int minutes_until = 0;
-  PrayerType next = prayer_get_next(cfg, current_time, (struct PrayerTimes *)times, &minutes_until);
-  if (next == PRAYER_NONE) {
+  const char *name;
+  char time_str[16], remaining[16];
+  if (!next_prayer_info(times, cfg, current_time, &name, time_str, sizeof(time_str), remaining,
+                        sizeof(remaining))) {
     printf("{}\n");
     return;
   }
 
-  double prayer_time = prayer_get_time(times, next);
-  char time_str[16];
-  format_time_hm(prayer_time, time_str, sizeof(time_str));
   char lname[16];
-  lower_copy(lname, sizeof(lname), prayer_get_name(next));
-
+  lower_copy(lname, sizeof(lname), name);
   printf("{\n");
   printf("  \"prayer\": \"%s\",\n", lname);
   printf("  \"time\": \"%s\",\n", time_str);
-  printf("  \"remaining\": \"%02d:%02d\"\n", minutes_until / 60, minutes_until % 60);
+  printf("  \"remaining\": \"%s\"\n", remaining);
   printf("}\n");
 }
 
