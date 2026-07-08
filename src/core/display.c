@@ -95,23 +95,6 @@ void display_prayer_times_table(const struct PrayerTimes *times, const Config *c
   // Copy the caller's date to avoid clobbering it when platform_localtime() is called below
   struct tm date_copy = *date;
 
-  const char *days[] = {"Sunday",   "Monday", "Tuesday", "Wednesday",
-                        "Thursday", "Friday", "Saturday"};
-  const char *months[] = {"January", "February", "March",     "April",   "May",      "June",
-                          "July",    "August",   "September", "October", "November", "December"};
-
-  int wday = (date_copy.tm_wday >= 0 && date_copy.tm_wday <= 6) ? date_copy.tm_wday : 0;
-  int mon = (date_copy.tm_mon >= 0 && date_copy.tm_mon <= 11) ? date_copy.tm_mon : 0;
-  printf("\n%sPrayer Times for %s, %s %d, %d%s\n", C(COL_BOLD), days[wday], months[mon],
-         date_copy.tm_mday, date_copy.tm_year + 1900, C(COL_RESET));
-
-  if (cfg->city[0] != '\0') {
-    printf("Location: %s, %s (%.4f, %.4f)\n\n", cfg->city, cfg->country, cfg->latitude,
-           cfg->longitude);
-  } else {
-    printf("Location: %.4f, %.4f\n\n", cfg->latitude, cfg->longitude);
-  }
-
   const char *prayer_names[] = {"Fajr", "Sunrise", "Dhuha", "Dhuhr", "Asr", "Maghrib", "Isha"};
   PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
                         PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
