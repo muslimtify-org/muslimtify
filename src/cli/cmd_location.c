@@ -11,19 +11,6 @@
 #include <string.h>
 #include <time.h>
 
-static int location_show_handler(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
-
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
-  display_location(&cfg);
-  return 0;
-}
-
 // Copy `name` into cfg->city with NUL-termination, truncating on overflow.
 static void set_city(Config *cfg, const char *name) {
   size_t cap = sizeof(cfg->city);
@@ -40,38 +27,6 @@ static void set_country(Config *cfg, const char *code) {
   cfg->country[0] = (char)toupper((unsigned char)code[0]);
   cfg->country[1] = (char)toupper((unsigned char)code[1]);
   cfg->country[2] = '\0';
-}
-
-static int location_refresh_handler(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
-
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
-
-  printf("Refreshing location...\n");
-  if (location_fetch(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to fetch location\n");
-    return 1;
-  }
-  printf("✓ Location detected: ");
-  if (cfg.city[0] != '\0') {
-    printf("%s, %s\n", cfg.city, cfg.country);
-  } else {
-    printf("%.4f, %.4f\n", cfg.latitude, cfg.longitude);
-  }
-  printf("  Timezone: %s (UTC%+.1f)\n", cfg.timezone, cfg.timezone_offset);
-
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
-  }
-  cache_invalidate();
-  printf("✓ Saved to config\n");
-  return 0;
 }
 
 static const char *LOCATION_SET_USAGE =
@@ -264,9 +219,50 @@ static int location_set_handler(int argc, char **argv) {
   return 0;
 }
 
-static int location_clear_handler(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
+static void print_location_help(void) {
+  printf("Usage: muslimtify location [--json | --headless]\n");
+  printf("       muslimtify location set [options]\n");
+  printf("  %-12s %s\n", "(default)", "Show current location as a table");
+  printf("  %-12s %s\n", "--json", "Location as JSON");
+  printf("  %-12s %s\n", "--headless", "Location as key=value");
+  printf("  %-12s %s\n", "set", "Update saved location (see 'location set --help')");
+  printf("  %-12s %s\n", "-h, --help", "Show this help");
+}
+
+int handle_location(int argc, char **argv) {
+  if (argc > 0 && strcmp(argv[0], "set") == 0)
+    return location_set_handler(argc - 1, argv + 1);
+
+  if (argc > 0 && strcmp(argv[0], "show") == 0) {
+    fprintf(stderr,
+            "Error: 'location show' was removed; use 'location' (optionally --json / --headless)\n");
+    return 1;
+  }
+  if (argc > 0 && strcmp(argv[0], "refresh") == 0) {
+    fprintf(stderr, "Error: 'location refresh' was removed; use 'location set --auto'\n");
+    return 1;
+  }
+  if (argc > 0 && strcmp(argv[0], "clear") == 0) {
+    fprintf(stderr, "Error: 'location clear' was removed; use 'location set --auto'\n");
+    return 1;
+  }
+
+  if (cli_wants_help(argc, argv)) {
+    print_location_help();
+    return 0;
+  }
+
+  for (int i = 0; i < argc; i++) {
+    const char *a = argv[i];
+    if (strcmp(a, "--json") == 0 || strcmp(a, "--headless") == 0)
+      continue;
+    fprintf(stderr, "Error: unknown location argument '%s'\n", a);
+    return 1;
+  }
+
+  OutputMode mode = OUTPUT_TABLE;
+  if (cli_parse_output_mode(argc, argv, &mode) != 0)
+    return 1;
 
   Config cfg;
   if (config_load(&cfg) != 0) {
@@ -274,40 +270,16 @@ static int location_clear_handler(int argc, char **argv) {
     return 1;
   }
 
-  cfg.latitude = 0.0;
-  cfg.longitude = 0.0;
-  cfg.auto_detect = true;
-  cfg.city[0] = '\0';
-  cfg.country[0] = '\0';
-
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
+  switch (mode) {
+  case OUTPUT_JSON:
+    display_location_json(&cfg);
+    break;
+  case OUTPUT_HEADLESS:
+    display_location_headless(&cfg);
+    break;
+  default:
+    display_location(&cfg);
+    break;
   }
-
-  cache_invalidate();
-  printf("✓ Location cleared. Will auto-detect on next run.\n");
   return 0;
-}
-
-static const CommandEntry location_commands[] = {
-    {"show", location_show_handler},
-    {"set", location_set_handler},
-    {"clear", location_clear_handler},
-    {"refresh", location_refresh_handler},
-};
-
-int handle_location(int argc, char **argv) {
-  if (argc > 0) {
-    const CommandEntry *sub =
-        dispatch_lookup(location_commands, DISPATCH_N(location_commands), argv[0]);
-    if (sub)
-      return sub->handler(argc - 1, argv + 1);
-
-    fprintf(stderr, "Error: Unknown location subcommand '%s'\n", argv[0]);
-    fprintf(stderr, "Usage: muslimtify location [show|set|clear|refresh]\n");
-    return 1;
-  }
-
-  return location_show_handler(0, NULL);
 }

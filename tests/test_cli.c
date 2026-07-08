@@ -209,10 +209,47 @@ static void test_location(void) {
   run(2, (char *[]){"m", "location", NULL});
   check_ret("location bare ret", 0);
 
-  // location show
+  // location (default: table)
+  run(2, (char *[]){"m", "location", NULL});
+  check_ret("location default ret", 0);
+  check_contains("location default city", "Jakarta");
+  check_contains("location default coords row", "coordinates");
+  check_contains("location default tz row", "timezone");
+
+  // location --json
+  run(3, (char *[]){"m", "location", "--json", NULL});
+  check_ret("location json ret", 0);
+  check_contains("location json coords", "\"coordinates\"");
+  check_contains("location json gmt", "\"gmt\"");
+
+  // location --headless
+  run(3, (char *[]){"m", "location", "--headless", NULL});
+  check_ret("location headless ret", 0);
+  check_contains("location headless coords", "coordinates=");
+  check_contains("location headless gmt", "gmt=");
+
+  // mutual exclusion
+  run(4, (char *[]){"m", "location", "--json", "--headless", NULL});
+  check_ret("location json+headless ret", 1);
+  check_contains("location json+headless msg", "cannot be combined");
+
+  // help
+  run(3, (char *[]){"m", "location", "--help", NULL});
+  check_ret("location help ret", 0);
+  check_contains("location help usage", "muslimtify location");
+
+  // removed subcommands -> migration hints
   run(3, (char *[]){"m", "location", "show", NULL});
-  check_ret("location show ret", 0);
-  check_contains("location show out", "Jakarta");
+  check_ret("location show removed ret", 1);
+  check_contains("location show removed msg", "was removed");
+
+  run(3, (char *[]){"m", "location", "refresh", NULL});
+  check_ret("location refresh removed ret", 1);
+  check_contains("location refresh removed msg", "set --auto");
+
+  run(3, (char *[]){"m", "location", "clear", NULL});
+  check_ret("location clear removed ret", 1);
+  check_contains("location clear removed msg", "set --auto");
 
   // location set --lat=<lat> --long=<lon> (equals form)
   run(5, (char *[]){"m", "location", "set", "--lat=-7.25", "--long=112.75", NULL});
@@ -350,18 +387,6 @@ static void test_location(void) {
     config_load(&cfg);
     check_bool("location set --tz+--city zone", strcmp(cfg.timezone, "Africa/Cairo") == 0);
     check_bool("location set --tz+--city label", strcmp(cfg.city, "Mansoura") == 0);
-  }
-
-  // location clear
-  reset_config();
-  run(3, (char *[]){"m", "location", "clear", NULL});
-  check_ret("location clear ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("location clear lat", cfg.latitude == 0.0);
-    check_bool("location clear lon", cfg.longitude == 0.0);
-    check_bool("location clear auto", cfg.auto_detect == true);
   }
 
   // location unknown
