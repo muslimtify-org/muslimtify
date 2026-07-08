@@ -309,7 +309,7 @@ prayers, reminder offsets, notification settings, or location data.
 
 ### Config file problems
 
-- Delete `config.json` to restore defaults; Muslimtify uses built-in defaults when
+- Delete `config.json` to restore defaults, Muslimtify uses built-in defaults when
   the file is missing and rewrites it the next time a setting changes.
 - Muslimtify validates the config automatically on load and reports problems it finds.
 - Review the config file paths above and make sure the JSON is valid.
