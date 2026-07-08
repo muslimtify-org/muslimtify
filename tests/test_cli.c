@@ -3,6 +3,8 @@
 #include "cli.h"
 #include "cli_internal.h"
 #include "config.h"
+#include "country.h"
+#include "prayertimes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -168,39 +170,6 @@ static void test_version_and_help(void) {
   check_contains("unknown out", "Unknown command");
 }
 
-static void test_config(void) {
-  printf("  config...\n");
-  reset_config();
-
-  // config (no subcommand) → defaults to show
-  run(2, (char *[]){"m", "config", NULL});
-  check_ret("config bare ret", 0);
-  check_contains("config bare out", "Configuration:");
-
-  // config show
-  run(3, (char *[]){"m", "config", "show", NULL});
-  check_ret("config show ret", 0);
-  check_contains("config show out", "Configuration:");
-
-  // config validate
-  run(3, (char *[]){"m", "config", "validate", NULL});
-  check_ret("config validate ret", 0);
-  check_contains("config validate out", "valid");
-
-  // config unknown
-  run(3, (char *[]){"m", "config", "bogus", NULL});
-  check_ret("config unknown ret", 1);
-
-  // config reset
-  run(3, (char *[]){"m", "config", "reset", NULL});
-  check_ret("config reset ret", 0);
-  // Verify config is back to default (auto_detect=true, lat=0)
-  Config cfg;
-  config_load(&cfg);
-  check_bool("config reset auto_detect", cfg.auto_detect == true);
-  check_bool("config reset lat", cfg.latitude == 0.0);
-}
-
 static void test_location(void) {
   printf("  location...\n");
   reset_config();
@@ -256,6 +225,13 @@ static void test_location(void) {
     check_bool("location set lat", cfg.latitude > -7.26 && cfg.latitude < -7.24);
     check_bool("location set lon", cfg.longitude > 112.74 && cfg.longitude < 112.76);
   }
+  // changing coordinates hints to verify the timezone
+  check_contains("location set coords tz hint", "make sure the timezone is correct");
+
+  // changing the timezone hints to verify the coordinates
+  run(4, (char *[]){"m", "location", "set", "--timezone=Asia/Jakarta", NULL});
+  check_ret("location set tz ret", 0);
+  check_contains("location set tz coords hint", "make sure your coordinates are correct");
 
   // location set --auto rejects coordinate / timezone overrides
   run(5, (char *[]){"m", "location", "set", "--auto", "--lat=1.0", NULL});
@@ -525,41 +501,16 @@ static void test_next(void) {
   check_contains("bare next removed msg", "Unknown command");
 }
 
-static void test_check(void) {
-  printf("  check...\n");
-  reset_config();
-
-  // Disable all prayers so check won't try to send a notification
-  run(4, (char *[]){"m", "notification", "disable", "all", NULL});
-
-  run(2, (char *[]){"m", "check", NULL});
-  check_ret("check disabled ret", 0);
-}
-
 static void test_method(void) {
   printf("  method...\n");
   reset_config();
 
-  // method (default = show)
+  // method (no arg): show current
   run(2, (char *[]){"m", "method", NULL});
-  check_ret("method bare ret", 0);
-  check_contains("method bare out", "Calculation Method:");
-
-  // method show
-  run(3, (char *[]){"m", "method", "show", NULL});
   check_ret("method show ret", 0);
-  check_contains("method show method", "kemenag");
-  check_contains("method show madhab", "Madhab:");
+  check_contains("method show key", "kemenag");
 
-  // method list
-  run(3, (char *[]){"m", "method", "list", NULL});
-  check_ret("method list ret", 0);
-  check_contains("method list header", "Available calculation methods:");
-  check_contains("method list kemenag", "kemenag");
-  check_contains("method list mwl", "mwl");
-  check_contains("method list current", "*");
-
-  // method set isna
+  // method <name>: set directly
   run(3, (char *[]){"m", "method", "isna", NULL});
   check_ret("method set isna ret", 0);
   {
@@ -568,48 +519,102 @@ static void test_method(void) {
     check_bool("method set isna cfg", strcmp(cfg.calculation_method, "isna") == 0);
   }
 
-  // method set (explicit)
-  run(4, (char *[]){"m", "method", "set", "egypt", NULL});
-  check_ret("method set egypt ret", 0);
+  // method <bad>: unknown lists available methods
+  run(3, (char *[]){"m", "method", "nope", NULL});
+  check_ret("method bad ret", 1);
+  check_contains("method bad lists", "Available");
+  check_contains("method bad key", "kemenag");
+
+  // method custom: not selectable via `method <name>`, treated as unknown
+  run(3, (char *[]){"m", "method", "custom", NULL});
+  check_ret("method custom ret", 1);
+  check_contains("method custom unknown", "Unknown method");
+
+  // method --list
+  run(3, (char *[]){"m", "method", "--list", NULL});
+  check_ret("method list ret", 0);
+  check_contains("method list mwl", "mwl");
+  check_contains("method list current", "*");
+
+  // method --auto: derive from the current country (ID -> kemenag)
+  run(3, (char *[]){"m", "method", "mwl", NULL});
+  run(4, (char *[]){"m", "location", "set", "--country=ID", NULL});
+  run(3, (char *[]){"m", "method", "--auto", NULL});
+  check_ret("method auto ret", 0);
   {
     Config cfg;
     config_load(&cfg);
-    check_bool("method set egypt cfg", strcmp(cfg.calculation_method, "egypt") == 0);
+    check_bool("method auto cfg", strcmp(cfg.calculation_method, "kemenag") == 0);
   }
 
-  // method set invalid
-  run(4, (char *[]){"m", "method", "set", "invalid_method", NULL});
-  check_ret("method set invalid ret", 1);
+  // method --auto: a different saved country derives that country's default,
+  // proving derivation is table-driven (country_default_method), not hardcoded.
+  run(4, (char *[]){"m", "location", "set", "--country=US", NULL});
+  run(3, (char *[]){"m", "method", "--auto", NULL});
+  check_ret("method auto US ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    const char *want = method_to_string(country_default_method("US"));
+    check_bool("method auto US cfg", strcmp(cfg.calculation_method, want) == 0);
+  }
 
-  // method madhab hanafi
+  // method --help
+  run(3, (char *[]){"m", "method", "--help", NULL});
+  check_ret("method help ret", 0);
+  check_contains("method help usage", "muslimtify method");
+
+  // removed subcommands -> migration hints
+  run(3, (char *[]){"m", "method", "show", NULL});
+  check_ret("method show removed ret", 1);
+  check_contains("method show removed msg", "was removed");
+
+  run(4, (char *[]){"m", "method", "set", "mwl", NULL});
+  check_ret("method set removed ret", 1);
+  check_contains("method set removed msg", "method <name>");
+
+  run(3, (char *[]){"m", "method", "list", NULL});
+  check_ret("method list removed ret", 1);
+  check_contains("method list removed msg", "--list");
+
   run(4, (char *[]){"m", "method", "madhab", "hanafi", NULL});
-  check_ret("method madhab hanafi ret", 0);
+  check_ret("method madhab removed ret", 1);
+  check_contains("method madhab removed msg", "madzhab");
+}
+
+static void test_madzhab(void) {
+  printf("  madzhab...\n");
+  reset_config();
+
+  // madzhab (no arg): show current
+  run(2, (char *[]){"m", "madzhab", NULL});
+  check_ret("madzhab show ret", 0);
+  check_contains("madzhab show val", "shafi");
+
+  // madzhab <name>: set
+  run(3, (char *[]){"m", "madzhab", "hanafi", NULL});
+  check_ret("madzhab set ret", 0);
   {
     Config cfg;
     config_load(&cfg);
-    check_bool("method madhab hanafi cfg", strcmp(cfg.madhab, "hanafi") == 0);
+    check_bool("madzhab set cfg", strcmp(cfg.madhab, "hanafi") == 0);
   }
 
-  // method madhab shafi
-  run(4, (char *[]){"m", "method", "madhab", "shafi", NULL});
-  check_ret("method madhab shafi ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("method madhab shafi cfg", strcmp(cfg.madhab, "shafi") == 0);
-  }
+  // madzhab <bad>: unknown lists options
+  run(3, (char *[]){"m", "madzhab", "maliki", NULL});
+  check_ret("madzhab bad ret", 1);
+  check_contains("madzhab bad lists", "Available: shafi, hanafi");
 
-  // method madhab invalid
-  run(4, (char *[]){"m", "method", "madhab", "maliki", NULL});
-  check_ret("method madhab invalid ret", 1);
+  // madzhab --list
+  run(3, (char *[]){"m", "madzhab", "--list", NULL});
+  check_ret("madzhab list ret", 0);
+  check_contains("madzhab list shafi", "shafi");
+  check_contains("madzhab list hanafi", "hanafi");
 
-  // method madhab (no arg)
-  run(3, (char *[]){"m", "method", "madhab", NULL});
-  check_ret("method madhab noarg ret", 1);
-
-  // method auto removed -> falls through to "method set auto" which is invalid
-  run(3, (char *[]){"m", "method", "auto", NULL});
-  check_ret("method auto removed ret", 1);
+  // madzhab --help
+  run(3, (char *[]){"m", "madzhab", "--help", NULL});
+  check_ret("madzhab help ret", 0);
+  check_contains("madzhab help usage", "muslimtify madzhab");
 }
 
 static void test_daemon_errors(void) {
@@ -906,13 +911,12 @@ int main(void) {
   printf("Running CLI tests...\n");
   test_version_and_help();
   test_output_helpers();
-  test_config();
   test_location();
   test_removed_top_level();
   test_show();
   test_next();
-  test_check();
   test_method();
+  test_madzhab();
   test_notification();
   test_daemon_errors();
   test_offset();

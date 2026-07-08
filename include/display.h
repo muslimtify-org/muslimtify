@@ -59,16 +59,6 @@ void display_location_json(const Config *cfg);
  */
 void display_location_headless(const Config *cfg);
 
-/**
- * Display config
- */
-void display_config(const Config *cfg);
-
-/**
- * Display reminders configuration
- */
-void display_reminders(const Config *cfg);
-
 /** Display notification settings as a table */
 void display_notification_settings(const Config *cfg);
 /** Display notification settings as JSON */

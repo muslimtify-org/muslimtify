@@ -25,13 +25,6 @@ int audio_is_playing(void);
  */
 void audio_stop(void);
 
-/**
- * Play an audio file and block until it finishes on its own.
- * Convenience wrapper: audio_start() then poll audio_is_playing() until done.
- * Returns: 0 after the sound ends, -1 if playback could not be started.
- */
-int audio_play_from_file(const char *path);
-
 #ifdef __cplusplus
 }
 #endif

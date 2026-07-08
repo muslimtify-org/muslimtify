@@ -281,7 +281,3 @@ int ensure_location(Config *cfg) {
 
   return 0;
 }
-
-void location_cleanup(void) {
-  // No-op: main() owns the curl_global_init/cleanup lifecycle
-}

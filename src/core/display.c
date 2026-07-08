@@ -410,66 +410,6 @@ void display_location_json(const Config *cfg) {
   printf("\n}\n");
 }
 
-void display_config(const Config *cfg) {
-  printf("\nConfiguration:\n\n");
-  display_location(cfg);
-
-  printf("Notification Settings:\n");
-  printf("  Timeout: %d ms\n", cfg->notification_timeout);
-  printf("  Urgency: %s\n", cfg->notification_urgency);
-  printf("  Sound: %s\n", cfg->notification_sound);
-  printf("  Icon: %s\n\n", cfg->notification_icon);
-
-  CalcMethod method = method_from_string(cfg->calculation_method);
-  const MethodParams *mparams = method_params_get(method);
-  printf("Calculation Method:\n");
-  printf("  Method: %s (%s)\n", cfg->calculation_method, mparams ? mparams->name : "Unknown");
-  printf("  Madhab: %s\n\n", cfg->madhab);
-
-  display_reminders(cfg);
-}
-
-void display_reminders(const Config *cfg) {
-  printf("Prayer Reminders:\n");
-
-  const char *prayer_names[] = {"Fajr", "Sunrise", "Dhuha", "Dhuhr", "Asr", "Maghrib", "Isha"};
-  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
-
-  for (int i = 0; i < 7; i++) {
-    const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
-    char off[24] = "";
-    if (pcfg->offset != 0) {
-      snprintf(off, sizeof(off), " [%+d min]", pcfg->offset);
-    }
-    char snd[MAX_ADHAN_PATH + 16] = "";
-    if (pcfg->adhan[0] != '\0') {
-      snprintf(snd, sizeof(snd), " (sound: %s)", pcfg->adhan_enabled ? pcfg->adhan : "disabled");
-    }
-    printf("  %-8s: ", prayer_names[i]);
-
-    if (!pcfg->enabled) {
-      printf("(disabled)%s\n", off);
-      continue;
-    }
-
-    if (pcfg->reminder_count == 0) {
-      printf("At prayer time only%s\n", off);
-      continue;
-    }
-
-    printf("%d reminder%s: ", pcfg->reminder_count, pcfg->reminder_count == 1 ? "" : "s");
-
-    for (int j = 0; j < pcfg->reminder_count; j++) {
-      printf("%d", pcfg->reminders[j]);
-      if (j < pcfg->reminder_count - 1)
-        printf(", ");
-    }
-    printf(" min before%s%s\n", off, snd);
-  }
-  printf("\n");
-}
-
 void display_notification_settings(const Config *cfg) {
   const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
   const PrayerConfig *pc[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
