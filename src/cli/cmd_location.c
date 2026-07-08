@@ -40,7 +40,24 @@ static bool is_utc_zone(const char *tz) {
          strcmp(tz, "GMT") == 0;
 }
 
+static void print_location_set_help(void) {
+  printf("Usage: muslimtify location set [options]\n");
+  printf("  %-22s %s\n", "--lat=<latitude>", "Set latitude");
+  printf("  %-22s %s\n", "--long=<longitude>", "Set longitude");
+  printf("  %-22s %s\n", "--timezone=<iana>", "Set IANA timezone");
+  printf("  %-22s %s\n", "--city=<name>", "Set city label");
+  printf("  %-22s %s\n", "--country=<iso2>", "Set ISO-2 country code");
+  printf("  %-22s %s\n", "--auto", "Detect coordinates/timezone/country from IP");
+  printf("  %-22s %s\n", "-h, --help", "Show this help");
+  printf("Note: --auto may be combined only with --city / --country.\n");
+}
+
 static int location_set_handler(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    print_location_set_help();
+    return 0;
+  }
+  bool auto_detect = false;
   const char *override_lat = NULL;
   const char *override_lon = NULL;
   const char *override_tz = NULL;
@@ -108,10 +125,59 @@ static int location_set_handler(int argc, char **argv) {
         return 1;
       }
       override_country = argv[++i];
+    } else if (strcmp(argv[i], "--auto") == 0) {
+      auto_detect = true;
     } else {
       fprintf(stderr, "Error: unexpected argument '%s'\n%s", argv[i], LOCATION_SET_USAGE);
       return 1;
     }
+  }
+
+  if (auto_detect) {
+    if (override_lat || override_lon || override_tz) {
+      fprintf(stderr, "Error: --auto detects coordinates and timezone from IP; "
+                      "--lat / --long / --timezone cannot be combined with --auto\n");
+      return 1;
+    }
+
+    Config cfg;
+    if (config_load(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to load config\n");
+      return 1;
+    }
+
+    printf("Detecting location...\n");
+    if (location_fetch(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to fetch location\n");
+      return 1;
+    }
+    cfg.auto_detect = true;
+
+    if (override_city)
+      set_city(&cfg, override_city);
+    if (override_country) {
+      if (!country_is_valid_alpha2(override_country)) {
+        fprintf(stderr,
+                "Error: Invalid country code '%s' (expected ISO 3166-1 alpha-2, e.g. ID)\n",
+                override_country);
+        return 1;
+      }
+      set_country(&cfg, override_country);
+    }
+
+    if (config_save(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to save config\n");
+      return 1;
+    }
+    cache_invalidate();
+
+    printf("Location detected: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
+    printf("  Timezone: %s (UTC%+.1f)\n", cfg.timezone, cfg.timezone_offset);
+    if (cfg.city[0] != '\0')
+      printf("  City: %s\n", cfg.city);
+    if (cfg.country[0] != '\0')
+      printf("  Country: %s\n", cfg.country);
+    return 0;
   }
 
   if (!override_lat && !override_lon && !override_tz && !override_city && !override_country) {

@@ -261,6 +261,20 @@ static void test_location(void) {
     check_bool("location set lon", cfg.longitude > 112.74 && cfg.longitude < 112.76);
   }
 
+  // location set --auto rejects coordinate / timezone overrides
+  run(5, (char *[]){"m", "location", "set", "--auto", "--lat=1.0", NULL});
+  check_ret("location set auto+lat ret", 1);
+  check_contains("location set auto+lat msg", "cannot be combined");
+
+  run(5, (char *[]){"m", "location", "set", "--auto", "--timezone=Asia/Jakarta", NULL});
+  check_ret("location set auto+tz ret", 1);
+  check_contains("location set auto+tz msg", "cannot be combined");
+
+  // location set --help
+  run(4, (char *[]){"m", "location", "set", "--help", NULL});
+  check_ret("location set help ret", 0);
+  check_contains("location set help usage", "muslimtify location set");
+
   // location set --lat <lat> --long <lon> (space form)
   run(7, (char *[]){"m", "location", "set", "--lat", "-7.25", "--long", "112.75", NULL});
   check_ret("location set space ret", 0);
