@@ -325,17 +325,89 @@ void display_next_prayer_json(const struct PrayerTimes *times, const Config *cfg
   printf("}\n");
 }
 
+static void loc_border(int nw, int vw) {
+  putchar('+');
+  for (int i = 0; i < nw + 2; i++)
+    putchar('-');
+  putchar('+');
+  for (int i = 0; i < vw + 2; i++)
+    putchar('-');
+  putchar('+');
+  putchar('\n');
+}
+
+static void json_str(const char *s) {
+  putchar('"');
+  for (; *s; s++) {
+    if (*s == '"' || *s == '\\') {
+      putchar('\\');
+      putchar(*s);
+    } else if ((unsigned char)*s < 0x20) {
+      printf("\\u%04x", (unsigned char)*s);
+    } else {
+      putchar(*s);
+    }
+  }
+  putchar('"');
+}
+
 void display_location(const Config *cfg) {
-  printf("\nLocation Information:\n");
-  printf("  Coordinates: %.4f, %.4f\n", cfg->latitude, cfg->longitude);
-  if (cfg->city[0] != '\0') {
-    printf("  City: %s\n", cfg->city);
+  char coords[32], gmt[16];
+  snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
+  snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
+
+  const char *rows[][2] = {
+      {"coordinates", coords},     {"city", cfg->city}, {"country", cfg->country},
+      {"timezone", cfg->timezone}, {"gmt", gmt},
+  };
+
+  int nw = (int)strlen("Name"), vw = (int)strlen("Value");
+  for (int i = 0; i < 5; i++) {
+    int l = (int)strlen(rows[i][0]);
+    if (l > nw)
+      nw = l;
+    l = (int)strlen(rows[i][1]);
+    if (l > vw)
+      vw = l;
   }
-  if (cfg->country[0] != '\0') {
-    printf("  Country: %s\n", cfg->country);
-  }
-  printf("  Timezone: %s (UTC%+.1f)\n", cfg->timezone, cfg->timezone_offset);
-  printf("  Auto-detect: %s\n\n", cfg->auto_detect ? "enabled" : "disabled");
+
+  loc_border(nw, vw);
+  printf("| %-*s | %-*s |\n", nw, "Name", vw, "Value");
+  loc_border(nw, vw);
+  for (int i = 0; i < 5; i++)
+    printf("| %-*s | %-*s |\n", nw, rows[i][0], vw, rows[i][1]);
+  loc_border(nw, vw);
+}
+
+void display_location_headless(const Config *cfg) {
+  printf("coordinates=%.4f,%.4f\n", cfg->latitude, cfg->longitude);
+  printf("city=%s\n", cfg->city);
+  printf("country=%s\n", cfg->country);
+  printf("timezone=%s\n", cfg->timezone);
+  printf("gmt=UTC%+.1f\n", cfg->timezone_offset);
+}
+
+void display_location_json(const Config *cfg) {
+  char coords[32], gmt[16];
+  snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
+  snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
+
+  printf("{\n");
+  printf("  \"coordinates\": ");
+  json_str(coords);
+  printf(",\n");
+  printf("  \"city\": ");
+  json_str(cfg->city);
+  printf(",\n");
+  printf("  \"country\": ");
+  json_str(cfg->country);
+  printf(",\n");
+  printf("  \"timezone\": ");
+  json_str(cfg->timezone);
+  printf(",\n");
+  printf("  \"gmt\": ");
+  json_str(gmt);
+  printf("\n}\n");
 }
 
 void display_config(const Config *cfg) {

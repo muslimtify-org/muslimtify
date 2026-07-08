@@ -50,6 +50,16 @@ void display_next_prayer_json(const struct PrayerTimes *times, const Config *cfg
 void display_location(const Config *cfg);
 
 /**
+ * Display location info as JSON
+ */
+void display_location_json(const Config *cfg);
+
+/**
+ * Display location info as lowercase key=value
+ */
+void display_location_headless(const Config *cfg);
+
+/**
  * Display config
  */
 void display_config(const Config *cfg);

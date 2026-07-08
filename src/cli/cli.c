@@ -107,23 +107,25 @@ void cli_print_help(void) {
    */
   printf("Location Commands:\n");
 
-  printf("  %-30s %s\n", "location show", "Show current location");
+  printf("  %-30s %s\n", "location", "Show current location");
 
-  printf("  %-30s %s\n", "location set", "Set coordinates manually");
+  printf("  %-30s %s\n", "    --json", "Output as JSON");
 
-  printf("  %-30s %s\n", "", "--lat=<latitude>");
+  printf("  %-30s %s\n", "    --headless", "Output as key=value");
 
-  printf("  %-30s %s\n", "", "--long=<longitude>");
+  printf("  %-30s %s\n", "    set", "Update saved location fields");
 
-  printf("  %-30s %s\n", "", "--timezone=<iana>");
+  printf("  %-30s %s\n", "        --lat=<latitude>", "");
 
-  printf("  %-30s %s\n", "", "--city=<name>");
+  printf("  %-30s %s\n", "        --long=<longitude>", "");
 
-  printf("  %-30s %s\n", "", "--country=<iso2>");
+  printf("  %-30s %s\n", "        --timezone=<iana>", "");
 
-  printf("  %-30s %s\n", "location refresh", "Refresh auto-detected location");
+  printf("  %-30s %s\n", "        --city=<name>", "");
 
-  printf("  %-30s %s\n", "location clear", "Clear saved location");
+  printf("  %-30s %s\n", "        --country=<iso2>", "");
+
+  printf("  %-30s %s\n", "        --auto", "Detect from IP address");
 
   printf("\n");
 
