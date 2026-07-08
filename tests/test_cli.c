@@ -555,6 +555,17 @@ static void test_method(void) {
   check_contains("method list mwl", "mwl");
   check_contains("method list current", "*");
 
+  // method --auto: derive from the current country (ID -> kemenag)
+  run(3, (char *[]){"m", "method", "mwl", NULL});
+  run(4, (char *[]){"m", "location", "set", "--country=ID", NULL});
+  run(3, (char *[]){"m", "method", "--auto", NULL});
+  check_ret("method auto ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("method auto cfg", strcmp(cfg.calculation_method, "kemenag") == 0);
+  }
+
   // method --help
   run(3, (char *[]){"m", "method", "--help", NULL});
   check_ret("method help ret", 0);

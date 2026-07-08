@@ -1,5 +1,7 @@
 #include "cache.h"
 #include "cli_internal.h"
+#include "country.h"
+#include "location.h"
 #include "prayertimes.h"
 #include "string_util.h"
 #include <stdbool.h>
@@ -21,8 +23,41 @@ static void print_method_help(void) {
   printf("Usage: muslimtify method [<name>]\n");
   printf("  %-12s %s\n", "(no arg)", "Show the current method");
   printf("  %-12s %s\n", "<name>", "Set the calculation method");
+  printf("  %-12s %s\n", "--auto", "Auto-select the method from your country");
   printf("  %-12s %s\n", "--list", "List available methods");
   printf("  %-12s %s\n", "-h, --help", "Show this help");
+}
+
+// Auto-select the calculation method from the country in config. If no country
+// is set yet, detect the location first (which populates the country), then
+// derive the method.
+static int method_auto(void) {
+  Config cfg;
+  if (config_load(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to load config\n");
+    return 1;
+  }
+  if (cfg.country[0] == '\0') {
+    printf("Detecting location...\n");
+    if (location_fetch(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to detect location\n");
+      return 1;
+    }
+    cfg.auto_detect = true;
+  }
+  CalcMethod m = country_default_method(cfg.country);
+  copy_string(cfg.calculation_method, sizeof(cfg.calculation_method), method_to_string(m));
+  if (config_save(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to save config\n");
+    return 1;
+  }
+  cache_invalidate();
+  const MethodParams *p = method_params_get(m);
+  printf("Method auto-detected: %s", cfg.calculation_method);
+  if (p)
+    printf(" (%s)", p->name);
+  printf("\n");
+  return 0;
 }
 
 static int method_show_current(void) {
@@ -75,6 +110,9 @@ int handle_method(int argc, char **argv) {
   }
   if (argc == 0)
     return method_show_current();
+
+  if (strcmp(argv[0], "--auto") == 0)
+    return method_auto();
 
   if (strcmp(argv[0], "--list") == 0) {
     Config cfg;
