@@ -96,8 +96,7 @@ static int notif_enable(int argc, char **argv, bool enable) {
 
   PrayerConfig *p = config_get_prayer(&cfg, argv[0]);
   if (!p) {
-    fprintf(stderr, "Error: Unknown prayer '%s'\n", argv[0]);
-    return 1;
+    return cli_unknown_prayer(argv[0]);
   }
   p->enabled = enable;
   if (config_save(&cfg) != 0) {
@@ -220,8 +219,7 @@ static int notif_reminder(int argc, char **argv) {
   }
   PrayerConfig *p = config_get_prayer(&cfg, prayer);
   if (!p) {
-    fprintf(stderr, "Error: Unknown prayer '%s'\n", prayer);
-    return 1;
+    return cli_unknown_prayer(prayer);
   }
   p->reminder_count = count;
   for (int j = 0; j < count; j++)
@@ -293,8 +291,7 @@ static int notif_adhan(int argc, char **argv) {
   }
   PrayerConfig *p = config_get_prayer(&cfg, argv[1]);
   if (!p) {
-    fprintf(stderr, "Error: Unknown prayer '%s'\n", argv[1]);
-    return 1;
+    return cli_unknown_prayer(argv[1]);
   }
   p->adhan_enabled = enable;
   if (config_save(&cfg) != 0) {

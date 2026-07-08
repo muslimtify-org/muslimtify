@@ -836,6 +836,12 @@ static void test_notification(void) {
     config_load(&cfg);
     check_bool("notification adhan disable cfg", cfg.fajr.adhan_enabled == false);
   }
+
+  // unknown prayer lists the available names
+  run(5, (char *[]){"m", "notification", "--adhan", "disable", "zuzu", NULL});
+  check_ret("notification adhan unknown ret", 1);
+  check_contains("notification adhan unknown lists", "Available:");
+  check_contains("notification adhan unknown fajr", "fajr");
   run(5, (char *[]){"m", "notification", "--adhan", "set", "/tmp/a.mp3", NULL});
   check_ret("notification adhan set ret", 0);
   {

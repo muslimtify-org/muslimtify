@@ -32,6 +32,9 @@ int cli_parse_output_mode(int argc, char **argv, OutputMode *out);
 // True if argv contains --help or -h.
 bool cli_wants_help(int argc, char **argv);
 
+// Print an "Unknown prayer" error plus the list of valid prayer names; returns 1.
+int cli_unknown_prayer(const char *name);
+
 int handle_show(int argc, char **argv);
 int handle_check(int argc, char **argv);
 int handle_config(int argc, char **argv);

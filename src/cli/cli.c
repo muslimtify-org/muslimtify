@@ -31,6 +31,12 @@ bool cli_wants_help(int argc, char **argv) {
   return false;
 }
 
+int cli_unknown_prayer(const char *name) {
+  fprintf(stderr, "Error: Unknown prayer '%s'\n", name);
+  fprintf(stderr, "  Available: fajr, sunrise, dhuha, dhuhr, asr, maghrib, isha\n");
+  return 1;
+}
+
 // --- migration stubs for removed top-level commands -----------------------
 
 static int removed_enable(int a, char **v) {

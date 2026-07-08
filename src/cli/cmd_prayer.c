@@ -38,8 +38,7 @@ int handle_offset(int argc, char **argv) {
   } else {
     PrayerConfig *prayer = config_get_prayer(&cfg, prayer_name);
     if (!prayer) {
-      fprintf(stderr, "Error: Unknown prayer '%s'\n", prayer_name);
-      return 1;
+      return cli_unknown_prayer(prayer_name);
     }
     prayer->offset = (int)value;
   }
