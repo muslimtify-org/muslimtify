@@ -309,3 +309,27 @@ void platform_localtime(const time_t *t, struct tm *result) {
 int platform_isatty(FILE *stream) {
   return _isatty(_fileno(stream));
 }
+
+PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t out_size) {
+  DWORD attr = GetFileAttributesA(in);
+  if (attr == INVALID_FILE_ATTRIBUTES)
+    return PATH_FILE_NOT_FOUND;
+  if (attr & FILE_ATTRIBUTE_REPARSE_POINT) // symlink / junction
+    return PATH_FILE_IS_SYMLINK;
+  if (attr & FILE_ATTRIBUTE_DIRECTORY)
+    return PATH_FILE_NOT_REGULAR;
+
+  char resolved[PLATFORM_PATH_MAX];
+  if (!_fullpath(resolved, in, sizeof(resolved)))
+    return PATH_FILE_RESOLVE_FAILED;
+
+  int w = snprintf(out, out_size, "%s", resolved);
+  if (w < 0 || (size_t)w >= out_size)
+    return PATH_FILE_TOO_LONG;
+  return PATH_FILE_OK;
+}
+
+void platform_restrict_to_owner(FILE *f) {
+  // %APPDATA% / %LOCALAPPDATA% are user-scoped by their default ACL; no action.
+  (void)f;
+}

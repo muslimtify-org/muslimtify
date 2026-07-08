@@ -65,7 +65,7 @@ int run_check_cycle(void) {
         notify_adhan(cache.triggers[i].prayer, time_str, cache.triggers[i].adhan);
       } else {
         const char *sound_preset = NULL;
-        if (cfg.notification_sound) {
+        if (strcmp(cfg.notification_sound, "off") != 0) {
           sound_preset = (cache.triggers[i].minutes_before == 0) ? cfg.notification_sound_alarm
                                                                  : cfg.notification_sound_reminder;
         }

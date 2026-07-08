@@ -426,140 +426,23 @@ static void test_location(void) {
   }
 }
 
-static void test_enable_disable(void) {
-  printf("  enable/disable...\n");
+static void test_removed_top_level(void) {
+  printf("  removed top-level...\n");
   reset_config();
+  run(3, (char *[]){"m", "enable", "fajr", NULL});
+  check_ret("removed enable ret", 1);
+  check_contains("removed enable msg", "notification enable");
 
-  // enable a prayer
-  run(3, (char *[]){"m", "enable", "sunrise", NULL});
-  check_ret("enable sunrise ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("enable sunrise cfg", cfg.sunrise.enabled == true);
-  }
-
-  // disable a prayer
   run(3, (char *[]){"m", "disable", "fajr", NULL});
-  check_ret("disable fajr ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("disable fajr cfg", cfg.fajr.enabled == false);
-  }
-
-  // enable all
-  run(3, (char *[]){"m", "enable", "all", NULL});
-  check_ret("enable all ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("enable all fajr", cfg.fajr.enabled);
-    check_bool("enable all sunrise", cfg.sunrise.enabled);
-    check_bool("enable all dhuha", cfg.dhuha.enabled);
-    check_bool("enable all dhuhr", cfg.dhuhr.enabled);
-    check_bool("enable all asr", cfg.asr.enabled);
-    check_bool("enable all maghrib", cfg.maghrib.enabled);
-    check_bool("enable all isha", cfg.isha.enabled);
-  }
-
-  // disable all
-  run(3, (char *[]){"m", "disable", "all", NULL});
-  check_ret("disable all ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("disable all fajr", !cfg.fajr.enabled);
-    check_bool("disable all sunrise", !cfg.sunrise.enabled);
-    check_bool("disable all dhuha", !cfg.dhuha.enabled);
-    check_bool("disable all dhuhr", !cfg.dhuhr.enabled);
-    check_bool("disable all asr", !cfg.asr.enabled);
-    check_bool("disable all maghrib", !cfg.maghrib.enabled);
-    check_bool("disable all isha", !cfg.isha.enabled);
-  }
-
-  // enable (no arg)
-  run(2, (char *[]){"m", "enable", NULL});
-  check_ret("enable noarg ret", 1);
-
-  // disable (no arg)
-  run(2, (char *[]){"m", "disable", NULL});
-  check_ret("disable noarg ret", 1);
-
-  // enable bad prayer
-  run(3, (char *[]){"m", "enable", "badprayer", NULL});
-  check_ret("enable bad ret", 1);
-
-  // disable bad prayer
-  run(3, (char *[]){"m", "disable", "badprayer", NULL});
-  check_ret("disable bad ret", 1);
-}
-
-static void test_list(void) {
-  printf("  list...\n");
-  reset_config();
+  check_ret("removed disable ret", 1);
 
   run(2, (char *[]){"m", "list", NULL});
-  check_ret("list ret", 0);
-  check_contains("list out", "Prayer Notifications:");
-}
+  check_ret("removed list ret", 1);
+  check_contains("removed list msg", "notification");
 
-static void test_reminder(void) {
-  printf("  reminder...\n");
-  reset_config();
-
-  // reminder (default = show)
-  run(2, (char *[]){"m", "reminder", NULL});
-  check_ret("reminder bare ret", 0);
-  check_contains("reminder bare out", "Prayer Reminders:");
-
-  // reminder show
-  run(3, (char *[]){"m", "reminder", "show", NULL});
-  check_ret("reminder show ret", 0);
-
-  // reminder fajr 30,15,5
-  run(4, (char *[]){"m", "reminder", "fajr", "30,15,5", NULL});
-  check_ret("reminder fajr set ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("reminder fajr count", cfg.fajr.reminder_count == 3);
-    check_bool("reminder fajr[0]", cfg.fajr.reminders[0] == 30);
-    check_bool("reminder fajr[1]", cfg.fajr.reminders[1] == 15);
-    check_bool("reminder fajr[2]", cfg.fajr.reminders[2] == 5);
-  }
-
-  // reminder fajr clear
-  run(4, (char *[]){"m", "reminder", "fajr", "clear", NULL});
-  check_ret("reminder fajr clear ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("reminder fajr cleared", cfg.fajr.reminder_count == 0);
-  }
-
-  // reminder all 10,5
-  reset_config();
-  run(4, (char *[]){"m", "reminder", "all", "10,5", NULL});
-  check_ret("reminder all ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    // fajr is enabled by default, should have reminders
-    check_bool("reminder all fajr count", cfg.fajr.reminder_count == 2);
-    check_bool("reminder all fajr[0]", cfg.fajr.reminders[0] == 10);
-    check_bool("reminder all fajr[1]", cfg.fajr.reminders[1] == 5);
-    // sunrise is disabled by default, should NOT get reminders
-    check_bool("reminder all sunrise skip", cfg.sunrise.reminder_count == 0);
-  }
-
-  // reminder badprayer 30
-  run(4, (char *[]){"m", "reminder", "badprayer", "30", NULL});
-  check_ret("reminder bad prayer ret", 1);
-
-  // reminder fajr (missing times)
-  run(3, (char *[]){"m", "reminder", "fajr", NULL});
-  check_ret("reminder missing times ret", 1);
+  run(4, (char *[]){"m", "reminder", "fajr", "30", NULL});
+  check_ret("removed reminder ret", 1);
+  check_contains("removed reminder msg", "--reminder");
 }
 
 static void test_show(void) {
@@ -590,7 +473,7 @@ static void test_show(void) {
   check_bool("show headless not capitalized", strstr(captured, "Fajr=") == NULL);
 
   // enable all -> disabled prayers now appear
-  run(3, (char *[]){"m", "enable", "all", NULL});
+  run(4, (char *[]){"m", "notification", "enable", "all", NULL});
   run(3, (char *[]){"m", "show", "--headless", NULL});
   check_contains("show headless sunrise", "sunrise=");
 
@@ -647,7 +530,7 @@ static void test_check(void) {
   reset_config();
 
   // Disable all prayers so check won't try to send a notification
-  run(3, (char *[]){"m", "disable", "all", NULL});
+  run(4, (char *[]){"m", "notification", "disable", "all", NULL});
 
   run(2, (char *[]){"m", "check", NULL});
   check_ret("check disabled ret", 0);
@@ -729,129 +612,6 @@ static void test_method(void) {
   check_ret("method auto removed ret", 1);
 }
 
-static void test_sound(void) {
-  printf("  sound...\n");
-  reset_config();
-
-  // sound (bare) → status output, ret 0
-  run(2, (char *[]){"m", "sound", NULL});
-  check_ret("sound bare ret", 0);
-  check_contains("sound bare out", "Sound:");
-  check_contains("sound bare alarm line", "Alarm preset:");
-  check_contains("sound bare reminder line", "Reminder preset:");
-
-  // sound status (explicit)
-  run(3, (char *[]){"m", "sound", "status", NULL});
-  check_ret("sound status ret", 0);
-  check_contains("sound status out", "Sound:");
-
-  // sound show (alias)
-  run(3, (char *[]){"m", "sound", "show", NULL});
-  check_ret("sound show ret", 0);
-  check_contains("sound show out", "Sound:");
-
-  // sound off
-  run(3, (char *[]){"m", "sound", "off", NULL});
-  check_ret("sound off ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound off cfg", cfg.notification_sound == false);
-  }
-
-  // sound on
-  run(3, (char *[]){"m", "sound", "on", NULL});
-  check_ret("sound on ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound on cfg", cfg.notification_sound == true);
-  }
-
-  // sound set alarm
-  run(4, (char *[]){"m", "sound", "set", "alarm", NULL});
-  check_ret("sound set alarm ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound set alarm cfg", strcmp(cfg.notification_sound_alarm, "alarm") == 0);
-  }
-
-  // sound set default
-  run(4, (char *[]){"m", "sound", "set", "default", NULL});
-  check_ret("sound set default ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound set default cfg", strcmp(cfg.notification_sound_alarm, "default") == 0);
-  }
-
-  // sound set reminder
-  run(4, (char *[]){"m", "sound", "set", "reminder", NULL});
-  check_ret("sound set reminder ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound set reminder cfg", strcmp(cfg.notification_sound_alarm, "reminder") == 0);
-  }
-
-  // sound reminder-set alarm
-  run(4, (char *[]){"m", "sound", "reminder-set", "alarm", NULL});
-  check_ret("sound reminder-set alarm ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound reminder-set alarm cfg",
-               strcmp(cfg.notification_sound_reminder, "alarm") == 0);
-  }
-
-  // sound reminder-set default
-  run(4, (char *[]){"m", "sound", "reminder-set", "default", NULL});
-  check_ret("sound reminder-set default ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound reminder-set default cfg",
-               strcmp(cfg.notification_sound_reminder, "default") == 0);
-  }
-
-  // sound reminder-set reminder (restore default)
-  run(4, (char *[]){"m", "sound", "reminder-set", "reminder", NULL});
-  check_ret("sound reminder-set reminder ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound reminder-set reminder cfg",
-               strcmp(cfg.notification_sound_reminder, "reminder") == 0);
-  }
-
-  // sound set (no arg) → error
-  run(3, (char *[]){"m", "sound", "set", NULL});
-  check_ret("sound set noarg ret", 1);
-
-  // sound reminder-set (no arg) → error
-  run(3, (char *[]){"m", "sound", "reminder-set", NULL});
-  check_ret("sound reminder-set noarg ret", 1);
-
-  // sound set bogus → error, config unchanged
-  reset_config();
-  run(4, (char *[]){"m", "sound", "set", "bogus", NULL});
-  check_ret("sound set bogus ret", 1);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("sound set bogus unchanged", strcmp(cfg.notification_sound_alarm, "alarm") == 0);
-  }
-
-  // sound reminder-set bogus → error
-  run(4, (char *[]){"m", "sound", "reminder-set", "bogus", NULL});
-  check_ret("sound reminder-set bogus ret", 1);
-
-  // sound unknown subcommand → error
-  run(3, (char *[]){"m", "sound", "bogus", NULL});
-  check_ret("sound unknown ret", 1);
-}
-
 static void test_daemon_errors(void) {
   printf("  daemon errors...\n");
   reset_config();
@@ -926,13 +686,15 @@ static void test_offset(void) {
   run(3, (char *[]){"m", "offset", "fajr", NULL});
   check_ret("offset missing value ret", 1);
 
-  // offset annotation appears in `reminder show`
+  // offset value is persisted to config
   reset_config();
   run(4, (char *[]){"m", "offset", "maghrib", "+7", NULL});
   check_ret("offset maghrib for display ret", 0);
-  run(3, (char *[]){"m", "reminder", "show", NULL});
-  check_ret("reminder show ret", 0);
-  check_contains("offset shown in reminders", "[+7 min]");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("offset maghrib persisted", cfg.maghrib.offset == 7);
+  }
 }
 
 static void test_output_helpers(void) {
@@ -953,6 +715,189 @@ static void test_output_helpers(void) {
   check_bool("no help on --json", !cli_wants_help(1, (char *[]){"--json"}));
 }
 
+static void test_notification(void) {
+  printf("  notification...\n");
+  reset_config();
+
+  // settings view (table)
+  run(2, (char *[]){"m", "notification", NULL});
+  check_ret("notification default ret", 0);
+  check_contains("notification default fajr", "fajr");
+  check_contains("notification default sound", "sound:");
+  check_contains("notification default urgency", "urgency:");
+
+  // --json
+  run(3, (char *[]){"m", "notification", "--json", NULL});
+  check_ret("notification json ret", 0);
+  check_contains("notification json sound", "\"sound\"");
+  check_contains("notification json prayers", "\"prayers\"");
+
+  // --headless
+  run(3, (char *[]){"m", "notification", "--headless", NULL});
+  check_ret("notification headless ret", 0);
+  check_contains("notification headless sound", "sound=");
+  check_contains("notification headless fajr", "fajr.enabled=");
+
+  // mutual exclusion
+  run(4, (char *[]){"m", "notification", "--json", "--headless", NULL});
+  check_ret("notification json+headless ret", 1);
+  check_contains("notification json+headless msg", "cannot be combined");
+
+  // enable / disable a single prayer
+  run(4, (char *[]){"m", "notification", "disable", "fajr", NULL});
+  check_ret("notification disable fajr ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification disable fajr cfg", cfg.fajr.enabled == false);
+  }
+  run(4, (char *[]){"m", "notification", "enable", "fajr", NULL});
+  check_ret("notification enable fajr ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification enable fajr cfg", cfg.fajr.enabled == true);
+  }
+
+  // enable all / disable all
+  run(4, (char *[]){"m", "notification", "disable", "all", NULL});
+  check_ret("notification disable all ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification disable all cfg", cfg.isha.enabled == false);
+  }
+  run(3, (char *[]){"m", "notification", "enable", NULL});
+  check_ret("notification enable noarg ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification enable noarg cfg", cfg.isha.enabled == true);
+  }
+
+  // unknown prayer rejected
+  run(4, (char *[]){"m", "notification", "enable", "bogus", NULL});
+  check_ret("notification enable bogus ret", 1);
+
+  // help
+  run(3, (char *[]){"m", "notification", "--help", NULL});
+  check_ret("notification help ret", 0);
+  check_contains("notification help usage", "muslimtify notification");
+
+  // --urgency
+  run(4, (char *[]){"m", "notification", "--urgency", "low", NULL});
+  check_ret("notification urgency ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification urgency cfg", strcmp(cfg.notification_urgency, "low") == 0);
+  }
+  run(4, (char *[]){"m", "notification", "--urgency", "bogus", NULL});
+  check_ret("notification urgency bad ret", 1);
+
+  // --reminder set / clear / --all
+  run(6, (char *[]){"m", "notification", "--reminder", "fajr", "30", "15", NULL});
+  check_ret("notification reminder ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification reminder cfg", cfg.fajr.reminder_count == 2 &&
+                                                cfg.fajr.reminders[0] == 30 &&
+                                                cfg.fajr.reminders[1] == 15);
+  }
+  run(5, (char *[]){"m", "notification", "--reminder", "fajr", "none", NULL});
+  check_ret("notification reminder clear ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification reminder clear cfg", cfg.fajr.reminder_count == 0);
+  }
+  run(5, (char *[]){"m", "notification", "--reminder", "--all", "10", NULL});
+  check_ret("notification reminder all ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification reminder all cfg",
+               cfg.dhuhr.reminder_count == 1 && cfg.dhuhr.reminders[0] == 10);
+  }
+
+  // --adhan enable/disable/set
+  run(5, (char *[]){"m", "notification", "--adhan", "enable", "fajr", NULL});
+  check_ret("notification adhan enable ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification adhan enable cfg", cfg.fajr.adhan_enabled == true);
+  }
+  run(5, (char *[]){"m", "notification", "--adhan", "disable", "fajr", NULL});
+  check_ret("notification adhan disable ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification adhan disable cfg", cfg.fajr.adhan_enabled == false);
+  }
+
+  // unknown prayer lists the available names
+  run(5, (char *[]){"m", "notification", "--adhan", "disable", "zuzu", NULL});
+  check_ret("notification adhan unknown ret", 1);
+  check_contains("notification adhan unknown lists", "Available:");
+  check_contains("notification adhan unknown fajr", "fajr");
+  // --adhan set is zero-trust: existing regular file only, canonicalized to an
+  // absolute path; missing paths and symlinks are rejected.
+  {
+    char realf[512], linkf[512];
+    snprintf(realf, sizeof(realf), "%s/adhan_real.mp3", tmpdir);
+    snprintf(linkf, sizeof(linkf), "%s/adhan_link.mp3", tmpdir);
+    FILE *af = fopen(realf, "w");
+    if (af) {
+      fputs("x", af);
+      fclose(af);
+    }
+
+    run(5, (char *[]){"m", "notification", "--adhan", "set", realf, NULL});
+    check_ret("notification adhan set ret", 0);
+    {
+      Config cfg;
+      config_load(&cfg);
+      check_bool("notification adhan set stored abs",
+                 cfg.fajr.adhan[0] == '/' && strstr(cfg.fajr.adhan, "adhan_real.mp3") != NULL);
+    }
+
+    run(5, (char *[]){"m", "notification", "--adhan", "set", "/no/such/adhan.mp3", NULL});
+    check_ret("notification adhan set missing ret", 1);
+
+#ifndef _WIN32
+    symlink(realf, linkf);
+    run(5, (char *[]){"m", "notification", "--adhan", "set", linkf, NULL});
+    check_ret("notification adhan set symlink ret", 1);
+    check_contains("notification adhan set symlink msg", "symlink");
+#endif
+  }
+
+  // --adhan stop works on every platform (no-op when nothing is playing)
+  run(4, (char *[]){"m", "notification", "--adhan", "stop", NULL});
+  check_ret("notification adhan stop ret", 0);
+  check_contains("notification adhan stop msg", "adhan");
+
+  // --sound modes + invalid
+  run(4, (char *[]){"m", "notification", "--sound", "off", NULL});
+  check_ret("notification sound off ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification sound off cfg", strcmp(cfg.notification_sound, "off") == 0);
+  }
+  run(4, (char *[]){"m", "notification", "--sound", "adhan", NULL});
+  check_ret("notification sound adhan ret", 0);
+  run(4, (char *[]){"m", "notification", "--sound", "bogus", NULL});
+  check_ret("notification sound bad ret", 1);
+
+  // per-flag help
+  run(4, (char *[]){"m", "notification", "--reminder", "--help", NULL});
+  check_ret("notification reminder help ret", 0);
+  check_contains("notification reminder help usage", "--reminder");
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -963,14 +908,12 @@ int main(void) {
   test_output_helpers();
   test_config();
   test_location();
-  test_enable_disable();
-  test_list();
-  test_reminder();
+  test_removed_top_level();
   test_show();
   test_next();
   test_check();
   test_method();
-  test_sound();
+  test_notification();
   test_daemon_errors();
   test_offset();
 

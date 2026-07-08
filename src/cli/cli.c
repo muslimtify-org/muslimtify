@@ -31,18 +31,67 @@ bool cli_wants_help(int argc, char **argv) {
   return false;
 }
 
+int cli_unknown_prayer(const char *name) {
+  fprintf(stderr, "Error: Unknown prayer '%s'\n", name);
+  fprintf(stderr, "  Available: fajr, sunrise, dhuha, dhuhr, asr, maghrib, isha\n");
+  return 1;
+}
+
+// --- migration stubs for removed top-level commands -----------------------
+
+static int removed_enable(int a, char **v) {
+  (void)a;
+  (void)v;
+  fprintf(stderr, "Error: 'enable' was removed; use 'notification enable <prayer|all>'\n");
+  return 1;
+}
+static int removed_disable(int a, char **v) {
+  (void)a;
+  (void)v;
+  fprintf(stderr, "Error: 'disable' was removed; use 'notification disable <prayer|all>'\n");
+  return 1;
+}
+static int removed_list(int a, char **v) {
+  (void)a;
+  (void)v;
+  fprintf(stderr, "Error: 'list' was removed; use 'notification' to see settings\n");
+  return 1;
+}
+static int removed_reminder(int a, char **v) {
+  (void)a;
+  (void)v;
+  fprintf(stderr, "Error: 'reminder' was removed; use 'notification --reminder'\n");
+  return 1;
+}
+static int removed_sound(int a, char **v) {
+  (void)a;
+  (void)v;
+  fprintf(stderr,
+          "Error: 'sound' was removed; use 'notification --sound' or 'notification --adhan'\n");
+  return 1;
+}
+
 // --- top-level dispatch table -----------------------
 
 static const CommandEntry top_commands[] = {
-    {"show", handle_show},         {"check", handle_check},
-    {"config", handle_config},     {"location", handle_location},
-    {"enable", handle_enable},     {"disable", handle_disable},
-    {"list", handle_list},         {"reminder", handle_reminder},
-    {"offset", handle_offset},     {"daemon", handle_daemon},
-    {"method", handle_method},     {"notification", handle_notification},
-    {"sound", handle_sound},       {"version", handle_version},
-    {"--version", handle_version}, {"-v", handle_version},
-    {"help", handle_help},         {"--help", handle_help},
+    {"show", handle_show},
+    {"check", handle_check},
+    {"config", handle_config},
+    {"location", handle_location},
+    {"enable", removed_enable},
+    {"disable", removed_disable},
+    {"list", removed_list},
+    {"reminder", removed_reminder},
+    {"sound", removed_sound},
+    {"offset", handle_offset},
+    {"daemon", handle_daemon},
+    {"method", handle_method},
+    {"notification", handle_notification},
+    {"version", handle_version},
+    {"--version", handle_version},
+    {"-v", handle_version},
+    {"help", handle_help},
+    {"--help", handle_help},
     {"-h", handle_help},
 };
 
@@ -165,30 +214,12 @@ void cli_print_help(void) {
    * NOTIFICATION
    */
   printf("Notification Commands:\n");
-
-  printf("  %-30s %s\n", "enable <prayer>", "Enable prayer notification");
-
-  printf("  %-30s %s\n", "disable <prayer>", "Disable prayer notification");
-
-  printf("  %-30s %s\n", "list", "List notification status");
-
-  printf("  %-30s %s\n", "notification test", "Send test notification");
-
-  printf("\n");
-
-  /*
-   * REMINDER
-   */
-  printf("Reminder Commands:\n");
-
-  printf("  %-30s %s\n", "reminder show", "Show configured reminders");
-
-  printf("  %-30s %s\n", "reminder <prayer> <list>", "Set reminders (30,15,5)");
-
-  printf("  %-30s %s\n", "reminder <prayer> clear", "Clear reminders");
-
-  printf("  %-30s %s\n", "reminder all <list>", "Apply reminders to all prayers");
-
+  printf("  %-30s %s\n", "notification", "Show notification settings");
+  printf("  %-30s %s\n", "    enable|disable [prayer]", "Toggle prayer notifications");
+  printf("  %-30s %s\n", "    --urgency <level>", "normal|critical|low");
+  printf("  %-30s %s\n", "    --reminder [--all] <prayer> <mins...>", "Pre-prayer reminders");
+  printf("  %-30s %s\n", "    --adhan <enable|disable> <prayer>", "Per-prayer adhan");
+  printf("  %-30s %s\n", "    --sound <adhan|default|off>", "Notification sound mode");
   printf("\n");
 
   /*
@@ -199,23 +230,6 @@ void cli_print_help(void) {
   printf("  %-30s %s\n", "offset <prayer> <±min>", "Adjust a prayer time (-60..60)");
 
   printf("  %-30s %s\n", "offset all <±min>", "Adjust all prayer times");
-
-  printf("\n");
-
-  /*
-   * SOUND
-   */
-  printf("Sound Commands:\n");
-
-  printf("  %-30s %s\n", "sound on", "Enable notification sound");
-
-  printf("  %-30s %s\n", "sound off", "Disable notification sound");
-
-  printf("  %-30s %s\n", "sound status", "Show sound status");
-
-  printf("  %-30s %s\n", "sound set", "Set adhan sound");
-
-  printf("  %-30s %s\n", "sound reminder-set", "Set reminder sound");
 
   printf("\n");
 

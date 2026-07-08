@@ -236,7 +236,7 @@ static void test_default(void) {
   check_bool("default sunrise no reminders", cfg.sunrise.reminder_count == 0);
   check_bool("default method kemenag", strcmp(cfg.calculation_method, "kemenag") == 0);
   check_bool("default madhab shafi", strcmp(cfg.madhab, "shafi") == 0);
-  check_bool("default sound on", cfg.notification_sound == true);
+  check_bool("default sound adhan", strcmp(cfg.notification_sound, "adhan") == 0);
   check_bool("default sound_alarm", strcmp(cfg.notification_sound_alarm, "alarm") == 0);
   check_bool("default sound_reminder", strcmp(cfg.notification_sound_reminder, "reminder") == 0);
   check_bool("default adhan", strcmp(cfg.fajr.adhan, "") == 0);
@@ -289,7 +289,7 @@ static void test_round_trip(void) {
   out.fajr.adhan_enabled = false; // default is true; flip it to prove it round-trips
   out.sunrise.enabled = true;
   out.notification_timeout = 8000;
-  out.notification_sound = false;
+  strncpy(out.notification_sound, "off", sizeof(out.notification_sound) - 1);
   strncpy(out.notification_sound_alarm, "default", sizeof(out.notification_sound_alarm) - 1);
   strncpy(out.notification_sound_reminder, "alarm", sizeof(out.notification_sound_reminder) - 1);
   strncpy(out.notification_urgency, "critical", sizeof(out.notification_urgency) - 1);
@@ -318,7 +318,7 @@ static void test_round_trip(void) {
   check_bool("rt unset offset 0", in.dhuhr.offset == 0);
   check_bool("rt sunrise enabled", in.sunrise.enabled == true);
   check_bool("rt timeout", in.notification_timeout == 8000);
-  check_bool("rt sound", in.notification_sound == false);
+  check_bool("rt sound", strcmp(in.notification_sound, "off") == 0);
   check_bool("rt sound_alarm", strcmp(in.notification_sound_alarm, "default") == 0);
   check_bool("rt sound_reminder", strcmp(in.notification_sound_reminder, "alarm") == 0);
   check_bool("rt urgency", strcmp(in.notification_urgency, "critical") == 0);
@@ -434,6 +434,30 @@ static void test_config_perms(void) {
 #endif
 }
 
+static void test_sound_migration(void) {
+  printf("  sound_migration...\n");
+  // Write a config with the legacy boolean sound field, then load it.
+  Config cfg = config_default();
+  config_save(&cfg);
+  FILE *f = fopen(config_get_path(), "w");
+  if (f) {
+    fputs("{\n  \"notification\": { \"sound\": true }\n}\n", f);
+    fclose(f);
+  }
+  Config a;
+  check_bool("migrate load true", config_load(&a) == 0);
+  check_bool("migrate true->default", strcmp(a.notification_sound, "default") == 0);
+
+  f = fopen(config_get_path(), "w");
+  if (f) {
+    fputs("{\n  \"notification\": { \"sound\": false }\n}\n", f);
+    fclose(f);
+  }
+  Config b;
+  check_bool("migrate load false", config_load(&b) == 0);
+  check_bool("migrate false->off", strcmp(b.notification_sound, "off") == 0);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -447,6 +471,7 @@ int main(void) {
   test_default();
   test_path_resolution();
   test_round_trip();
+  test_sound_migration();
   test_offset_apply();
   test_offset_wrap();
   test_offset_clamp_on_load();

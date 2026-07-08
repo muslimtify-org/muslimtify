@@ -10,10 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef _WIN32
-#include <sys/stat.h>
-#endif
-
 // Refuse to load a config file larger than this; a sane config is a few KB.
 #define MAX_CONFIG_FILE_BYTES (1024L * 1024L)
 
@@ -121,7 +117,9 @@ Config config_default(void) {
   if (!copy_string(cfg.notification_urgency, sizeof(cfg.notification_urgency), "critical")) {
     log_truncation("notification_urgency");
   }
-  cfg.notification_sound = true;
+  if (!copy_string(cfg.notification_sound, sizeof(cfg.notification_sound), "adhan")) {
+    log_truncation("notification_sound");
+  }
   if (!copy_string(cfg.notification_sound_alarm, sizeof(cfg.notification_sound_alarm), "alarm")) {
     log_truncation("notification_sound_alarm");
   }
@@ -232,7 +230,9 @@ static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, "    \"urgency\": ");
   json_escape_string(f, cfg->notification_urgency);
   fprintf(f, ",\n");
-  fprintf(f, "    \"sound\": %s,\n", cfg->notification_sound ? "true" : "false");
+  fprintf(f, "    \"sound\": ");
+  json_escape_string(f, cfg->notification_sound);
+  fprintf(f, ",\n");
   fprintf(f, "    \"sound_alarm\": ");
   json_escape_string(f, cfg->notification_sound_alarm);
   fprintf(f, ",\n");
@@ -285,11 +285,9 @@ int config_save(const Config *cfg) {
     return -1;
   }
 
-#ifndef _WIN32
   // Owner-only: the config records the user's coordinates; keep it out of
   // other local users' reach. Set on the temp file before the atomic rename.
-  (void)fchmod(fileno(f), S_IRUSR | S_IWUSR);
-#endif
+  platform_restrict_to_owner(f);
 
   if (write_json_file(f, cfg) != 0 || fflush(f) != 0 || fclose(f) != 0) {
     int err = errno;
@@ -513,8 +511,20 @@ int config_load(Config *cfg) {
         log_truncation("notification_urgency");
       }
     }
-    if (sound_str)
-      cfg->notification_sound = strcmp(sound_str, "true") == 0;
+    if (sound_str) {
+      // Migrate the legacy boolean and normalize to a known mode.
+      const char *mode = sound_str;
+      if (strcmp(sound_str, "true") == 0)
+        mode = "default";
+      else if (strcmp(sound_str, "false") == 0)
+        mode = "off";
+      else if (strcmp(sound_str, "adhan") != 0 && strcmp(sound_str, "default") != 0 &&
+               strcmp(sound_str, "off") != 0)
+        mode = "adhan";
+      if (!copy_string(cfg->notification_sound, sizeof(cfg->notification_sound), mode)) {
+        log_truncation("notification_sound");
+      }
+    }
     if (sound_alarm_str) {
       if (!copy_string(cfg->notification_sound_alarm, sizeof(cfg->notification_sound_alarm),
                        sound_alarm_str)) {

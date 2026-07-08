@@ -132,7 +132,6 @@ add_library(muslimtify_cli OBJECT
     $<IF:$<BOOL:${WIN32}>,src/cli/cmd_daemon_win.c,src/cli/cmd_daemon.c>
     src/cli/cmd_method.c
     src/cli/cmd_notification.c
-    src/cli/cmd_sound.c
 )
 muslimtify_set_target_defaults(muslimtify_cli)
 
