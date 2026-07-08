@@ -426,140 +426,23 @@ static void test_location(void) {
   }
 }
 
-static void test_enable_disable(void) {
-  printf("  enable/disable...\n");
+static void test_removed_top_level(void) {
+  printf("  removed top-level...\n");
   reset_config();
+  run(3, (char *[]){"m", "enable", "fajr", NULL});
+  check_ret("removed enable ret", 1);
+  check_contains("removed enable msg", "notification enable");
 
-  // enable a prayer
-  run(3, (char *[]){"m", "enable", "sunrise", NULL});
-  check_ret("enable sunrise ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("enable sunrise cfg", cfg.sunrise.enabled == true);
-  }
-
-  // disable a prayer
   run(3, (char *[]){"m", "disable", "fajr", NULL});
-  check_ret("disable fajr ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("disable fajr cfg", cfg.fajr.enabled == false);
-  }
-
-  // enable all
-  run(3, (char *[]){"m", "enable", "all", NULL});
-  check_ret("enable all ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("enable all fajr", cfg.fajr.enabled);
-    check_bool("enable all sunrise", cfg.sunrise.enabled);
-    check_bool("enable all dhuha", cfg.dhuha.enabled);
-    check_bool("enable all dhuhr", cfg.dhuhr.enabled);
-    check_bool("enable all asr", cfg.asr.enabled);
-    check_bool("enable all maghrib", cfg.maghrib.enabled);
-    check_bool("enable all isha", cfg.isha.enabled);
-  }
-
-  // disable all
-  run(3, (char *[]){"m", "disable", "all", NULL});
-  check_ret("disable all ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("disable all fajr", !cfg.fajr.enabled);
-    check_bool("disable all sunrise", !cfg.sunrise.enabled);
-    check_bool("disable all dhuha", !cfg.dhuha.enabled);
-    check_bool("disable all dhuhr", !cfg.dhuhr.enabled);
-    check_bool("disable all asr", !cfg.asr.enabled);
-    check_bool("disable all maghrib", !cfg.maghrib.enabled);
-    check_bool("disable all isha", !cfg.isha.enabled);
-  }
-
-  // enable (no arg)
-  run(2, (char *[]){"m", "enable", NULL});
-  check_ret("enable noarg ret", 1);
-
-  // disable (no arg)
-  run(2, (char *[]){"m", "disable", NULL});
-  check_ret("disable noarg ret", 1);
-
-  // enable bad prayer
-  run(3, (char *[]){"m", "enable", "badprayer", NULL});
-  check_ret("enable bad ret", 1);
-
-  // disable bad prayer
-  run(3, (char *[]){"m", "disable", "badprayer", NULL});
-  check_ret("disable bad ret", 1);
-}
-
-static void test_list(void) {
-  printf("  list...\n");
-  reset_config();
+  check_ret("removed disable ret", 1);
 
   run(2, (char *[]){"m", "list", NULL});
-  check_ret("list ret", 0);
-  check_contains("list out", "Prayer Notifications:");
-}
+  check_ret("removed list ret", 1);
+  check_contains("removed list msg", "notification");
 
-static void test_reminder(void) {
-  printf("  reminder...\n");
-  reset_config();
-
-  // reminder (default = show)
-  run(2, (char *[]){"m", "reminder", NULL});
-  check_ret("reminder bare ret", 0);
-  check_contains("reminder bare out", "Prayer Reminders:");
-
-  // reminder show
-  run(3, (char *[]){"m", "reminder", "show", NULL});
-  check_ret("reminder show ret", 0);
-
-  // reminder fajr 30,15,5
-  run(4, (char *[]){"m", "reminder", "fajr", "30,15,5", NULL});
-  check_ret("reminder fajr set ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("reminder fajr count", cfg.fajr.reminder_count == 3);
-    check_bool("reminder fajr[0]", cfg.fajr.reminders[0] == 30);
-    check_bool("reminder fajr[1]", cfg.fajr.reminders[1] == 15);
-    check_bool("reminder fajr[2]", cfg.fajr.reminders[2] == 5);
-  }
-
-  // reminder fajr clear
-  run(4, (char *[]){"m", "reminder", "fajr", "clear", NULL});
-  check_ret("reminder fajr clear ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("reminder fajr cleared", cfg.fajr.reminder_count == 0);
-  }
-
-  // reminder all 10,5
-  reset_config();
-  run(4, (char *[]){"m", "reminder", "all", "10,5", NULL});
-  check_ret("reminder all ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    // fajr is enabled by default, should have reminders
-    check_bool("reminder all fajr count", cfg.fajr.reminder_count == 2);
-    check_bool("reminder all fajr[0]", cfg.fajr.reminders[0] == 10);
-    check_bool("reminder all fajr[1]", cfg.fajr.reminders[1] == 5);
-    // sunrise is disabled by default, should NOT get reminders
-    check_bool("reminder all sunrise skip", cfg.sunrise.reminder_count == 0);
-  }
-
-  // reminder badprayer 30
-  run(4, (char *[]){"m", "reminder", "badprayer", "30", NULL});
-  check_ret("reminder bad prayer ret", 1);
-
-  // reminder fajr (missing times)
-  run(3, (char *[]){"m", "reminder", "fajr", NULL});
-  check_ret("reminder missing times ret", 1);
+  run(4, (char *[]){"m", "reminder", "fajr", "30", NULL});
+  check_ret("removed reminder ret", 1);
+  check_contains("removed reminder msg", "--reminder");
 }
 
 static void test_show(void) {
@@ -590,7 +473,7 @@ static void test_show(void) {
   check_bool("show headless not capitalized", strstr(captured, "Fajr=") == NULL);
 
   // enable all -> disabled prayers now appear
-  run(3, (char *[]){"m", "enable", "all", NULL});
+  run(4, (char *[]){"m", "notification", "enable", "all", NULL});
   run(3, (char *[]){"m", "show", "--headless", NULL});
   check_contains("show headless sunrise", "sunrise=");
 
@@ -803,13 +686,15 @@ static void test_offset(void) {
   run(3, (char *[]){"m", "offset", "fajr", NULL});
   check_ret("offset missing value ret", 1);
 
-  // offset annotation appears in `reminder show`
+  // offset value is persisted to config
   reset_config();
   run(4, (char *[]){"m", "offset", "maghrib", "+7", NULL});
   check_ret("offset maghrib for display ret", 0);
-  run(3, (char *[]){"m", "reminder", "show", NULL});
-  check_ret("reminder show ret", 0);
-  check_contains("offset shown in reminders", "[+7 min]");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("offset maghrib persisted", cfg.maghrib.offset == 7);
+  }
 }
 
 static void test_output_helpers(void) {
@@ -988,9 +873,7 @@ int main(void) {
   test_output_helpers();
   test_config();
   test_location();
-  test_enable_disable();
-  test_list();
-  test_reminder();
+  test_removed_top_level();
   test_show();
   test_next();
   test_check();
