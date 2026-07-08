@@ -90,13 +90,13 @@ void cli_print_help(void) {
    */
   printf("Prayer Commands:\n");
 
-  printf("  %-30s %s\n", "show", "Display today's prayer times");
+  printf("  show\tDisplay today's prayer times\n");
 
-  printf("  %-30s %s\n", "show --headless", "Plain key=value output");
+  printf("\t--headless\tPlain key=value output\n");
 
-  printf("  %-30s %s\n", "show --json", "Output prayer times as JSON");
+  printf("\t--json\tOutput prayer times as JSON\n");
 
-  printf("  %-30s %s\n", "show --next", "Show next prayer");
+  printf("\t--next\tShow next prayer\n");
 
   printf("  %-30s %s\n", "check", "Check and send notifications");
 
