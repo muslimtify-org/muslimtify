@@ -5,6 +5,7 @@
 #include "display.h"
 #include "platform.h"
 #include "prayer_checker.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +28,13 @@ static bool use_colors(void) {
 }
 
 #define C(code) (use_colors() ? (code) : "")
+
+static void lower_copy(char *dst, size_t cap, const char *src) {
+  size_t i = 0;
+  for (; src[i] && i + 1 < cap; i++)
+    dst[i] = (char)tolower((unsigned char)src[i]);
+  dst[i] = '\0';
+}
 
 // ASCII box-drawing fallback (portable across all Windows code pages)
 #define BOX_TL "+" // Top-left
@@ -189,7 +197,7 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
                                 struct tm *date) {
   struct tm date_copy = *date;
 
-  const char *prayer_names[] = {"Fajr", "Sunrise", "Dhuha", "Dhuhr", "Asr", "Maghrib", "Isha"};
+  const char *prayer_names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
   PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
                         PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
 
@@ -231,58 +239,10 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
   }
 }
 
-static void json_print_escaped(const char *s) {
-  putchar('"');
-  for (; *s; s++) {
-    switch (*s) {
-    case '"':
-      fputs("\\\"", stdout);
-      break;
-    case '\\':
-      fputs("\\\\", stdout);
-      break;
-    case '\b':
-      fputs("\\b", stdout);
-      break;
-    case '\f':
-      fputs("\\f", stdout);
-      break;
-    case '\n':
-      fputs("\\n", stdout);
-      break;
-    case '\r':
-      fputs("\\r", stdout);
-      break;
-    case '\t':
-      fputs("\\t", stdout);
-      break;
-    default:
-      if ((unsigned char)*s < 0x20) {
-        printf("\\u%04x", (unsigned char)*s);
-      } else {
-        putchar(*s);
-      }
-      break;
-    }
-  }
-  putchar('"');
-}
-
 void display_prayer_times_json(const struct PrayerTimes *times, const Config *cfg,
                                struct tm *date) {
+  (void)date;
   printf("{\n");
-  printf("  \"date\": \"%04d-%02d-%02d\",\n", date->tm_year + 1900, date->tm_mon + 1,
-         date->tm_mday);
-  printf("  \"location\": {\n");
-  printf("    \"latitude\": %.6f,\n", cfg->latitude);
-  printf("    \"longitude\": %.6f,\n", cfg->longitude);
-  printf("    \"city\": ");
-  json_print_escaped(cfg->city);
-  printf(",\n");
-  printf("    \"country\": ");
-  json_print_escaped(cfg->country);
-  printf("\n");
-  printf("  },\n");
   printf("  \"prayers\": {\n");
 
   const char *prayer_names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
@@ -317,7 +277,6 @@ void display_next_prayer(const struct PrayerTimes *times, const Config *cfg,
                          struct tm *current_time) {
   int minutes_until = 0;
   PrayerType next = prayer_get_next(cfg, current_time, (struct PrayerTimes *)times, &minutes_until);
-
   if (next == PRAYER_NONE) {
     printf("No upcoming prayers enabled.\n");
     return;
@@ -326,19 +285,55 @@ void display_next_prayer(const struct PrayerTimes *times, const Config *cfg,
   double prayer_time = prayer_get_time(times, next);
   char time_str[16];
   format_time_hm(prayer_time, time_str, sizeof(time_str));
+  char remaining[16];
+  snprintf(remaining, sizeof(remaining), "%02d:%02d", minutes_until / 60, minutes_until % 60);
 
-  printf("\nNext Prayer: %s\n", prayer_get_name(next));
-  printf("Time: %s\n", time_str);
+  printf("+------------+----------+-----------+\n");
+  printf("| %-10s | %-8s | %-9s |\n", "Prayer", "Time", "Remaining");
+  printf("+------------+----------+-----------+\n");
+  printf("| %-10s | %-8s | %-9s |\n", prayer_get_name(next), time_str, remaining);
+  printf("+------------+----------+-----------+\n");
+}
 
-  int hours = minutes_until / 60;
-  int mins = minutes_until % 60;
-
-  if (hours > 0) {
-    printf("Remaining: %d hour%s %d minute%s\n\n", hours, hours == 1 ? "" : "s", mins,
-           mins == 1 ? "" : "s");
-  } else {
-    printf("Remaining: %d minute%s\n\n", mins, mins == 1 ? "" : "s");
+void display_next_prayer_headless(const struct PrayerTimes *times, const Config *cfg,
+                                  struct tm *current_time) {
+  int minutes_until = 0;
+  PrayerType next = prayer_get_next(cfg, current_time, (struct PrayerTimes *)times, &minutes_until);
+  if (next == PRAYER_NONE) {
+    printf("No upcoming prayers enabled.\n");
+    return;
   }
+
+  double prayer_time = prayer_get_time(times, next);
+  char time_str[16];
+  format_time_hm(prayer_time, time_str, sizeof(time_str));
+  char lname[16];
+  lower_copy(lname, sizeof(lname), prayer_get_name(next));
+
+  printf("%s=%s\n", lname, time_str);
+  printf("remaining=%02d:%02d\n", minutes_until / 60, minutes_until % 60);
+}
+
+void display_next_prayer_json(const struct PrayerTimes *times, const Config *cfg,
+                              struct tm *current_time) {
+  int minutes_until = 0;
+  PrayerType next = prayer_get_next(cfg, current_time, (struct PrayerTimes *)times, &minutes_until);
+  if (next == PRAYER_NONE) {
+    printf("{}\n");
+    return;
+  }
+
+  double prayer_time = prayer_get_time(times, next);
+  char time_str[16];
+  format_time_hm(prayer_time, time_str, sizeof(time_str));
+  char lname[16];
+  lower_copy(lname, sizeof(lname), prayer_get_name(next));
+
+  printf("{\n");
+  printf("  \"prayer\": \"%s\",\n", lname);
+  printf("  \"time\": \"%s\",\n", time_str);
+  printf("  \"remaining\": \"%02d:%02d\"\n", minutes_until / 60, minutes_until % 60);
+  printf("}\n");
 }
 
 void display_location(const Config *cfg) {
