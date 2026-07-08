@@ -13,7 +13,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 
 | Linux | Windows |
 | --- | --- |
-| ![Linux Screenshot](images/linux-example.png) | <img width="1920" height="1080" alt="Cuplikan layar 2026-07-07 211731" src="https://github.com/user-attachments/assets/85dd71ce-f382-423c-98ac-b6c732ee2011" /> |
+| <img width="1920" height="1080" alt="2026-07-08-202423_hyprshot" src="https://github.com/user-attachments/assets/8757b26e-e793-466f-83fc-353552456a94" /> | <img width="1920" height="1080" alt="Cuplikan layar 2026-07-07 211731" src="https://github.com/user-attachments/assets/85dd71ce-f382-423c-98ac-b6c732ee2011" /> |
 
 
 > ## Roadmap
