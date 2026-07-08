@@ -328,3 +328,8 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
     return PATH_FILE_TOO_LONG;
   return PATH_FILE_OK;
 }
+
+void platform_restrict_to_owner(FILE *f) {
+  // %APPDATA% / %LOCALAPPDATA% are user-scoped by their default ACL; no action.
+  (void)f;
+}

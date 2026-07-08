@@ -114,6 +114,13 @@ typedef enum {
  */
 PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t out_size);
 
+/**
+ * Restrict a freshly-created file to owner-only access. On POSIX this is
+ * chmod 0600; on Windows it is a no-op (the per-user %APPDATA% /
+ * %LOCALAPPDATA% roots are already user-scoped by their default ACL).
+ */
+void platform_restrict_to_owner(FILE *f);
+
 #ifdef __cplusplus
 }
 #endif
