@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "cli.h"
+#include "cli_internal.h"
 #include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,15 +114,6 @@ static void check_contains(const char *test, const char *needle) {
     failed++;
     fprintf(stderr, "FAIL [%s]: output missing \"%s\"\n", test, needle);
     fprintf(stderr, "  got: %.200s%s\n", captured, strlen(captured) > 200 ? "..." : "");
-  }
-}
-
-static void check_not_empty(const char *test) {
-  if (captured[0] != '\0') {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]: output is empty\n", test);
   }
 }
 
@@ -521,66 +513,80 @@ static void test_show(void) {
   printf("  show...\n");
   reset_config();
 
-  // default (no args → version + help)
   run(1, (char *[]){"m", NULL});
   check_ret("default ret", 0);
   check_contains("default version", "Muslimtify v");
   check_contains("default help", "Usage:");
 
-  // show (explicit)
   run(2, (char *[]){"m", "show", NULL});
   check_ret("show explicit ret", 0);
 
-  // show --format json
-  run(4, (char *[]){"m", "show", "--format", "json", NULL});
+  // --json: prayers-only, no location block
+  run(3, (char *[]){"m", "show", "--json", NULL});
   check_ret("show json ret", 0);
   check_contains("show json prayers", "\"prayers\"");
   check_contains("show json fajr", "\"fajr\"");
+  check_bool("show json no location", strstr(captured, "\"location\"") == NULL);
 
-  // show --no-header (basic output)
-  run(3, (char *[]){"m", "show", "--no-header", NULL});
-  check_ret("show no-header ret", 0);
-  check_contains("show no-header fajr", "Fajr=");
-  check_contains("show no-header dhuhr", "Dhuhr=");
-  check_contains("show no-header asr", "Asr=");
-  check_contains("show no-header maghrib", "Maghrib=");
-  check_contains("show no-header isha", "Isha=");
+  // --headless: lowercase keys, disabled prayers omitted
+  run(3, (char *[]){"m", "show", "--headless", NULL});
+  check_ret("show headless ret", 0);
+  check_contains("show headless fajr", "fajr=");
+  check_contains("show headless isha", "isha=");
+  check_bool("show headless no sunrise", strstr(captured, "sunrise=") == NULL);
+  check_bool("show headless not capitalized", strstr(captured, "Fajr=") == NULL);
 
-  // show --no-header (disabled prayers omitted)
-  check_bool("show no-header no sunrise", strstr(captured, "Sunrise=") == NULL);
-  check_bool("show no-header no dhuha", strstr(captured, "Dhuha=") == NULL);
-
-  // show --no-header (with all prayers enabled)
+  // enable all -> disabled prayers now appear
   run(3, (char *[]){"m", "enable", "all", NULL});
-  run(3, (char *[]){"m", "show", "--no-header", NULL});
-  check_ret("show no-header all ret", 0);
-  check_contains("show no-header sunrise", "Sunrise=");
-  check_contains("show no-header dhuha", "Dhuha=");
+  run(3, (char *[]){"m", "show", "--headless", NULL});
+  check_contains("show headless sunrise", "sunrise=");
+
+  // mutual exclusion
+  run(4, (char *[]){"m", "show", "--json", "--headless", NULL});
+  check_ret("show json+headless ret", 1);
+  check_contains("show json+headless msg", "cannot be combined");
+
+  // help
+  run(3, (char *[]){"m", "show", "--help", NULL});
+  check_ret("show help ret", 0);
+  check_contains("show help usage", "muslimtify show");
+
+  // removed flags -> migration hint
+  run(4, (char *[]){"m", "show", "--format", "json", NULL});
+  check_ret("show old format ret", 1);
+  check_contains("show old format hint", "--json");
 }
 
 static void test_next(void) {
-  printf("  next...\n");
+  printf("  show --next...\n");
   reset_config();
 
-  // next (default display)
+  // default: bordered table
+  run(3, (char *[]){"m", "show", "--next", NULL});
+  check_ret("next table ret", 0);
+  check_contains("next table border", "+------------+");
+  check_contains("next table remaining", "Remaining");
+
+  // headless
+  run(4, (char *[]){"m", "show", "--next", "--headless", NULL});
+  check_ret("next headless ret", 0);
+  check_contains("next headless remaining", "remaining=");
+
+  // json
+  run(4, (char *[]){"m", "show", "--next", "--json", NULL});
+  check_ret("next json ret", 0);
+  check_contains("next json prayer", "\"prayer\"");
+  check_contains("next json remaining", "\"remaining\"");
+
+  // per-mode help
+  run(4, (char *[]){"m", "show", "--next", "--help", NULL});
+  check_ret("next help ret", 0);
+  check_contains("next help usage", "--next");
+
+  // bare `next` is removed -> unknown command
   run(2, (char *[]){"m", "next", NULL});
-  check_ret("next ret", 0);
-  check_contains("next out", "Next Prayer:");
-
-  // next name
-  run(3, (char *[]){"m", "next", "name", NULL});
-  check_ret("next name ret", 0);
-  check_not_empty("next name out");
-
-  // next time
-  run(3, (char *[]){"m", "next", "time", NULL});
-  check_ret("next time ret", 0);
-  check_not_empty("next time out");
-
-  // next remaining
-  run(3, (char *[]){"m", "next", "remaining", NULL});
-  check_ret("next remaining ret", 0);
-  check_not_empty("next remaining out");
+  check_ret("bare next removed ret", 1);
+  check_contains("bare next removed msg", "Unknown command");
 }
 
 static void test_check(void) {
@@ -876,6 +882,24 @@ static void test_offset(void) {
   check_contains("offset shown in reminders", "[+7 min]");
 }
 
+static void test_output_helpers(void) {
+  printf("  output helpers...\n");
+  OutputMode m = OUTPUT_TABLE;
+
+  check_bool("mode default table",
+             cli_parse_output_mode(0, (char *[]){NULL}, &m) == 0 && m == OUTPUT_TABLE);
+  check_bool("mode json",
+             cli_parse_output_mode(1, (char *[]){"--json"}, &m) == 0 && m == OUTPUT_JSON);
+  check_bool("mode headless",
+             cli_parse_output_mode(1, (char *[]){"--headless"}, &m) == 0 && m == OUTPUT_HEADLESS);
+  check_bool("mode conflict",
+             cli_parse_output_mode(2, (char *[]){"--json", "--headless"}, &m) != 0);
+
+  check_bool("wants help -h", cli_wants_help(1, (char *[]){"-h"}));
+  check_bool("wants help --help", cli_wants_help(1, (char *[]){"--help"}));
+  check_bool("no help on --json", !cli_wants_help(1, (char *[]){"--json"}));
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -883,6 +907,7 @@ int main(void) {
 
   printf("Running CLI tests...\n");
   test_version_and_help();
+  test_output_helpers();
   test_config();
   test_location();
   test_enable_disable();

@@ -33,6 +33,18 @@ void display_next_prayer(const struct PrayerTimes *times, const Config *cfg,
                          struct tm *current_time);
 
 /**
+ * Display next prayer in lowercase key=value form
+ */
+void display_next_prayer_headless(const struct PrayerTimes *times, const Config *cfg,
+                                  struct tm *current_time);
+
+/**
+ * Display next prayer as a JSON object {prayer, time, remaining}
+ */
+void display_next_prayer_json(const struct PrayerTimes *times, const Config *cfg,
+                              struct tm *current_time);
+
+/**
  * Display location info
  */
 void display_location(const Config *cfg);

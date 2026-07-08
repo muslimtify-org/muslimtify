@@ -3,30 +3,46 @@
 #include "config.h"
 #include "prayertimes.h"
 #include "version.h"
+#include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
+
+int cli_parse_output_mode(int argc, char **argv, OutputMode *out) {
+  bool json = false, headless = false;
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "--json") == 0)
+      json = true;
+    else if (strcmp(argv[i], "--headless") == 0)
+      headless = true;
+  }
+  if (json && headless) {
+    fprintf(stderr, "Error: --json and --headless cannot be combined\n");
+    return 1;
+  }
+  *out = json ? OUTPUT_JSON : (headless ? OUTPUT_HEADLESS : OUTPUT_TABLE);
+  return 0;
+}
+
+bool cli_wants_help(int argc, char **argv) {
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
+      return true;
+  }
+  return false;
+}
 
 // --- top-level dispatch table -----------------------
 
 static const CommandEntry top_commands[] = {
-    {"show", handle_show},
-    {"check", handle_check},
-    {"next", handle_next},
-    {"config", handle_config},
-    {"location", handle_location},
-    {"enable", handle_enable},
-    {"disable", handle_disable},
-    {"list", handle_list},
-    {"reminder", handle_reminder},
-    {"offset", handle_offset},
-    {"daemon", handle_daemon},
-    {"method", handle_method},
-    {"notification", handle_notification},
-    {"sound", handle_sound},
-    {"version", handle_version},
-    {"--version", handle_version},
-    {"-v", handle_version},
-    {"help", handle_help},
-    {"--help", handle_help},
+    {"show", handle_show},         {"check", handle_check},
+    {"config", handle_config},     {"location", handle_location},
+    {"enable", handle_enable},     {"disable", handle_disable},
+    {"list", handle_list},         {"reminder", handle_reminder},
+    {"offset", handle_offset},     {"daemon", handle_daemon},
+    {"method", handle_method},     {"notification", handle_notification},
+    {"sound", handle_sound},       {"version", handle_version},
+    {"--version", handle_version}, {"-v", handle_version},
+    {"help", handle_help},         {"--help", handle_help},
     {"-h", handle_help},
 };
 
@@ -76,17 +92,11 @@ void cli_print_help(void) {
 
   printf("  %-30s %s\n", "show", "Display today's prayer times");
 
-  printf("  %-30s %s\n", "show --no-header", "Plain key=value output");
+  printf("  %-30s %s\n", "    --headless", "Plain key=value output");
 
-  printf("  %-30s %s\n", "show --format json", "Output prayer times as JSON");
+  printf("  %-30s %s\n", "    --json", "Output prayer times as JSON");
 
-  printf("  %-30s %s\n", "next", "Show next prayer");
-
-  printf("  %-30s %s\n", "next name", "Print next prayer name only");
-
-  printf("  %-30s %s\n", "next time", "Print next prayer time only");
-
-  printf("  %-30s %s\n", "next remaining", "Print remaining time only");
+  printf("  %-30s %s\n", "    --next", "Show next prayer");
 
   printf("  %-30s %s\n", "check", "Check and send notifications");
 
@@ -240,7 +250,7 @@ void cli_print_help(void) {
    */
   printf("Examples:\n");
 
-  printf("  %-55s %s\n", "muslimtify next", "# Show next prayer");
+  printf("  %-55s %s\n", "muslimtify show --next", "# Show next prayer");
 
   printf("  %-55s %s\n", "muslimtify config auto", "# Auto detect configuration");
 
