@@ -842,12 +842,36 @@ static void test_notification(void) {
   check_ret("notification adhan unknown ret", 1);
   check_contains("notification adhan unknown lists", "Available:");
   check_contains("notification adhan unknown fajr", "fajr");
-  run(5, (char *[]){"m", "notification", "--adhan", "set", "/tmp/a.mp3", NULL});
-  check_ret("notification adhan set ret", 0);
+  // --adhan set is zero-trust: existing regular file only, canonicalized to an
+  // absolute path; missing paths and symlinks are rejected.
   {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("notification adhan set cfg", strcmp(cfg.fajr.adhan, "/tmp/a.mp3") == 0);
+    char realf[512], linkf[512];
+    snprintf(realf, sizeof(realf), "%s/adhan_real.mp3", tmpdir);
+    snprintf(linkf, sizeof(linkf), "%s/adhan_link.mp3", tmpdir);
+    FILE *af = fopen(realf, "w");
+    if (af) {
+      fputs("x", af);
+      fclose(af);
+    }
+
+    run(5, (char *[]){"m", "notification", "--adhan", "set", realf, NULL});
+    check_ret("notification adhan set ret", 0);
+    {
+      Config cfg;
+      config_load(&cfg);
+      check_bool("notification adhan set stored abs",
+                 cfg.fajr.adhan[0] == '/' && strstr(cfg.fajr.adhan, "adhan_real.mp3") != NULL);
+    }
+
+    run(5, (char *[]){"m", "notification", "--adhan", "set", "/no/such/adhan.mp3", NULL});
+    check_ret("notification adhan set missing ret", 1);
+
+#ifndef _WIN32
+    symlink(realf, linkf);
+    run(5, (char *[]){"m", "notification", "--adhan", "set", linkf, NULL});
+    check_ret("notification adhan set symlink ret", 1);
+    check_contains("notification adhan set symlink msg", "symlink");
+#endif
   }
 
   // --sound modes + invalid

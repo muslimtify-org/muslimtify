@@ -1,3 +1,7 @@
+#ifndef _WIN32
+#define _XOPEN_SOURCE 700 // realpath, lstat, S_ISLNK
+#endif
+
 #include "cache.h"
 #include "cli_internal.h"
 #include "config.h"
@@ -7,11 +11,17 @@
 #include "platform.h"
 #include "prayer_checker.h"
 #include "string_util.h"
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 static int notification_test(int argc, char **argv) {
   Config cfg;
@@ -236,6 +246,71 @@ static int notif_reminder(int argc, char **argv) {
   return 0;
 }
 
+// Zero-trust validation of a user-supplied adhan file path: it must be an
+// existing, readable, regular file (never a symlink, directory, or device),
+// and is stored canonicalized to an absolute path. Returns 0 and fills `out`
+// on success; prints an error and returns 1 otherwise.
+static int resolve_adhan_path(const char *in, char *out, size_t out_size) {
+#ifndef _WIN32
+  struct stat st;
+  if (lstat(in, &st) != 0) {
+    fprintf(stderr, "Error: adhan file not found: %s\n", in);
+    return 1;
+  }
+  if (S_ISLNK(st.st_mode)) {
+    fprintf(stderr, "Error: adhan path must not be a symlink: %s\n", in);
+    return 1;
+  }
+  if (!S_ISREG(st.st_mode)) {
+    fprintf(stderr, "Error: adhan path must be a regular file: %s\n", in);
+    return 1;
+  }
+  if (access(in, R_OK) != 0) {
+    fprintf(stderr, "Error: adhan file is not readable: %s\n", in);
+    return 1;
+  }
+  char resolved[PATH_MAX];
+  if (!realpath(in, resolved)) {
+    fprintf(stderr, "Error: cannot resolve adhan path: %s\n", in);
+    return 1;
+  }
+  // realpath resolves symlinked parent directories; re-verify the final target
+  // is still a regular, non-symlink file (defends against a swapped component).
+  if (lstat(resolved, &st) != 0 || S_ISLNK(st.st_mode) || !S_ISREG(st.st_mode)) {
+    fprintf(stderr, "Error: adhan path does not resolve to a regular file: %s\n", in);
+    return 1;
+  }
+  if (!copy_string(out, out_size, resolved)) {
+    fprintf(stderr, "Error: adhan path too long\n");
+    return 1;
+  }
+  return 0;
+#else
+  // vibekit: Windows validation is existence + regular-file + canonicalize only;
+  // reparse-point (symlink) rejection is not implemented. Upgrade with
+  // GetFileAttributesW & FILE_ATTRIBUTE_REPARSE_POINT if Windows adhan lands.
+  struct _stat st;
+  if (_stat(in, &st) != 0) {
+    fprintf(stderr, "Error: adhan file not found: %s\n", in);
+    return 1;
+  }
+  if (!(st.st_mode & _S_IFREG)) {
+    fprintf(stderr, "Error: adhan path must be a regular file: %s\n", in);
+    return 1;
+  }
+  char resolved[_MAX_PATH];
+  if (!_fullpath(resolved, in, sizeof(resolved))) {
+    fprintf(stderr, "Error: cannot resolve adhan path: %s\n", in);
+    return 1;
+  }
+  if (!copy_string(out, out_size, resolved)) {
+    fprintf(stderr, "Error: adhan path too long\n");
+    return 1;
+  }
+  return 0;
+#endif
+}
+
 static int notif_adhan(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
     printf("Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
@@ -263,20 +338,19 @@ static int notif_adhan(int argc, char **argv) {
   }
 
   if (strcmp(argv[0], "set") == 0) {
+    char adhan[MAX_ADHAN_PATH];
+    if (resolve_adhan_path(argv[1], adhan, sizeof(adhan)) != 0)
+      return 1;
     PrayerConfig *pc[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
                           &cfg.asr,  &cfg.maghrib, &cfg.isha};
-    for (int i = 0; i < 7; i++) {
-      if (!copy_string(pc[i]->adhan, sizeof(pc[i]->adhan), argv[1])) {
-        fprintf(stderr, "Error: adhan path too long\n");
-        return 1;
-      }
-    }
+    for (int i = 0; i < 7; i++)
+      copy_string(pc[i]->adhan, sizeof(pc[i]->adhan), adhan);
     if (config_save(&cfg) != 0) {
       fprintf(stderr, "Error: Failed to save config\n");
       return 1;
     }
     cache_invalidate();
-    printf("Adhan file set to %s\n", argv[1]);
+    printf("Adhan file set to %s\n", adhan);
     return 0;
   }
 
