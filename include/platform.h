@@ -93,6 +93,27 @@ void platform_localtime(const time_t *t, struct tm *result);
  */
 int platform_isatty(FILE *stream);
 
+/**
+ * Result of platform_resolve_regular_file.
+ */
+typedef enum {
+  PATH_FILE_OK = 0,
+  PATH_FILE_NOT_FOUND,
+  PATH_FILE_NOT_REGULAR,
+  PATH_FILE_IS_SYMLINK,
+  PATH_FILE_NOT_READABLE,
+  PATH_FILE_RESOLVE_FAILED,
+  PATH_FILE_TOO_LONG
+} PathFileResult;
+
+/**
+ * Zero-trust path validation: verify `in` is an existing, readable, regular
+ * file that is not a symlink (rejects symlinks / reparse points, directories,
+ * and special files), and write its canonical absolute path into `out`.
+ * Returns PATH_FILE_OK on success or a specific failure code.
+ */
+PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t out_size);
+
 #ifdef __cplusplus
 }
 #endif

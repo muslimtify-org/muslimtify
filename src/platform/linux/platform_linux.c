@@ -150,3 +150,28 @@ void platform_localtime(const time_t *t, struct tm *result) {
 int platform_isatty(FILE *stream) {
   return isatty(fileno(stream));
 }
+
+PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t out_size) {
+  struct stat st;
+  if (lstat(in, &st) != 0)
+    return PATH_FILE_NOT_FOUND;
+  if (S_ISLNK(st.st_mode))
+    return PATH_FILE_IS_SYMLINK;
+  if (!S_ISREG(st.st_mode))
+    return PATH_FILE_NOT_REGULAR;
+  if (access(in, R_OK) != 0)
+    return PATH_FILE_NOT_READABLE;
+
+  char resolved[PLATFORM_PATH_MAX];
+  if (!realpath(in, resolved))
+    return PATH_FILE_RESOLVE_FAILED;
+  // realpath resolves symlinked parent directories; re-verify the final target
+  // is still a regular, non-symlink file.
+  if (lstat(resolved, &st) != 0 || S_ISLNK(st.st_mode) || !S_ISREG(st.st_mode))
+    return PATH_FILE_NOT_REGULAR;
+
+  int w = snprintf(out, out_size, "%s", resolved);
+  if (w < 0 || (size_t)w >= out_size)
+    return PATH_FILE_TOO_LONG;
+  return PATH_FILE_OK;
+}
