@@ -60,9 +60,6 @@ static int notification_test(int argc, char **argv) {
   return 0;
 }
 
-static const char *const PRAYER_NAMES[] = {"fajr",    "sunrise", "dhuha", "dhuhr",
-                                           "asr",     "maghrib", "isha"};
-
 static void print_notification_help(void) {
   printf("Usage: muslimtify notification [--json | --headless]\n");
   printf("       muslimtify notification <enable|disable> [prayer|all]\n");
@@ -84,8 +81,8 @@ static int notif_enable(int argc, char **argv, bool enable) {
   }
 
   if (argc == 0 || strcmp(argv[0], "all") == 0) {
-    PrayerConfig *all[] = {&cfg.fajr,    &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
-                           &cfg.asr,     &cfg.maghrib, &cfg.isha};
+    PrayerConfig *all[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
+                           &cfg.asr,  &cfg.maghrib, &cfg.isha};
     for (int i = 0; i < 7; i++)
       all[i]->enabled = enable;
     if (config_save(&cfg) != 0) {
@@ -189,8 +186,8 @@ static int notif_reminder(int argc, char **argv) {
       fprintf(stderr, "Error: Failed to load config\n");
       return 1;
     }
-    PrayerConfig *pc[] = {&cfg.fajr,    &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
-                          &cfg.asr,     &cfg.maghrib, &cfg.isha};
+    PrayerConfig *pc[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
+                          &cfg.asr,  &cfg.maghrib, &cfg.isha};
     for (int i = 0; i < 7; i++) {
       pc[i]->reminder_count = count;
       for (int j = 0; j < count; j++)
@@ -256,7 +253,8 @@ static int notif_adhan(int argc, char **argv) {
   }
 #endif
   if (argc < 2) {
-    fprintf(stderr, "Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
+    fprintf(stderr,
+            "Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
     return 1;
   }
 
@@ -267,8 +265,8 @@ static int notif_adhan(int argc, char **argv) {
   }
 
   if (strcmp(argv[0], "set") == 0) {
-    PrayerConfig *pc[] = {&cfg.fajr,    &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
-                          &cfg.asr,     &cfg.maghrib, &cfg.isha};
+    PrayerConfig *pc[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
+                          &cfg.asr,  &cfg.maghrib, &cfg.isha};
     for (int i = 0; i < 7; i++) {
       if (!copy_string(pc[i]->adhan, sizeof(pc[i]->adhan), argv[1])) {
         fprintf(stderr, "Error: adhan path too long\n");

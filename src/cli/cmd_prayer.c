@@ -1,6 +1,5 @@
 #include "cache.h"
 #include "cli_internal.h"
-#include "display.h"
 #include <stdio.h>
 #include <stdlib.h>
 

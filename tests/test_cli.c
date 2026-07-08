@@ -530,7 +530,7 @@ static void test_check(void) {
   reset_config();
 
   // Disable all prayers so check won't try to send a notification
-  run(3, (char *[]){"m", "disable", "all", NULL});
+  run(4, (char *[]){"m", "notification", "disable", "all", NULL});
 
   run(2, (char *[]){"m", "check", NULL});
   check_ret("check disabled ret", 0);

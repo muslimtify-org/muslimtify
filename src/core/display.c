@@ -510,8 +510,8 @@ void display_reminders(const Config *cfg) {
 
 void display_notification_settings(const Config *cfg) {
   const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr,    &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                              &cfg->asr,      &cfg->maghrib, &cfg->isha};
+  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
+                              &cfg->asr,  &cfg->maghrib, &cfg->isha};
 
   printf("+---------+---------+---------------+-------+\n");
   printf("| %-7s | %-7s | %-13s | %-5s |\n", "Prayer", "Enabled", "Reminders", "Adhan");
@@ -529,8 +529,8 @@ void display_notification_settings(const Config *cfg) {
 
 void display_notification_settings_headless(const Config *cfg) {
   const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr,    &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                              &cfg->asr,      &cfg->maghrib, &cfg->isha};
+  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
+                              &cfg->asr,  &cfg->maghrib, &cfg->isha};
 
   printf("sound=%s\n", cfg->notification_sound);
   printf("urgency=%s\n", cfg->notification_urgency);
@@ -545,8 +545,8 @@ void display_notification_settings_headless(const Config *cfg) {
 
 void display_notification_settings_json(const Config *cfg) {
   const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr,    &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                              &cfg->asr,      &cfg->maghrib, &cfg->isha};
+  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
+                              &cfg->asr,  &cfg->maghrib, &cfg->isha};
 
   printf("{\n");
   printf("  \"sound\": ");

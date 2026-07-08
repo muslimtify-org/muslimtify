@@ -57,19 +57,35 @@ static int removed_reminder(int a, char **v) {
   fprintf(stderr, "Error: 'reminder' was removed; use 'notification --reminder'\n");
   return 1;
 }
+static int removed_sound(int a, char **v) {
+  (void)a;
+  (void)v;
+  fprintf(stderr,
+          "Error: 'sound' was removed; use 'notification --sound' or 'notification --adhan'\n");
+  return 1;
+}
 
 // --- top-level dispatch table -----------------------
 
 static const CommandEntry top_commands[] = {
-    {"show", handle_show},         {"check", handle_check},
-    {"config", handle_config},     {"location", handle_location},
-    {"enable", removed_enable},    {"disable", removed_disable},
-    {"list", removed_list},        {"reminder", removed_reminder},
-    {"offset", handle_offset},     {"daemon", handle_daemon},
-    {"method", handle_method},     {"notification", handle_notification},
+    {"show", handle_show},
+    {"check", handle_check},
+    {"config", handle_config},
+    {"location", handle_location},
+    {"enable", removed_enable},
+    {"disable", removed_disable},
+    {"list", removed_list},
+    {"reminder", removed_reminder},
+    {"sound", removed_sound},
+    {"offset", handle_offset},
+    {"daemon", handle_daemon},
+    {"method", handle_method},
+    {"notification", handle_notification},
     {"version", handle_version},
-    {"--version", handle_version}, {"-v", handle_version},
-    {"help", handle_help},         {"--help", handle_help},
+    {"--version", handle_version},
+    {"-v", handle_version},
+    {"help", handle_help},
+    {"--help", handle_help},
     {"-h", handle_help},
 };
 
