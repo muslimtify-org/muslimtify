@@ -28,7 +28,8 @@ Many tests are Linux-only (guarded by `if(NOT WIN32)`). Add new tests with `add_
 - clang-format: LLVM base, 2-space indent, 100 columns, attach braces, case-sensitive sorted includes (`.clang-format`). CI runs `clang-format --dry-run --Werror`.
 - snake_case functions with a module prefix (`config_load`); explicit braces; `const`-correct pointers; `size_t` for sizes/indices; avoid GNU extensions and VLAs.
 - Return enum status codes for multi-mode failures; log via `fprintf(stderr, …)` / the display helper, not `printf`. Commands exit non-zero on failure.
-- Guard platform code with `#ifdef _WIN32` / `#ifndef _WIN32`; POSIX-only sources (e.g. `daemon_loop.c`) are excluded from the Windows build via CMake generator expressions.
+- Platform-specific code lives behind a header interface with one implementation per OS: the `shared.h` + `shared_linux.c` + `shared_win.c` pattern (e.g. `platform.h` -> `platform_linux.c` / `platform_win.c`, and `notification.h` -> `linux/notification.c` / `windows/notification_win.c`). Shared code (`src/core`, `src/cli`) MUST NOT branch on the OS with `#ifdef _WIN32` / `#ifndef _WIN32`; it calls the interface, which just works per platform. When a capability is meaningful on only one OS, still expose it in the shared header and give the other OS a sensible no-op/fallback implementation rather than an `#ifdef` at the call site.
+- Feature-test macros (`_POSIX_C_SOURCE`, `_XOPEN_SOURCE`) are defined unconditionally at the very top of a file, before any `#include` (not guarded by `#ifndef _WIN32`); they are harmless on MSVC. Fully-POSIX-only sources (e.g. `daemon_loop.c`) are excluded from the Windows build via CMake generator expressions.
 
 ## Git
 - Branch from `main`; never commit directly to `main`. Open a PR; CI (gcc/clang/MSVC build + lint + packaging-version check) must be green.
