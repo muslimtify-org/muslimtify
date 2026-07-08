@@ -250,9 +250,10 @@ static int location_set_handler(int argc, char **argv) {
     }
     memcpy(cfg.timezone, override_tz, tz_len + 1);
     cfg.timezone_offset = off;
-  } else {
-    // No override — re-derive from the host OS so the offset stays correct
-    // even after manual coords (avoids inheriting a stale ipinfo-derived zone).
+  } else if (override_lat || override_lon) {
+    // Coordinates changed without an explicit timezone: re-derive from the host
+    // OS so the offset stays correct (avoids inheriting a stale ipinfo zone).
+    // A label-only update (city/country) leaves the timezone untouched.
     if (get_system_timezone(cfg.timezone, sizeof(cfg.timezone)) != 0) {
       fprintf(stderr, "Warning: could not detect system timezone, defaulting to %s\n",
               cfg.timezone);
@@ -267,20 +268,19 @@ static int location_set_handler(int argc, char **argv) {
 
   cache_invalidate();
 
-  printf("✓ Location:\n");
-  printf("  Latitude: %.4f\n", cfg.latitude);
-  printf("  Longitude: %.4f\n", cfg.longitude);
-  if (cfg.city[0] != '\0')
-    printf("  City: %s\n", cfg.city);
-  if (cfg.country[0] != '\0')
-    printf("  Country: %s\n", cfg.country);
-  if (override_tz) {
-    printf("  Timezone: %s (UTC%+.1f) [override]\n", cfg.timezone, cfg.timezone_offset);
-  } else {
-    printf("  Timezone: %s (UTC%+.1f) [from system OS]\n", cfg.timezone, cfg.timezone_offset);
-    printf("  Hint: pass --timezone=<iana> if the coordinates are in a different region\n");
-    printf("        (e.g. --timezone=Asia/Jakarta)\n");
-  }
+  // Concise confirmation: report only the fields the user actually changed.
+  bool coords_changed = override_lat || override_lon;
+  if (coords_changed)
+    printf("Coordinates updated to %.4f, %.4f\n", cfg.latitude, cfg.longitude);
+  if (override_city)
+    printf("City updated to %s\n", cfg.city);
+  if (override_country)
+    printf("Country updated to %s\n", cfg.country);
+  if (override_tz)
+    printf("Timezone updated to %s (UTC%+.1f)\n", cfg.timezone, cfg.timezone_offset);
+  else if (coords_changed)
+    printf("Timezone updated to %s (UTC%+.1f) from system timezone\n", cfg.timezone,
+           cfg.timezone_offset);
   return 0;
 }
 

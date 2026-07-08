@@ -296,8 +296,7 @@ static void test_location(void) {
   // location set at the equator/prime meridian (0.0 is a valid coordinate)
   run(5, (char *[]){"m", "location", "set", "--lat=0", "--long=0", NULL});
   check_ret("location set equator ret", 0);
-  check_contains("location set equator lat shown", "Latitude: 0.0000");
-  check_contains("location set equator lon shown", "Longitude: 0.0000");
+  check_contains("location set equator coords shown", "Coordinates updated to 0.0000, 0.0000");
 
   // location set --timezone=<iana> (equals form)
   run(6, (char *[]){"m", "location", "set", "--lat=30.0", "--long=31.0", "--timezone=Africa/Cairo",
@@ -412,6 +411,18 @@ static void test_location(void) {
   check_ret("location set escape-city ret", 0);
   run(3, (char *[]){"m", "location", "--json", NULL});
   check_contains("location json escapes quote", "a\\\"b");
+
+  // city-only update: concise message, and the timezone is left untouched
+  reset_config();
+  run(4, (char *[]){"m", "location", "set", "--city=Medan", NULL});
+  check_ret("location set city-only ret", 0);
+  check_contains("location set city-only msg", "City updated to Medan");
+  check_bool("location set city-only no coords line", strstr(captured, "Coordinates updated") == NULL);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("location set city-only keeps tz", strcmp(cfg.timezone, "Asia/Jakarta") == 0);
+  }
 }
 
 static void test_enable_disable(void) {
