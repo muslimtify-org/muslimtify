@@ -168,9 +168,10 @@ muslimtify notification           # show current notification settings
 muslimtify location               # show current location
 ```
 
-Resetting the configuration is done by deleting `config.json`; Muslimtify
-recreates it with defaults on the next run. Validation runs automatically every
-time the config is loaded.
+Resetting the configuration is done by deleting `config.json`. Muslimtify falls
+back to built-in defaults when the file is missing, and rewrites it the next
+time you change a setting. Validation runs automatically every time the config
+is loaded.
 
 ### Calculation Methods
 
@@ -308,7 +309,8 @@ prayers, reminder offsets, notification settings, or location data.
 
 ### Config file problems
 
-- Delete `config.json` to restore defaults; Muslimtify recreates it on the next run.
+- Delete `config.json` to restore defaults; Muslimtify uses built-in defaults when
+  the file is missing and rewrites it the next time a setting changes.
 - Muslimtify validates the config automatically on load and reports problems it finds.
 - Review the config file paths above and make sure the JSON is valid.
 
