@@ -1,6 +1,7 @@
 #ifndef CLI_INTERNAL_H
 #define CLI_INTERNAL_H
 
+#include <stdbool.h>
 #include <string.h>
 
 typedef int (*HandlerFn)(int argc, char **argv);
@@ -20,6 +21,16 @@ static inline const CommandEntry *dispatch_lookup(const CommandEntry *table, int
 }
 
 #define DISPATCH_N(table) ((int)(sizeof(table) / sizeof((table)[0])))
+
+typedef enum { OUTPUT_TABLE, OUTPUT_JSON, OUTPUT_HEADLESS } OutputMode;
+
+// Scan argv for --json / --headless; set *out (default OUTPUT_TABLE).
+// Returns 0 on success, non-zero if both are present (after printing the
+// mutual-exclusion error to stderr).
+int cli_parse_output_mode(int argc, char **argv, OutputMode *out);
+
+// True if argv contains --help or -h.
+bool cli_wants_help(int argc, char **argv);
 
 int handle_show(int argc, char **argv);
 int handle_check(int argc, char **argv);

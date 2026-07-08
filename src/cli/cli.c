@@ -3,7 +3,33 @@
 #include "config.h"
 #include "prayertimes.h"
 #include "version.h"
+#include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
+
+int cli_parse_output_mode(int argc, char **argv, OutputMode *out) {
+  bool json = false, headless = false;
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "--json") == 0)
+      json = true;
+    else if (strcmp(argv[i], "--headless") == 0)
+      headless = true;
+  }
+  if (json && headless) {
+    fprintf(stderr, "Error: --json and --headless cannot be combined\n");
+    return 1;
+  }
+  *out = json ? OUTPUT_JSON : (headless ? OUTPUT_HEADLESS : OUTPUT_TABLE);
+  return 0;
+}
+
+bool cli_wants_help(int argc, char **argv) {
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
+      return true;
+  }
+  return false;
+}
 
 // --- top-level dispatch table -----------------------
 
