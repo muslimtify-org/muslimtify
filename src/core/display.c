@@ -429,44 +429,6 @@ void display_config(const Config *cfg) {
   display_reminders(cfg);
 }
 
-void display_prayer_list(const Config *cfg) {
-  printf("\nPrayer Notifications:\n");
-
-  const char *prayer_names[] = {"Fajr", "Sunrise", "Dhuha", "Dhuhr", "Asr", "Maghrib", "Isha"};
-  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
-
-  int enabled_count = 0;
-  printf("  Enabled:  ");
-  for (int i = 0; i < 7; i++) {
-    const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
-    if (pcfg->enabled) {
-      if (enabled_count > 0)
-        printf(", ");
-      printf("%s", prayer_names[i]);
-      enabled_count++;
-    }
-  }
-  if (enabled_count == 0)
-    printf("None");
-  printf("\n");
-
-  int disabled_count = 0;
-  printf("  Disabled: ");
-  for (int i = 0; i < 7; i++) {
-    const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
-    if (!pcfg->enabled) {
-      if (disabled_count > 0)
-        printf(", ");
-      printf("%s", prayer_names[i]);
-      disabled_count++;
-    }
-  }
-  if (disabled_count == 0)
-    printf("None");
-  printf("\n\n");
-}
-
 void display_reminders(const Config *cfg) {
   printf("Prayer Reminders:\n");
 

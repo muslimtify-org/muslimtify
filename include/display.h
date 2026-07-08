@@ -65,11 +65,6 @@ void display_location_headless(const Config *cfg);
 void display_config(const Config *cfg);
 
 /**
- * Display prayer list with status
- */
-void display_prayer_list(const Config *cfg);
-
-/**
  * Display reminders configuration
  */
 void display_reminders(const Config *cfg);
