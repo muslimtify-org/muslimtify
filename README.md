@@ -7,10 +7,6 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > [!Note]
 > Prayer time calculations are powered by [libmuslim](https://github.com/rizukirr/libmuslim), a portable library extracted from this project to enable a more flexible and reusable ecosystem for Muslim developers.
 
-> [!Important]
-> In the next release, I will be redesigning the Muslimtify CLI flags and arguments. This will introduce breaking changes, however, most of them simply rename existing flags (keeping the same behavior) while adding a few new features. Muslimtify will still function exactly as it does today, as these changes only affect the command-line naming and do not touch the core functionality. This decision was made to improve simplicity, consistency, and flexibility for the future of Muslimtify.
-
-
 | Linux | Windows |
 | --- | --- |
 | <img width="1920" height="1080" alt="2026-07-08-202423_hyprshot" src="https://github.com/user-attachments/assets/8757b26e-e793-466f-83fc-353552456a94" /> | <img width="1920" height="1080" alt="Cuplikan layar 2026-07-07 211731" src="https://github.com/user-attachments/assets/85dd71ce-f382-423c-98ac-b6c732ee2011" /> |
@@ -20,7 +16,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > - ~Merge command  `location auto` and `method auto` into (only) `config auto` and optimize auto detection per (249) country~
 > - ~Refactor from timer-driven into a portable long-running loop~
 > - ~Add custom adzan sound notifications~
-> - ***Re-design command-line (BREAKING CHANGES)*** (on progress)
+> - ~Re-design command-line (BREAKING CHANGES)~
 > - Add read lat/long from user GPS
 > - Add GUI (see branch gui to see a progress)
 > - Distribute to Flatpak
@@ -141,7 +137,7 @@ muslimtify daemon install
 ## Post Installation
 Run `muslimtify daemon status` to check if Muslimtify is registered with systemd. If no status is found, run `muslimtify daemon install` to register the service and ensure it runs as expected.
 
-Muslimtify automatically selects the standard prayer time calculation method based on your country and location. Run `muslimtify` to verify that your configuration is correct. If the automatic selection does not meet your needs, you can set it manually using `muslimtify method set <key-method>`. A full list of available methods is documented [here](#calculation-methods).
+Muslimtify automatically selects the standard prayer time calculation method based on your country and location. Run `muslimtify` to verify that your configuration is correct. If the automatic selection does not meet your needs, you can set it manually using `muslimtify method <key-method>`. A full list of available methods is documented [here](#calculation-methods).
 
 ## Configuration
 
@@ -157,19 +153,24 @@ Config paths:
 Common setup commands:
 
 ```bash
-muslimtify config auto            # detect location from IP + set method
-muslimtify config auto --city=Mansoura  # auto-detect but use your own city label
+muslimtify location set --auto                  # detect location from IP
+muslimtify location set --auto --city=Mansoura  # auto-detect but use your own city label
+muslimtify method --auto                        # select method from the detected country
 muslimtify location set --lat=-6.175 --long=106.82  # set location manually (uses system timezone)
-muslimtify location set --timezone=Asia/Jakarta  # override timezone
-muslimtify location set --city=Jakarta  # add a city label
-muslimtify method list            # list all 23 available calculation methods
-muslimtify method set mwl         # set calculation method
-muslimtify method madhab hanafi   # set madhab (shafi/hanafi)
-muslimtify reminder all 30,15,5   # set all reminders to 30, 15, and 5 minutes before adhan
-muslimtify config show            # show current configuration
-muslimtify config validate        # run sanity checks on config file
-muslimtify config reset           # restore default config file
+muslimtify location set --timezone=Asia/Jakarta     # override timezone
+muslimtify location set --city=Jakarta              # add a city label
+muslimtify method --list          # list all available calculation methods
+muslimtify method mwl             # set calculation method
+muslimtify madzhab hanafi         # set madzhab (shafi/hanafi)
+muslimtify notification --reminder --all 30 15 5    # set every prayer's reminders (minutes before adhan)
+muslimtify notification --reminder fajr 30 15 5     # set reminders for a single prayer
+muslimtify notification           # show current notification settings
+muslimtify location               # show current location
 ```
+
+Resetting the configuration is done by deleting `config.json`; Muslimtify
+recreates it with defaults on the next run. Validation runs automatically every
+time the config is loaded.
 
 ### Calculation Methods
 
@@ -212,7 +213,7 @@ prayers, reminder offsets, notification settings, or location data.
   "location": {
     "latitude": 0.0,
     "longitude": 0.0,
-    "timezone": "",
+    "timezone": "UTC",
     "timezone_offset": 0.0,
     "auto_detect": true,
     "city": "",
@@ -221,44 +222,60 @@ prayers, reminder offsets, notification settings, or location data.
   "prayers": {
     "fajr": {
       "enabled": true,
-      "reminder_sound": "default",
-      "reminders": [30, 15, 5]
+      "adhan": "",
+      "adhan_enabled": true,
+      "reminders": [30, 15, 5],
+      "offset": 0
     },
     "sunrise": {
       "enabled": false,
-      "reminder_sound": "default",
-      "reminders": []
+      "adhan": "",
+      "adhan_enabled": false,
+      "reminders": [],
+      "offset": 0
     },
     "dhuha": {
       "enabled": false,
-      "reminder_sound": "default",
-      "reminders": []
+      "adhan": "",
+      "adhan_enabled": false,
+      "reminders": [],
+      "offset": 0
     },
     "dhuhr": {
       "enabled": true,
-      "reminder_sound": "default",
-      "reminders": [30, 15, 5]
+      "adhan": "",
+      "adhan_enabled": true,
+      "reminders": [30, 15, 5],
+      "offset": 0
     },
     "asr": {
       "enabled": true,
-      "reminder_sound": "default",
-      "reminders": [30, 15, 5]
+      "adhan": "",
+      "adhan_enabled": true,
+      "reminders": [30, 15, 5],
+      "offset": 0
     },
     "maghrib": {
       "enabled": true,
-      "reminder_sound": "default",
-      "reminders": [30, 15, 5]
+      "adhan": "",
+      "adhan_enabled": true,
+      "reminders": [30, 15, 5],
+      "offset": 0
     },
     "isha": {
       "enabled": true,
-      "reminder_sound": "default",
-      "reminders": [30, 15, 5]
+      "adhan": "",
+      "adhan_enabled": true,
+      "reminders": [30, 15, 5],
+      "offset": 0
     }
   },
   "notification": {
     "timeout": 5000,
-    "urgency": "normal",
-    "sound": true,
+    "urgency": "critical",
+    "sound": "adhan",
+    "sound_alarm": "alarm",
+    "sound_reminder": "reminder",
     "icon": "muslimtify"
   },
   "calculation": {
@@ -274,7 +291,7 @@ prayers, reminder offsets, notification settings, or location data.
 
 ### Notifications are not appearing
 
-- Run `muslimtify check` to test a one-shot notification cycle.
+- Run `muslimtify daemon status` to confirm the background service is running.
 - On Linux, verify desktop notifications work with `notify-send "Test" "Hello"`.
 - On Windows, local system settings can block toast delivery. Check
   notification settings, Focus Assist / Do Not Disturb, and whether the command
@@ -282,17 +299,17 @@ prayers, reminder offsets, notification settings, or location data.
 
 ### Location detection is not working
 
-- Run `muslimtify config auto` again.
-- Set coordinates manually with `muslimtify location set <latitude> <longitude>`.
+- Run `muslimtify location set --auto` again.
+- Set coordinates manually with `muslimtify location set --lat=<latitude> --long=<longitude>`.
   If the host machine is in a different region than the coordinates, override
   the timezone with `--timezone=<iana>`, e.g.
-  `muslimtify location set -6.21 106.84 --timezone=Asia/Jakarta`.
+  `muslimtify location set --lat=-6.21 --long=106.84 --timezone=Asia/Jakarta`.
 - Check network access to `ipinfo.io` if auto detection keeps failing.
 
 ### Config file problems
 
-- Run `muslimtify config validate` to check the current config file.
-- Run `muslimtify config reset` to restore defaults.
+- Delete `config.json` to restore defaults; Muslimtify recreates it on the next run.
+- Muslimtify validates the config automatically on load and reports problems it finds.
 - Review the config file paths above and make sure the JSON is valid.
 
 ## Contributing
