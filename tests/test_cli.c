@@ -223,6 +223,13 @@ static void test_location(void) {
     check_bool("location set lat", cfg.latitude > -7.26 && cfg.latitude < -7.24);
     check_bool("location set lon", cfg.longitude > 112.74 && cfg.longitude < 112.76);
   }
+  // changing coordinates hints to verify the timezone
+  check_contains("location set coords tz hint", "make sure the timezone is correct");
+
+  // changing the timezone hints to verify the coordinates
+  run(4, (char *[]){"m", "location", "set", "--timezone=Asia/Jakarta", NULL});
+  check_ret("location set tz ret", 0);
+  check_contains("location set tz coords hint", "make sure your coordinates are correct");
 
   // location set --auto rejects coordinate / timezone overrides
   run(5, (char *[]){"m", "location", "set", "--auto", "--lat=1.0", NULL});
