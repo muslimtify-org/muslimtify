@@ -65,14 +65,9 @@ int ensure_location(Config *cfg);
  * detected country (via country_default_method). Mutates *cfg only — does NOT
  * save config or print. Returns 0 on success, -1 on fetch failure.
  *
- * Shared by `config auto` and `daemon enable` (Linux + Windows).
+ * Used by `daemon enable` (Linux + Windows).
  */
 int config_auto_detect(Config *cfg);
-
-/**
- * Free any resources allocated by location module
- */
-void location_cleanup(void);
 
 #ifdef __cplusplus
 }

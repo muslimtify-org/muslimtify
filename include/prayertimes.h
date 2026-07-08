@@ -107,11 +107,6 @@ struct PrayerTimes {
 void format_time_hm(double timeHours, char *outBuffer, size_t bufSize);
 
 /**
- * Format a decimal-hours time into "HH:MM:SS" in outBuffer.
- */
-void format_time_hms(double timeHours, char *outBuffer, size_t bufSize);
-
-/**
  * Look up the parameter set for a calculation method.
  * Returns: pointer to a static MethodParams, or NULL if method is out of range.
  */
@@ -332,25 +327,6 @@ void format_time_hm(double timeHours, char *outBuffer, size_t bufSize) {
   hours %= 24;
 
   snprintf(outBuffer, bufSize, "%02d:%02d", hours, minutes);
-}
-
-// Format time into "HH:MM:SS"
-void format_time_hms(double timeHours, char *outBuffer, size_t bufSize) {
-  int hours = (int)timeHours;
-  double fraction = timeHours - hours;
-  int totalSeconds = (int)(fraction * 3600.0 + 0.5);
-
-  int minutes = totalSeconds / 60;
-  int seconds = totalSeconds % 60;
-
-  if (minutes >= 60) {
-    hours += minutes / 60;
-    minutes %= 60;
-  }
-
-  hours %= 24;
-
-  snprintf(outBuffer, bufSize, "%02d:%02d:%02d", hours, minutes, seconds);
 }
 
 struct PrayerTimes calculate_prayer_times(int year, int month, int day, double latitude,

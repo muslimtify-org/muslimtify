@@ -175,6 +175,8 @@ void cli_print_help(void) {
 
   printf("  %-30s %s\n", "    <name>", "Set calculation method");
 
+  printf("  %-30s %s\n", "    --auto", "Auto-select method from country");
+
   printf("  %-30s %s\n", "    --list", "List available methods");
 
   printf("  %-30s %s\n", "madzhab <shafi|hanafi>", "Set madzhab");

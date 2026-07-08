@@ -2,25 +2,9 @@
 #include "audio.h"
 #include "miniaudio.h"
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <time.h>
-#include <unistd.h>
-#endif
-
 static ma_engine g_engine;
 static ma_sound g_sound;
 static int g_is_playing = 0;
-
-static void sleep_ms(int ms) {
-#ifdef _WIN32
-  Sleep((DWORD)ms);
-#else
-  struct timespec req = {.tv_sec = ms / 1000, .tv_nsec = (long)((ms % 1000) * 1000000)};
-  nanosleep(&req, NULL);
-#endif
-}
 
 int audio_start(const char *path) {
   if (g_is_playing)
@@ -57,16 +41,4 @@ void audio_stop(void) {
   ma_sound_uninit(&g_sound);
   ma_engine_uninit(&g_engine);
   g_is_playing = 0;
-}
-
-int audio_play_from_file(const char *path) {
-  if (audio_start(path) != 0)
-    return -1;
-
-  while (audio_is_playing()) {
-    sleep_ms(100);
-  }
-
-  audio_stop();
-  return 0;
 }
