@@ -269,7 +269,6 @@ static int notif_adhan(int argc, char **argv) {
     printf("Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
     return 0;
   }
-#ifdef _WIN32
   if (argc == 1 && strcmp(argv[0], "stop") == 0) {
     if (notify_adhan_stop() == 0)
       printf("Adhan playback stopped\n");
@@ -277,7 +276,6 @@ static int notif_adhan(int argc, char **argv) {
       printf("No adhan is currently playing\n");
     return 0;
   }
-#endif
   if (argc < 2) {
     fprintf(stderr,
             "Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");

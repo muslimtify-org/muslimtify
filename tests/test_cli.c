@@ -874,6 +874,11 @@ static void test_notification(void) {
 #endif
   }
 
+  // --adhan stop works on every platform (no-op when nothing is playing)
+  run(4, (char *[]){"m", "notification", "--adhan", "stop", NULL});
+  check_ret("notification adhan stop ret", 0);
+  check_contains("notification adhan stop msg", "adhan");
+
   // --sound modes + invalid
   run(4, (char *[]){"m", "notification", "--sound", "off", NULL});
   check_ret("notification sound off ret", 0);

@@ -253,3 +253,15 @@ void notify_prayer(const char *prayer_name, const char *time_str, int minutes_be
 void notify_cleanup(void) {
   notify_uninit();
 }
+
+int notify_adhan_stop(void) {
+  // On Linux the adhan plays inside the daemon's own process (notify_adhan's
+  // GMainLoop), so a separate CLI process cannot reach it; the notification's
+  // Stop button handles that in-process. If audio happens to be playing in
+  // this process, stop it; otherwise report there is nothing to stop.
+  if (audio_is_playing()) {
+    audio_stop();
+    return 0;
+  }
+  return 1;
+}
