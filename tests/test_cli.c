@@ -830,6 +830,76 @@ static void test_output_helpers(void) {
   check_bool("no help on --json", !cli_wants_help(1, (char *[]){"--json"}));
 }
 
+static void test_notification(void) {
+  printf("  notification...\n");
+  reset_config();
+
+  // settings view (table)
+  run(2, (char *[]){"m", "notification", NULL});
+  check_ret("notification default ret", 0);
+  check_contains("notification default fajr", "fajr");
+  check_contains("notification default sound", "sound:");
+  check_contains("notification default urgency", "urgency:");
+
+  // --json
+  run(3, (char *[]){"m", "notification", "--json", NULL});
+  check_ret("notification json ret", 0);
+  check_contains("notification json sound", "\"sound\"");
+  check_contains("notification json prayers", "\"prayers\"");
+
+  // --headless
+  run(3, (char *[]){"m", "notification", "--headless", NULL});
+  check_ret("notification headless ret", 0);
+  check_contains("notification headless sound", "sound=");
+  check_contains("notification headless fajr", "fajr.enabled=");
+
+  // mutual exclusion
+  run(4, (char *[]){"m", "notification", "--json", "--headless", NULL});
+  check_ret("notification json+headless ret", 1);
+  check_contains("notification json+headless msg", "cannot be combined");
+
+  // enable / disable a single prayer
+  run(4, (char *[]){"m", "notification", "disable", "fajr", NULL});
+  check_ret("notification disable fajr ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification disable fajr cfg", cfg.fajr.enabled == false);
+  }
+  run(4, (char *[]){"m", "notification", "enable", "fajr", NULL});
+  check_ret("notification enable fajr ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification enable fajr cfg", cfg.fajr.enabled == true);
+  }
+
+  // enable all / disable all
+  run(4, (char *[]){"m", "notification", "disable", "all", NULL});
+  check_ret("notification disable all ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification disable all cfg", cfg.isha.enabled == false);
+  }
+  run(3, (char *[]){"m", "notification", "enable", NULL});
+  check_ret("notification enable noarg ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification enable noarg cfg", cfg.isha.enabled == true);
+  }
+
+  // unknown prayer rejected
+  run(4, (char *[]){"m", "notification", "enable", "bogus", NULL});
+  check_ret("notification enable bogus ret", 1);
+
+  // help
+  run(3, (char *[]){"m", "notification", "--help", NULL});
+  check_ret("notification help ret", 0);
+  check_contains("notification help usage", "muslimtify notification");
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -847,6 +917,7 @@ int main(void) {
   test_next();
   test_check();
   test_method();
+  test_notification();
   test_daemon_errors();
   test_offset();
 
