@@ -82,9 +82,10 @@ static int method_set(const char *name) {
     return 1;
   }
   CalcMethod m = method_from_string(name);
-  // method_from_string falls back to CALC_CUSTOM for unknown names; a name that
-  // does not round-trip is not a real method key.
-  if (strcmp(name, method_to_string(m)) != 0) {
+  // method_from_string falls back to CALC_CUSTOM for unknown names, and "custom"
+  // itself is not selectable here (it needs fajr/isha angles from config). Treat
+  // both as unknown and list the real methods.
+  if (m == CALC_CUSTOM || strcmp(name, method_to_string(m)) != 0) {
     fprintf(stderr, "Error: Unknown method '%s'\n", name);
     print_method_list(stderr, &cfg);
     return 1;
@@ -146,7 +147,11 @@ int handle_method(int argc, char **argv) {
 }
 
 static const char *madzhab_label(const char *v) {
-  return strcmp(v, "hanafi") == 0 ? "Hanafi" : "Shafi'i";
+  if (strcmp(v, "hanafi") == 0)
+    return "Hanafi";
+  if (strcmp(v, "shafi") == 0)
+    return "Shafi'i";
+  return "unknown";
 }
 
 static void print_madzhab_help(void) {

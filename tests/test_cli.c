@@ -3,6 +3,8 @@
 #include "cli.h"
 #include "cli_internal.h"
 #include "config.h"
+#include "country.h"
+#include "prayertimes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -523,6 +525,11 @@ static void test_method(void) {
   check_contains("method bad lists", "Available");
   check_contains("method bad key", "kemenag");
 
+  // method custom: not selectable via `method <name>`, treated as unknown
+  run(3, (char *[]){"m", "method", "custom", NULL});
+  check_ret("method custom ret", 1);
+  check_contains("method custom unknown", "Unknown method");
+
   // method --list
   run(3, (char *[]){"m", "method", "--list", NULL});
   check_ret("method list ret", 0);
@@ -538,6 +545,18 @@ static void test_method(void) {
     Config cfg;
     config_load(&cfg);
     check_bool("method auto cfg", strcmp(cfg.calculation_method, "kemenag") == 0);
+  }
+
+  // method --auto: a different saved country derives that country's default,
+  // proving derivation is table-driven (country_default_method), not hardcoded.
+  run(4, (char *[]){"m", "location", "set", "--country=US", NULL});
+  run(3, (char *[]){"m", "method", "--auto", NULL});
+  check_ret("method auto US ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    const char *want = method_to_string(country_default_method("US"));
+    check_bool("method auto US cfg", strcmp(cfg.calculation_method, want) == 0);
   }
 
   // method --help

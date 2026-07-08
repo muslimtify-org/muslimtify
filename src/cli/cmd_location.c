@@ -284,11 +284,11 @@ static int location_set_handler(int argc, char **argv) {
 
   // Coordinates and timezone jointly determine the prayer times, so prompt the
   // user to sanity-check whichever of the pair they did not just set.
-  if (coords_changed)
+  if (coords_changed && !override_tz)
     printf("  Hint: make sure the timezone is correct (currently %s); it affects prayer time "
            "calculation.\n",
            cfg.timezone);
-  if (override_tz)
+  else if (override_tz && !coords_changed)
     printf("  Hint: make sure your coordinates are correct (currently %.4f, %.4f); they affect "
            "prayer time calculation.\n",
            cfg.latitude, cfg.longitude);
