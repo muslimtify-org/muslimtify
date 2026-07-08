@@ -1,8 +1,8 @@
 #define _GNU_SOURCE
 
 #include "cli.h"
-#include "config.h"
 #include "cli_internal.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -886,10 +886,14 @@ static void test_output_helpers(void) {
   printf("  output helpers...\n");
   OutputMode m = OUTPUT_TABLE;
 
-  check_bool("mode default table", cli_parse_output_mode(0, (char *[]){NULL}, &m) == 0 && m == OUTPUT_TABLE);
-  check_bool("mode json", cli_parse_output_mode(1, (char *[]){"--json"}, &m) == 0 && m == OUTPUT_JSON);
-  check_bool("mode headless", cli_parse_output_mode(1, (char *[]){"--headless"}, &m) == 0 && m == OUTPUT_HEADLESS);
-  check_bool("mode conflict", cli_parse_output_mode(2, (char *[]){"--json", "--headless"}, &m) != 0);
+  check_bool("mode default table",
+             cli_parse_output_mode(0, (char *[]){NULL}, &m) == 0 && m == OUTPUT_TABLE);
+  check_bool("mode json",
+             cli_parse_output_mode(1, (char *[]){"--json"}, &m) == 0 && m == OUTPUT_JSON);
+  check_bool("mode headless",
+             cli_parse_output_mode(1, (char *[]){"--headless"}, &m) == 0 && m == OUTPUT_HEADLESS);
+  check_bool("mode conflict",
+             cli_parse_output_mode(2, (char *[]){"--json", "--headless"}, &m) != 0);
 
   check_bool("wants help -h", cli_wants_help(1, (char *[]){"-h"}));
   check_bool("wants help --help", cli_wants_help(1, (char *[]){"--help"}));
