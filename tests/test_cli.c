@@ -117,15 +117,6 @@ static void check_contains(const char *test, const char *needle) {
   }
 }
 
-static void check_not_empty(const char *test) {
-  if (captured[0] != '\0') {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]: output is empty\n", test);
-  }
-}
-
 static void check_bool(const char *test, bool cond) {
   if (cond) {
     passed++;
@@ -591,6 +582,11 @@ static void test_next(void) {
   run(4, (char *[]){"m", "show", "--next", "--help", NULL});
   check_ret("next help ret", 0);
   check_contains("next help usage", "--next");
+
+  // bare `next` is removed -> unknown command
+  run(2, (char *[]){"m", "next", NULL});
+  check_ret("bare next removed ret", 1);
+  check_contains("bare next removed msg", "Unknown command");
 }
 
 static void test_check(void) {

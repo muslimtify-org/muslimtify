@@ -34,7 +34,6 @@ bool cli_wants_help(int argc, char **argv);
 
 int handle_show(int argc, char **argv);
 int handle_check(int argc, char **argv);
-int handle_next(int argc, char **argv);
 int handle_config(int argc, char **argv);
 int handle_location(int argc, char **argv);
 int handle_enable(int argc, char **argv);

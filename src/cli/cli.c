@@ -36,7 +36,6 @@ bool cli_wants_help(int argc, char **argv) {
 static const CommandEntry top_commands[] = {
     {"show", handle_show},
     {"check", handle_check},
-    {"next", handle_next},
     {"config", handle_config},
     {"location", handle_location},
     {"enable", handle_enable},
@@ -102,17 +101,11 @@ void cli_print_help(void) {
 
   printf("  %-30s %s\n", "show", "Display today's prayer times");
 
-  printf("  %-30s %s\n", "show --no-header", "Plain key=value output");
+  printf("  %-30s %s\n", "show --headless", "Plain key=value output");
 
-  printf("  %-30s %s\n", "show --format json", "Output prayer times as JSON");
+  printf("  %-30s %s\n", "show --json", "Output prayer times as JSON");
 
-  printf("  %-30s %s\n", "next", "Show next prayer");
-
-  printf("  %-30s %s\n", "next name", "Print next prayer name only");
-
-  printf("  %-30s %s\n", "next time", "Print next prayer time only");
-
-  printf("  %-30s %s\n", "next remaining", "Print remaining time only");
+  printf("  %-30s %s\n", "show --next", "Show next prayer");
 
   printf("  %-30s %s\n", "check", "Check and send notifications");
 
@@ -266,7 +259,7 @@ void cli_print_help(void) {
    */
   printf("Examples:\n");
 
-  printf("  %-55s %s\n", "muslimtify next", "# Show next prayer");
+  printf("  %-55s %s\n", "muslimtify show --next", "# Show next prayer");
 
   printf("  %-55s %s\n", "muslimtify config auto", "# Auto detect configuration");
 
