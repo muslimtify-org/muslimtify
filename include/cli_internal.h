@@ -43,6 +43,7 @@ int handle_offset(int argc, char **argv);
 int handle_daemon(int argc, char **argv);
 int handle_notification(int argc, char **argv);
 int handle_method(int argc, char **argv);
+int handle_madzhab(int argc, char **argv);
 int handle_version(int argc, char **argv);
 int handle_help(int argc, char **argv);
 

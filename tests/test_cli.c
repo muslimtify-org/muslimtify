@@ -540,26 +540,12 @@ static void test_method(void) {
   printf("  method...\n");
   reset_config();
 
-  // method (default = show)
+  // method (no arg): show current
   run(2, (char *[]){"m", "method", NULL});
-  check_ret("method bare ret", 0);
-  check_contains("method bare out", "Calculation Method:");
-
-  // method show
-  run(3, (char *[]){"m", "method", "show", NULL});
   check_ret("method show ret", 0);
-  check_contains("method show method", "kemenag");
-  check_contains("method show madhab", "Madhab:");
+  check_contains("method show key", "kemenag");
 
-  // method list
-  run(3, (char *[]){"m", "method", "list", NULL});
-  check_ret("method list ret", 0);
-  check_contains("method list header", "Available calculation methods:");
-  check_contains("method list kemenag", "kemenag");
-  check_contains("method list mwl", "mwl");
-  check_contains("method list current", "*");
-
-  // method set isna
+  // method <name>: set directly
   run(3, (char *[]){"m", "method", "isna", NULL});
   check_ret("method set isna ret", 0);
   {
@@ -568,48 +554,74 @@ static void test_method(void) {
     check_bool("method set isna cfg", strcmp(cfg.calculation_method, "isna") == 0);
   }
 
-  // method set (explicit)
-  run(4, (char *[]){"m", "method", "set", "egypt", NULL});
-  check_ret("method set egypt ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("method set egypt cfg", strcmp(cfg.calculation_method, "egypt") == 0);
-  }
+  // method <bad>: unknown lists available methods
+  run(3, (char *[]){"m", "method", "nope", NULL});
+  check_ret("method bad ret", 1);
+  check_contains("method bad lists", "Available");
+  check_contains("method bad key", "kemenag");
 
-  // method set invalid
-  run(4, (char *[]){"m", "method", "set", "invalid_method", NULL});
-  check_ret("method set invalid ret", 1);
+  // method --list
+  run(3, (char *[]){"m", "method", "--list", NULL});
+  check_ret("method list ret", 0);
+  check_contains("method list mwl", "mwl");
+  check_contains("method list current", "*");
 
-  // method madhab hanafi
+  // method --help
+  run(3, (char *[]){"m", "method", "--help", NULL});
+  check_ret("method help ret", 0);
+  check_contains("method help usage", "muslimtify method");
+
+  // removed subcommands -> migration hints
+  run(3, (char *[]){"m", "method", "show", NULL});
+  check_ret("method show removed ret", 1);
+  check_contains("method show removed msg", "was removed");
+
+  run(4, (char *[]){"m", "method", "set", "mwl", NULL});
+  check_ret("method set removed ret", 1);
+  check_contains("method set removed msg", "method <name>");
+
+  run(3, (char *[]){"m", "method", "list", NULL});
+  check_ret("method list removed ret", 1);
+  check_contains("method list removed msg", "--list");
+
   run(4, (char *[]){"m", "method", "madhab", "hanafi", NULL});
-  check_ret("method madhab hanafi ret", 0);
+  check_ret("method madhab removed ret", 1);
+  check_contains("method madhab removed msg", "madzhab");
+}
+
+static void test_madzhab(void) {
+  printf("  madzhab...\n");
+  reset_config();
+
+  // madzhab (no arg): show current
+  run(2, (char *[]){"m", "madzhab", NULL});
+  check_ret("madzhab show ret", 0);
+  check_contains("madzhab show val", "shafi");
+
+  // madzhab <name>: set
+  run(3, (char *[]){"m", "madzhab", "hanafi", NULL});
+  check_ret("madzhab set ret", 0);
   {
     Config cfg;
     config_load(&cfg);
-    check_bool("method madhab hanafi cfg", strcmp(cfg.madhab, "hanafi") == 0);
+    check_bool("madzhab set cfg", strcmp(cfg.madhab, "hanafi") == 0);
   }
 
-  // method madhab shafi
-  run(4, (char *[]){"m", "method", "madhab", "shafi", NULL});
-  check_ret("method madhab shafi ret", 0);
-  {
-    Config cfg;
-    config_load(&cfg);
-    check_bool("method madhab shafi cfg", strcmp(cfg.madhab, "shafi") == 0);
-  }
+  // madzhab <bad>: unknown lists options
+  run(3, (char *[]){"m", "madzhab", "maliki", NULL});
+  check_ret("madzhab bad ret", 1);
+  check_contains("madzhab bad lists", "Available: shafi, hanafi");
 
-  // method madhab invalid
-  run(4, (char *[]){"m", "method", "madhab", "maliki", NULL});
-  check_ret("method madhab invalid ret", 1);
+  // madzhab --list
+  run(3, (char *[]){"m", "madzhab", "--list", NULL});
+  check_ret("madzhab list ret", 0);
+  check_contains("madzhab list shafi", "shafi");
+  check_contains("madzhab list hanafi", "hanafi");
 
-  // method madhab (no arg)
-  run(3, (char *[]){"m", "method", "madhab", NULL});
-  check_ret("method madhab noarg ret", 1);
-
-  // method auto removed -> falls through to "method set auto" which is invalid
-  run(3, (char *[]){"m", "method", "auto", NULL});
-  check_ret("method auto removed ret", 1);
+  // madzhab --help
+  run(3, (char *[]){"m", "madzhab", "--help", NULL});
+  check_ret("madzhab help ret", 0);
+  check_contains("madzhab help usage", "muslimtify madzhab");
 }
 
 static void test_daemon_errors(void) {
@@ -913,6 +925,7 @@ int main(void) {
   test_next();
   test_check();
   test_method();
+  test_madzhab();
   test_notification();
   test_daemon_errors();
   test_offset();
