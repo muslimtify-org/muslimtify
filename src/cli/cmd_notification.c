@@ -6,8 +6,10 @@
 #include "notification.h"
 #include "platform.h"
 #include "prayer_checker.h"
+#include "string_util.h"
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -110,6 +112,229 @@ static int notif_enable(int argc, char **argv, bool enable) {
   return 0;
 }
 
+static void print_reminder_help(void) {
+  printf("Usage: muslimtify notification --reminder [--all] <prayer> <minutes...>\n");
+  printf("       muslimtify notification --reminder <prayer> none   (clear)\n");
+}
+
+static int notif_urgency(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify notification --urgency <normal|critical|low>\n");
+    return 0;
+  }
+  if (argc < 1) {
+    fprintf(stderr, "Usage: muslimtify notification --urgency <normal|critical|low>\n");
+    return 1;
+  }
+  if (strcmp(argv[0], "normal") != 0 && strcmp(argv[0], "critical") != 0 &&
+      strcmp(argv[0], "low") != 0) {
+    fprintf(stderr, "Error: urgency must be normal, critical, or low\n");
+    return 1;
+  }
+  Config cfg;
+  if (config_load(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to load config\n");
+    return 1;
+  }
+  if (!copy_string(cfg.notification_urgency, sizeof(cfg.notification_urgency), argv[0])) {
+    fprintf(stderr, "Error: urgency value too long\n");
+    return 1;
+  }
+  if (config_save(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to save config\n");
+    return 1;
+  }
+  printf("Urgency set to %s\n", argv[0]);
+  return 0;
+}
+
+// Parse trailing space-separated minutes into `out` (0 < m <= 1440), up to
+// MAX_REMINDERS. Returns the count, or -1 on a bad value. "none" -> 0.
+static int parse_minute_args(int argc, char **argv, int *out) {
+  if (argc == 1 && (strcmp(argv[0], "none") == 0 || strcmp(argv[0], "clear") == 0))
+    return 0;
+  int count = 0;
+  for (int i = 0; i < argc && count < MAX_REMINDERS; i++) {
+    char *end = NULL;
+    long v = strtol(argv[i], &end, 10);
+    if (end == argv[i] || *end != '\0' || v <= 0 || v > 1440)
+      return -1;
+    out[count++] = (int)v;
+  }
+  return count;
+}
+
+static int notif_reminder(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    print_reminder_help();
+    return 0;
+  }
+
+  bool all = false;
+  if (argc > 0 && strcmp(argv[0], "--all") == 0) {
+    all = true;
+    argc--;
+    argv++;
+  }
+
+  if (all) {
+    int mins[MAX_REMINDERS];
+    int count = parse_minute_args(argc, argv, mins);
+    if (count < 0) {
+      fprintf(stderr, "Error: reminder minutes must be integers 1..1440\n");
+      return 1;
+    }
+    Config cfg;
+    if (config_load(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to load config\n");
+      return 1;
+    }
+    PrayerConfig *pc[] = {&cfg.fajr,    &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
+                          &cfg.asr,     &cfg.maghrib, &cfg.isha};
+    for (int i = 0; i < 7; i++) {
+      pc[i]->reminder_count = count;
+      for (int j = 0; j < count; j++)
+        pc[i]->reminders[j] = mins[j];
+    }
+    if (config_save(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to save config\n");
+      return 1;
+    }
+    cache_invalidate();
+    printf("Reminders updated for all prayers\n");
+    return 0;
+  }
+
+  if (argc < 2) {
+    print_reminder_help();
+    return 1;
+  }
+  const char *prayer = argv[0];
+  int mins[MAX_REMINDERS];
+  int count = parse_minute_args(argc - 1, argv + 1, mins);
+  if (count < 0) {
+    fprintf(stderr, "Error: reminder minutes must be integers 1..1440\n");
+    return 1;
+  }
+  Config cfg;
+  if (config_load(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to load config\n");
+    return 1;
+  }
+  PrayerConfig *p = config_get_prayer(&cfg, prayer);
+  if (!p) {
+    fprintf(stderr, "Error: Unknown prayer '%s'\n", prayer);
+    return 1;
+  }
+  p->reminder_count = count;
+  for (int j = 0; j < count; j++)
+    p->reminders[j] = mins[j];
+  if (config_save(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to save config\n");
+    return 1;
+  }
+  cache_invalidate();
+  if (count == 0)
+    printf("Reminders cleared for %s\n", prayer);
+  else
+    printf("Reminders updated for %s\n", prayer);
+  return 0;
+}
+
+static int notif_adhan(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
+    return 0;
+  }
+#ifdef _WIN32
+  if (argc == 1 && strcmp(argv[0], "stop") == 0) {
+    if (notify_adhan_stop() == 0)
+      printf("Adhan playback stopped\n");
+    else
+      printf("No adhan is currently playing\n");
+    return 0;
+  }
+#endif
+  if (argc < 2) {
+    fprintf(stderr, "Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
+    return 1;
+  }
+
+  Config cfg;
+  if (config_load(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to load config\n");
+    return 1;
+  }
+
+  if (strcmp(argv[0], "set") == 0) {
+    PrayerConfig *pc[] = {&cfg.fajr,    &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
+                          &cfg.asr,     &cfg.maghrib, &cfg.isha};
+    for (int i = 0; i < 7; i++) {
+      if (!copy_string(pc[i]->adhan, sizeof(pc[i]->adhan), argv[1])) {
+        fprintf(stderr, "Error: adhan path too long\n");
+        return 1;
+      }
+    }
+    if (config_save(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to save config\n");
+      return 1;
+    }
+    cache_invalidate();
+    printf("Adhan file set to %s\n", argv[1]);
+    return 0;
+  }
+
+  bool enable;
+  if (strcmp(argv[0], "enable") == 0)
+    enable = true;
+  else if (strcmp(argv[0], "disable") == 0)
+    enable = false;
+  else {
+    fprintf(stderr, "Error: --adhan expects enable, disable, or set\n");
+    return 1;
+  }
+  PrayerConfig *p = config_get_prayer(&cfg, argv[1]);
+  if (!p) {
+    fprintf(stderr, "Error: Unknown prayer '%s'\n", argv[1]);
+    return 1;
+  }
+  p->adhan_enabled = enable;
+  if (config_save(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to save config\n");
+    return 1;
+  }
+  cache_invalidate();
+  printf("Adhan %s for %s\n", enable ? "enabled" : "disabled", argv[1]);
+  return 0;
+}
+
+static int notif_sound(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify notification --sound <adhan|default|off>\n");
+    return 0;
+  }
+  if (argc < 1 || (strcmp(argv[0], "adhan") != 0 && strcmp(argv[0], "default") != 0 &&
+                   strcmp(argv[0], "off") != 0)) {
+    fprintf(stderr, "Error: --sound expects adhan, default, or off\n");
+    return 1;
+  }
+  Config cfg;
+  if (config_load(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to load config\n");
+    return 1;
+  }
+  if (!copy_string(cfg.notification_sound, sizeof(cfg.notification_sound), argv[0])) {
+    fprintf(stderr, "Error: sound value too long\n");
+    return 1;
+  }
+  if (config_save(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to save config\n");
+    return 1;
+  }
+  printf("Sound mode set to %s\n", argv[0]);
+  return 0;
+}
+
 int handle_notification(int argc, char **argv) {
   if (argc > 0) {
     if (strcmp(argv[0], "enable") == 0)
@@ -118,6 +343,14 @@ int handle_notification(int argc, char **argv) {
       return notif_enable(argc - 1, argv + 1, false);
     if (strcmp(argv[0], "test") == 0)
       return notification_test(argc - 1, argv + 1);
+    if (strcmp(argv[0], "--urgency") == 0)
+      return notif_urgency(argc - 1, argv + 1);
+    if (strcmp(argv[0], "--reminder") == 0)
+      return notif_reminder(argc - 1, argv + 1);
+    if (strcmp(argv[0], "--adhan") == 0)
+      return notif_adhan(argc - 1, argv + 1);
+    if (strcmp(argv[0], "--sound") == 0)
+      return notif_sound(argc - 1, argv + 1);
   }
 
   if (cli_wants_help(argc, argv)) {
