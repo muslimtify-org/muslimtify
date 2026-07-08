@@ -417,7 +417,8 @@ static void test_location(void) {
   run(4, (char *[]){"m", "location", "set", "--city=Medan", NULL});
   check_ret("location set city-only ret", 0);
   check_contains("location set city-only msg", "City updated to Medan");
-  check_bool("location set city-only no coords line", strstr(captured, "Coordinates updated") == NULL);
+  check_bool("location set city-only no coords line",
+             strstr(captured, "Coordinates updated") == NULL);
   {
     Config cfg;
     config_load(&cfg);
