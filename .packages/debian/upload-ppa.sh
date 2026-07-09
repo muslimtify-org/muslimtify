@@ -183,7 +183,7 @@ echo ""
 read -p "Upload now? [y/N] " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    sudo -u "${REAL_USER}" dput "${PPA}" "${CHANGES_FILE}"
+    dput "${PPA}" "${CHANGES_FILE}"
     echo "==> Upload complete! Check build status at:"
     echo "    https://launchpad.net/~rizukirr/+archive/ubuntu/muslimtify/+packages"
 fi
