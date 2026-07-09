@@ -48,6 +48,7 @@ Source: "{#StagingDir}\bin\muslimtify.exe"; DestDir: "{app}\bin"; Flags: ignorev
 Source: "{#StagingDir}\bin\muslimtify-service.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#StagingDir}\bin\*.dll"; DestDir: "{app}\bin"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#StagingDir}\share\icons\muslimtify.ico"; DestDir: "{app}\share\icons"; Flags: ignoreversion
+Source: "{#StagingDir}\share\muslimtify\adhan.mp3"; DestDir: "{app}\share\muslimtify"; Flags: ignoreversion
 
 [Icons]
 Name: "{userstartmenu}\{#MyAppName}"; Filename: "{app}\bin\{#MyAppExeName}"; \

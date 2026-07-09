@@ -44,6 +44,7 @@ fi
 %files
 %license LICENSE
 %{_bindir}/muslimtify
+%{_datadir}/muslimtify/adhan.mp3
 %{_datadir}/icons/hicolor/128x128/apps/muslimtify.png
 %{_datadir}/pixmaps/muslimtify.png
 %{_prefix}/lib/systemd/user/muslimtify.service
