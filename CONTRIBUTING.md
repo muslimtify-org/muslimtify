@@ -51,7 +51,10 @@ src/
     country.c             #   Country/timezone lookup tables
     string_util.c         #   String helpers
     prayer_checker.c      #   Prayer time matching
-    check_cycle.c         #   Reminder check loop
+    check_cycle.c         #   One-shot reminder check cycle
+    daemon_loop.c         #   Long-running daemon scheduling loop (POSIX)
+    audio.c               #   Adhan audio playback
+    miniaudio.c           #   Vendored miniaudio backend
     display.c             #   Terminal output (tables, colors, JSON)
   platform/               # OS-specific implementations
     linux/                #   notification (libnotify), platform, timezone
@@ -85,6 +88,30 @@ Examples:
 - `fix: handle midnight crossover in reminder times`
 - `test: add display output tests`
 
+## AI Usage
+
+AI-assisted contributions are **discouraged but not forbidden**. Because
+Muslimtify calculates prayer times people rely on for worship, reaching for an AI
+tool means you take on *more* responsibility, not less. The full rules live in the
+[AI Usage Policy](AI_POLICY.md) — read it before your first AI-assisted
+contribution. In short:
+
+- **Disclose it.** Name the tool (Claude, Copilot, Cursor, ChatGPT, …) and roughly
+  how much of the work was AI-assisted, in your PR or issue description.
+- **Understand every line.** If you can't explain what your change does and *why it
+  is correct* — without the AI in front of you — don't submit it. This matters most
+  for prayer-time calculation, timezones, method/madhab selection, and reminder
+  scheduling.
+- **Review and fix the output.** AI produces plausible-looking code that is often
+  subtly wrong. Finding and fixing that is your job, not the maintainer's.
+- **You own it.** "The AI wrote it" is never an excuse once you open the PR.
+- **Never touch `prayertimes.h` or `docs/*METHOD*.md`** if you are not a maintainer
+  (see [Prayer Calculation](#prayer-calculation)). Open an issue — not a PR — tagged
+  `prayertimes.h`, with a human in the loop.
+- **No AI-generated media** (images, audio, video, art). Text and code only, subject
+  to the rules above. AI-assisted issues and discussions must be edited down by a
+  human before submission.
+
 ## Pull Request Process
 
 1. Fork the repo and create a branch from `main`
@@ -93,6 +120,7 @@ Examples:
 4. Ensure no compiler warnings (the project uses `-Wall -Wextra -Wpedantic -Wshadow -Wformat=2`)
 5. Run `clang-format -i` on changed files
 6. Open a PR with a clear description of what and why
+7. If you used AI tools, disclose it in the PR description (see [AI Usage](#ai-usage))
 
 ## Adding New Features
 
@@ -124,6 +152,13 @@ code behind the `src/platform/` abstraction and `WIN32` CMake guards — shared 
 stays in `src/core/`.
 
 ## Prayer Calculation
+
+> **Do not modify `prayertimes.h` if you are not a maintainer.** It holds the
+> astronomical formulas that the rest of the project trusts, and a subtle mistake
+> can make someone pray at the wrong time. If you find a bug or believe a
+> calculation can be improved, **open an issue — do not send a pull request.** Tag
+> it `prayertimes.h` so a maintainer picks it up with a human in the loop. The same
+> rule applies to the method docs under `docs/*METHOD*.md`.
 
 Calculation methods are documented under `docs/` (`KEMENAG_METHOD.md`,
 `INTERNATIONAL_METHODS.md`, `METHOD_TOLERANCES.md`). If adding a new calculation
