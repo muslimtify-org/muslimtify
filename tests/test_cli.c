@@ -872,10 +872,13 @@ static void test_notification(void) {
     check_ret("notification adhan set missing ret", 1);
 
 #ifndef _WIN32
-    symlink(realf, linkf);
-    run(5, (char *[]){"m", "notification", "--adhan", "set", linkf, NULL});
-    check_ret("notification adhan set symlink ret", 1);
-    check_contains("notification adhan set symlink msg", "symlink");
+    if (symlink(realf, linkf) != 0) {
+      check_bool("notification adhan symlink setup", false);
+    } else {
+      run(5, (char *[]){"m", "notification", "--adhan", "set", linkf, NULL});
+      check_ret("notification adhan set symlink ret", 1);
+      check_contains("notification adhan set symlink msg", "symlink");
+    }
 #endif
   }
 
