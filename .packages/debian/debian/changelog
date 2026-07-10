@@ -1,4 +1,4 @@
-muslimtify (0.3.0-1) unstable; urgency=medium
+muslimtify (0.3.1-1) unstable; urgency=medium
 
   * Redesign the command-line into show/location/notification/method/madzhab verbs with --json and --headless output (breaking change)
   * Add per-prayer adhan audio with a bundled adhan and a cancellable notification, including a Windows toast Stop button
@@ -6,7 +6,7 @@ muslimtify (0.3.0-1) unstable; urgency=medium
   * Harden security: TLS-only location fetch, timezone validation before setenv, 0600 config and cache files, adhan path checks
   * Remove the config and check commands; reset by deleting config.json
 
- -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Thu, 09 Jul 2026 14:42:47 +0700
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Fri, 10 Jul 2026 23:53:24 +0700
 
 muslimtify (0.2.3-2) unstable; urgency=medium
 

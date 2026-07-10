@@ -1,5 +1,5 @@
 Name:           muslimtify
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
 License:        MIT
@@ -50,7 +50,7 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
-* Thu Jul 09 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.3.0-1
+* Fri Jul 10 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.3.1-1
 - Refactor the timer-driven daemon into a long-running systemd user service (Type=simple); drop the .timer
 - Auto-remove the legacy systemd timer on install and upgrade
 - Render the systemd unit from a single configure-time template
