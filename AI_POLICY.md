@@ -16,7 +16,7 @@ These rules apply to outside contributions (issues, discussions, and pull reques
 
 - **You take full responsibility for the code.** "The AI wrote it" is never an excuse. Once you open the PR, the work is yours. If it ships a bug that makes someone miss a prayer, that is on you.
 
-- **NEVER TOUCH `prayertimes.h` or any of docs/<METHOD.md>** if you are not a maintainer working with this file is forbidden, instead create an issues with tag `prayertime.h` with human in the loop.
+- **NEVER TOUCH `prayertimes.h` or any of `docs/*METHOD*.md`** if you are not a maintainer. Working with these files is forbidden. If you find a bug or an improvement, **open an issue — not a pull request** — tagged `prayertimes.h`, with a human in the loop.
 
 - **Issues and discussions may use AI, but a human must be in the loop.** Any AI-generated text must be reviewed *and edited* by a human before submission. AI tends to be verbose and noisy, trim it down to the actual point.
 
