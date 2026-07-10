@@ -23,14 +23,6 @@ int cli_parse_output_mode(int argc, char **argv, OutputMode *out) {
   return 0;
 }
 
-bool cli_wants_help(int argc, char **argv) {
-  for (int i = 0; i < argc; i++) {
-    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
-      return true;
-  }
-  return false;
-}
-
 int cli_unknown_prayer(const char *name) {
   fprintf(stderr, "Error: Unknown prayer '%s'\n", name);
   fprintf(stderr, "  Available: fajr, sunrise, dhuha, dhuhr, asr, maghrib, isha\n");
@@ -121,21 +113,24 @@ int handle_help(int argc, char **argv) {
 void cli_print_help(void) {
   printf("Muslimtify - Cross-platform Prayer Time Notification Daemon\n\n");
 
-  printf("Usage:\n");
-  printf("  muslimtify <command> [options]\n\n");
+  printf("Usage: muslimtify <command> [options]\n\n");
 
   /*
    * PRAYER
    */
   printf("Prayer Commands:\n");
 
-  printf("  %-30s %s\n", "show", "Display today's prayer times");
+  printf("  %-25s %s\n", "show [options]", "Display today's prayer times");
 
-  printf("  %-30s %s\n", "    --headless", "Plain key=value output");
+  printf("  %-25s %s\n", "    --headless", "Plain key=value output");
 
-  printf("  %-30s %s\n", "    --json", "Output prayer times as JSON");
+  printf("  %-25s %s\n", "    --json", "Output prayer times as JSON");
 
-  printf("  %-30s %s\n", "    --next", "Show next prayer");
+  printf("  %-25s %s\n", "    --next [options]", "Show next prayer");
+  printf("  %-25s %s\n", "      --json", "Show next prayer as JSON");
+  printf("  %-25s %s\n", "      --headless", "Show next prayer as key=value");
+  printf("  %-25s %s\n", "    --date <date> <date>",
+         "Show prayer time at or until desire date (yyyy-mm-dd)");
 
   printf("\n");
 
@@ -144,25 +139,25 @@ void cli_print_help(void) {
    */
   printf("Location Commands:\n");
 
-  printf("  %-30s %s\n", "location", "Show current location");
+  printf("  %-25s %s\n", "location [options]", "Show current location");
 
-  printf("  %-30s %s\n", "    --json", "Output as JSON");
+  printf("  %-25s %s\n", "    --json", "Output as JSON");
 
-  printf("  %-30s %s\n", "    --headless", "Output as key=value");
+  printf("  %-25s %s\n", "    --headless", "Output as key=value");
 
-  printf("  %-30s %s\n", "    set", "Update saved location fields");
+  printf("  %-25s %s\n", "    set [options]", "Update saved location fields");
 
-  printf("  %-30s %s\n", "        --lat=<latitude>", "");
+  printf("  %-25s %s\n", "      --lat=<latitude>", "Set latitude");
 
-  printf("  %-30s %s\n", "        --long=<longitude>", "");
+  printf("  %-25s %s\n", "      --long=<longitude>", "Set longitude");
 
-  printf("  %-30s %s\n", "        --timezone=<iana>", "");
+  printf("  %-25s %s\n", "      --timezone=<iana>", "Set timezone (IANA)");
 
-  printf("  %-30s %s\n", "        --city=<name>", "");
+  printf("  %-25s %s\n", "      --city=<name>", "Set city name");
 
-  printf("  %-30s %s\n", "        --country=<iso2>", "");
+  printf("  %-25s %s\n", "      --country=<iso2>", "Set country code");
 
-  printf("  %-30s %s\n", "        --auto", "Detect from IP address");
+  printf("  %-25s %s\n", "      --auto", "Detect from IP address");
 
   printf("\n");
 
@@ -171,17 +166,17 @@ void cli_print_help(void) {
    */
   printf("Calculation Method Commands:\n");
 
-  printf("  %-30s %s\n", "method", "Show current method");
+  printf("  %-25s %s\n", "method", "Show current method");
 
-  printf("  %-30s %s\n", "    <name>", "Set calculation method");
+  printf("  %-25s %s\n", "    <name>", "Set calculation method");
 
-  printf("  %-30s %s\n", "    --auto", "Auto-select method from country");
+  printf("  %-25s %s\n", "    --auto", "Auto-select method from country");
 
-  printf("  %-30s %s\n", "    --list", "List available methods");
+  printf("  %-25s %s\n", "    --list", "List available methods");
 
-  printf("  %-30s %s\n", "madzhab <shafi|hanafi>", "Set madzhab");
+  printf("  %-25s %s\n", "madzhab <shafi|hanafi>", "Set madzhab");
 
-  printf("  %-30s %s\n", "    --list", "List madzhab options");
+  printf("  %-25s %s\n", "    --list", "List madzhab options");
 
   printf("\n");
 
@@ -189,12 +184,12 @@ void cli_print_help(void) {
    * NOTIFICATION
    */
   printf("Notification Commands:\n");
-  printf("  %-30s %s\n", "notification", "Show notification settings");
-  printf("  %-30s %s\n", "    enable|disable [prayer]", "Toggle prayer notifications");
-  printf("  %-30s %s\n", "    --urgency <level>", "normal|critical|low");
-  printf("  %-30s %s\n", "    --reminder [--all] <prayer> <mins...>", "Pre-prayer reminders");
-  printf("  %-30s %s\n", "    --adhan <enable|disable> <prayer>", "Per-prayer adhan");
-  printf("  %-30s %s\n", "    --sound <adhan|default|off>", "Notification sound mode");
+  printf("  %-25s %s\n", "notification", "Show notification settings");
+  printf("  %-25s %s\n", "    enable|disable [prayer]", "Toggle prayer notifications");
+  printf("  %-25s %s\n", "    --urgency <level>", "normal|critical|low");
+  printf("  %-25s %s\n", "    --reminder [--all] <prayer> <mins...>", "Pre-prayer reminders");
+  printf("  %-25s %s\n", "    --adhan <enable|disable> <prayer>", "Per-prayer adhan");
+  printf("  %-25s %s\n", "    --sound <adhan|default|off>", "Notification sound mode");
   printf("\n");
 
   /*
@@ -202,9 +197,9 @@ void cli_print_help(void) {
    */
   printf("Offset Commands:\n");
 
-  printf("  %-30s %s\n", "offset <prayer> <min>", "Adjust a prayer time (+/-60)");
+  printf("  %-25s %s\n", "offset <prayer> <min>", "Adjust a prayer time (+/-60)");
 
-  printf("  %-30s %s\n", "    all <min>", "Adjust every prayer time");
+  printf("  %-25s %s\n", "    all <min>", "Adjust every prayer time");
 
   printf("\n");
 
@@ -217,11 +212,11 @@ void cli_print_help(void) {
   printf("Daemon Commands:\n");
 #endif
 
-  printf("  %-30s %s\n", "daemon install", "Install and start the daemon");
+  printf("  %-25s %s\n", "daemon install", "Install and start the daemon");
 
-  printf("  %-30s %s\n", "    uninstall", "Stop and remove the daemon");
+  printf("  %-25s %s\n", "    uninstall", "Stop and remove the daemon");
 
-  printf("  %-30s %s\n", "    status", "Show status (also the default)");
+  printf("  %-25s %s\n", "    status", "Show status (also the default)");
 
   printf("\n");
 
@@ -230,9 +225,9 @@ void cli_print_help(void) {
    */
   printf("General Commands:\n");
 
-  printf("  %-30s %s\n", "version", "Show version information");
+  printf("  %-25s %s\n", "version", "Show version information");
 
-  printf("  %-30s %s\n", "help", "Show help message");
+  printf("  %-25s %s\n", "help", "Show help message");
 
   printf("\n");
 
@@ -241,21 +236,21 @@ void cli_print_help(void) {
    */
   printf("Examples:\n");
 
-  printf("  %-55s %s\n", "muslimtify show --next", "# Show next prayer");
+  printf("  %-25s %s\n", "muslimtify show --next", "# Show next prayer");
 
-  printf("  %-55s %s\n", "muslimtify method mwl", "# Set calculation method");
+  printf("  %-25s %s\n", "muslimtify method mwl", "# Set calculation method");
 
-  printf("  %-55s %s\n", "muslimtify madzhab hanafi", "# Set madzhab");
+  printf("  %-25s %s\n", "muslimtify madzhab hanafi", "# Set madzhab");
 
-  printf("  %-55s %s\n", "muslimtify notification enable fajr", "# Enable Fajr notification");
+  printf("  %-25s %s\n", "muslimtify notification enable fajr", "# Enable Fajr notification");
 
-  printf("  %-55s %s\n", "muslimtify notification --reminder fajr 30 15 5", "# Set reminders");
+  printf("  %-25s %s\n", "muslimtify notification --reminder fajr 30 15 5", "# Set reminders");
 
-  printf("  %-55s %s\n", "muslimtify offset fajr +4", "# Shift Fajr 4 min later");
+  printf("  %-25s %s\n", "muslimtify offset fajr +4", "# Shift Fajr 4 min later");
 
-  printf("  %-55s %s\n", "muslimtify location set --lat=-6.21 --long=106.84", "# Set coordinates");
+  printf("  %-25s %s\n", "muslimtify location set --lat=-6.21 --long=106.84", "# Set coordinates");
 
-  printf("  %-55s %s\n", "muslimtify location set --timezone=Asia/Jakarta", "# Override timezone");
+  printf("  %-25s %s\n", "muslimtify location set --timezone=Asia/Jakarta", "# Override timezone");
 
   printf("\n");
 

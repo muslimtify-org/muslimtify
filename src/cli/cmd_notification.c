@@ -61,15 +61,29 @@ static int notification_test(int argc, char **argv) {
 }
 
 static void print_notification_help(void) {
-  printf("Usage: muslimtify notification [--json | --headless]\n");
-  printf("       muslimtify notification <enable|disable> [prayer|all]\n");
-  printf("       muslimtify notification --urgency <normal|critical|low>\n");
-  printf("       muslimtify notification --reminder [--all] <prayer> <minutes...>\n");
-  printf("       muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
-  printf("       muslimtify notification --sound <adhan|default|off>\n");
-  printf("  %-22s %s\n", "(default)", "Show current settings as a table");
-  printf("  %-22s %s\n", "--json / --headless", "Machine-readable settings");
-  printf("  %-22s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Show or configure prayer notifications\n");
+  printf("\n");
+  printf("Usage: muslimtify notification [options]\n");
+  printf("\n");
+  printf("Commands:\n");
+  printf("  %-25s %s\n", "enable|disable [prayer|all]", "Toggle prayer notifications");
+  printf("  %-25s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Options:\n");
+  printf("  %-25s %s\n", "--json", "Show settings as JSON");
+  printf("  %-25s %s\n", "--headless", "Show settings as key=value");
+  printf("  %-25s %s\n", "--urgency <level>", "Set urgency: normal|critical|low");
+  printf("  %-25s %s\n", "--reminder [--all] <prayer> <minutes...>", "Set pre-prayer reminders");
+  printf("  %-25s %s\n", "--adhan <enable|disable> <prayer>", "Toggle per-prayer adhan");
+  printf("  %-25s %s\n", "--adhan set <path>", "Set adhan audio file");
+  printf("  %-25s %s\n", "--sound <adhan|default|off>", "Set notification sound mode");
+  printf("\n");
+  printf("Examples:\n");
+  printf("  %-25s %s\n", "muslimtify notification", "# Show current settings");
+  printf("  %-25s %s\n", "muslimtify notification enable fajr", "# Enable Fajr notification");
+  printf("  %-25s %s\n", "muslimtify notification --reminder fajr 30 15 5", "# Set reminders");
+  printf("  %-25s %s\n", "muslimtify notification --sound adhan", "# Play adhan on notify");
 }
 
 // Set enabled on one prayer or all seven.

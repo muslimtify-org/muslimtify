@@ -20,12 +20,24 @@ static void print_method_list(FILE *out, const Config *cfg) {
 }
 
 static void print_method_help(void) {
-  printf("Usage: muslimtify method [<name>]\n");
-  printf("  %-12s %s\n", "(no arg)", "Show the current method");
-  printf("  %-12s %s\n", "<name>", "Set the calculation method");
-  printf("  %-12s %s\n", "--auto", "Auto-select the method from your country");
-  printf("  %-12s %s\n", "--list", "List available methods");
-  printf("  %-12s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Show or set the prayer time calculation method\n");
+  printf("\n");
+  printf("Usage: muslimtify method [<name>] [options]\n");
+  printf("\n");
+  printf("Commands:\n");
+  printf("  %-25s %s\n", "<name>", "Set the calculation method");
+  printf("  %-25s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Options:\n");
+  printf("  %-25s %s\n", "--auto", "Auto-select the method from your country");
+  printf("  %-25s %s\n", "--list", "List available methods");
+  printf("\n");
+  printf("Examples:\n");
+  printf("  %-25s %s\n", "muslimtify method", "# Show the current method");
+  printf("  %-25s %s\n", "muslimtify method mwl", "# Set calculation method");
+  printf("  %-25s %s\n", "muslimtify method --auto", "# Auto-select from country");
+  printf("  %-25s %s\n", "muslimtify method --list", "# List available methods");
 }
 
 // Auto-select the calculation method from the country in config. If no country
@@ -155,11 +167,22 @@ static const char *madzhab_label(const char *v) {
 }
 
 static void print_madzhab_help(void) {
-  printf("Usage: muslimtify madzhab [<shafi|hanafi>]\n");
-  printf("  %-12s %s\n", "(no arg)", "Show the current madzhab");
-  printf("  %-12s %s\n", "<name>", "Set the madzhab (shafi or hanafi)");
-  printf("  %-12s %s\n", "--list", "List available madzhab options");
-  printf("  %-12s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Show or set the madzhab (affects Asr calculation)\n");
+  printf("\n");
+  printf("Usage: muslimtify madzhab [<shafi|hanafi>] [options]\n");
+  printf("\n");
+  printf("Commands:\n");
+  printf("  %-25s %s\n", "<name>", "Set the madzhab (shafi or hanafi)");
+  printf("  %-25s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Options:\n");
+  printf("  %-25s %s\n", "--list", "List available madzhab options");
+  printf("\n");
+  printf("Examples:\n");
+  printf("  %-25s %s\n", "muslimtify madzhab", "# Show the current madzhab");
+  printf("  %-25s %s\n", "muslimtify madzhab hanafi", "# Set madzhab");
+  printf("  %-25s %s\n", "muslimtify madzhab --list", "# List madzhab options");
 }
 
 int handle_madzhab(int argc, char **argv) {

@@ -30,7 +30,13 @@ typedef enum { OUTPUT_TABLE, OUTPUT_JSON, OUTPUT_HEADLESS } OutputMode;
 int cli_parse_output_mode(int argc, char **argv, OutputMode *out);
 
 // True if argv contains --help or -h.
-bool cli_wants_help(int argc, char **argv);
+static inline bool cli_wants_help(int argc, char **argv) {
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
+      return true;
+  }
+  return false;
+}
 
 // Print an "Unknown prayer" error plus the list of valid prayer names; returns 1.
 int cli_unknown_prayer(const char *name);

@@ -235,7 +235,31 @@ static const CommandEntry daemon_commands[] = {
     {"unregister", daemon_unregister_handler},
 };
 
+static void print_daemon_help(void) {
+  printf("\n");
+  printf("Manage the prayer time scheduled task\n");
+  printf("\n");
+  printf("Usage: muslimtify daemon [command]\n");
+  printf("\n");
+  printf("Commands:\n");
+  printf("  %-25s %s\n", "install", "Create and start the scheduled task");
+  printf("  %-25s %s\n", "uninstall", "Stop and remove the scheduled task");
+  printf("  %-25s %s\n", "status", "Show task status (also the default)");
+  printf("  %-25s %s\n", "register", "Register the adhan notification Stop button");
+  printf("  %-25s %s\n", "unregister", "Unregister the adhan notification Stop button");
+  printf("  %-25s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Examples:\n");
+  printf("  %-25s %s\n", "muslimtify daemon install", "# Create and start the task");
+  printf("  %-25s %s\n", "muslimtify daemon status", "# Show task status");
+  printf("  %-25s %s\n", "muslimtify daemon uninstall", "# Stop and remove the task");
+}
+
 int handle_daemon(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    print_daemon_help();
+    return 0;
+  }
   if (argc > 0) {
     const CommandEntry *sub =
         dispatch_lookup(daemon_commands, DISPATCH_N(daemon_commands), argv[0]);
@@ -243,7 +267,7 @@ int handle_daemon(int argc, char **argv) {
       return sub->handler(argc - 1, argv + 1);
 
     fprintf(stderr, "Error: Unknown daemon subcommand '%s'\n", argv[0]);
-    fprintf(stderr, "Usage: muslimtify daemon [install|uninstall|status|register|unregister]\n");
+    print_daemon_help();
     return 1;
   }
 

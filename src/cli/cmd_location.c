@@ -41,15 +41,28 @@ static bool is_utc_zone(const char *tz) {
 }
 
 static void print_location_set_help(void) {
+  printf("\n");
+  printf("Update saved location fields\n");
+  printf("\n");
   printf("Usage: muslimtify location set [options]\n");
-  printf("  %-22s %s\n", "--lat=<latitude>", "Set latitude");
-  printf("  %-22s %s\n", "--long=<longitude>", "Set longitude");
-  printf("  %-22s %s\n", "--timezone=<iana>", "Set IANA timezone");
-  printf("  %-22s %s\n", "--city=<name>", "Set city label");
-  printf("  %-22s %s\n", "--country=<iso2>", "Set ISO-2 country code");
-  printf("  %-22s %s\n", "--auto", "Detect coordinates/timezone/country from IP");
-  printf("  %-22s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Commands:\n");
+  printf("  %-25s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Options:\n");
+  printf("  %-25s %s\n", "--lat=<latitude>", "Set latitude");
+  printf("  %-25s %s\n", "--long=<longitude>", "Set longitude");
+  printf("  %-25s %s\n", "--timezone=<iana>", "Set IANA timezone");
+  printf("  %-25s %s\n", "--city=<name>", "Set city label");
+  printf("  %-25s %s\n", "--country=<iso2>", "Set ISO-2 country code");
+  printf("  %-25s %s\n", "--auto", "Detect coordinates/timezone/country from IP");
+  printf("\n");
   printf("Note: --auto may be combined only with --city / --country.\n");
+  printf("\n");
+  printf("Examples:\n");
+  printf("  %-25s %s\n", "muslimtify location set --lat=-6.21 --long=106.84", "# Set coordinates");
+  printf("  %-25s %s\n", "muslimtify location set --timezone=Asia/Jakarta", "# Override timezone");
+  printf("  %-25s %s\n", "muslimtify location set --auto", "# Detect from IP");
 }
 
 static int location_set_handler(int argc, char **argv) {
@@ -296,13 +309,23 @@ static int location_set_handler(int argc, char **argv) {
 }
 
 static void print_location_help(void) {
-  printf("Usage: muslimtify location [--json | --headless]\n");
-  printf("       muslimtify location set [options]\n");
-  printf("  %-12s %s\n", "(default)", "Show current location as a table");
-  printf("  %-12s %s\n", "--json", "Location as JSON");
-  printf("  %-12s %s\n", "--headless", "Location as key=value");
-  printf("  %-12s %s\n", "set", "Update saved location (see 'location set --help')");
-  printf("  %-12s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Show or update your saved location\n");
+  printf("\n");
+  printf("Usage: muslimtify location [options]\n");
+  printf("\n");
+  printf("Commands:\n");
+  printf("  %-25s %s\n", "set [options]", "Update saved location (see 'location set --help')");
+  printf("  %-25s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Options:\n");
+  printf("  %-25s %s\n", "--json", "Show location as JSON");
+  printf("  %-25s %s\n", "--headless", "Show location as key=value");
+  printf("\n");
+  printf("Examples:\n");
+  printf("  %-25s %s\n", "muslimtify location", "# Show current location");
+  printf("  %-25s %s\n", "muslimtify location --json", "# Show location as JSON");
+  printf("  %-25s %s\n", "muslimtify location set --auto", "# Detect location from IP");
 }
 
 int handle_location(int argc, char **argv) {

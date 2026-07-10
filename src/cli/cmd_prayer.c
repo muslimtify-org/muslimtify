@@ -3,11 +3,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static void print_offset_help(void) {
+  printf("\n");
+  printf("Adjust prayer times by a fixed number of minutes\n");
+  printf("\n");
+  printf("Usage: muslimtify offset <prayer> <minutes>\n");
+  printf("\n");
+  printf("Commands:\n");
+  printf("  %-25s %s\n", "<prayer> <minutes>", "Adjust one prayer time");
+  printf("  %-25s %s\n", "all <minutes>", "Adjust every prayer time");
+  printf("  %-25s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("Note: minutes is a signed integer from -60 to 60 (e.g. +4, -2, 0).\n");
+  printf("\n");
+  printf("Examples:\n");
+  printf("  %-25s %s\n", "muslimtify offset fajr +4", "# Shift Fajr 4 min later");
+  printf("  %-25s %s\n", "muslimtify offset asr -2", "# Shift Asr 2 min earlier");
+  printf("  %-25s %s\n", "muslimtify offset all 0", "# Reset every prayer offset");
+}
+
 int handle_offset(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    print_offset_help();
+    return 0;
+  }
   if (argc < 2) {
-    fprintf(stderr, "Usage: muslimtify offset <prayer> <minutes>\n");
-    fprintf(stderr, "       muslimtify offset all <minutes>\n");
-    fprintf(stderr, "       minutes is a signed integer from -60 to 60 (e.g. +4, -2, 0)\n");
+    fprintf(stderr, "Error: offset requires a prayer and minutes\n");
+    print_offset_help();
     return 1;
   }
 
