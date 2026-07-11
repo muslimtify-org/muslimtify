@@ -55,34 +55,73 @@ static void print_show_next_help(void) {
 
 static void print_show_date_help(void) {
   printf("\n");
-  printf("Show prayer times at or until desire date as a table\n");
+  printf("Show prayer times for a single date or an inclusive date range\n");
   printf("\n");
-  printf("Usage: muslimtify show --date [date] <date> <options>\n");
+  printf("Usage: muslimtify show --date <start> [end] [options]\n");
   printf("\n");
   printf("Commands:\n");
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
-  printf("  %-25s %s\n", "--json", "Today's prayer times as JSON");
-  printf("  %-25s %s\n", "--headless", "Today's prayer times as key=value");
+  printf("  %-25s %s\n", "--json", "Prayer times as JSON (range: array of days)");
+  printf("  %-25s %s\n", "--headless", "Prayer times as key=value (range: date= blocks)");
+  printf("\n");
+  printf("Notes:\n");
+  printf("  %s\n", "Dates are yyyy-mm-dd. --json/--headless may appear before or after the dates.");
   printf("\n");
   printf("Examples:\n");
-  printf("  %-25s %s\n", "muslimtify show --date 2022-01-01", "# Show prayer times for 2022-01-01");
-  printf("  %-25s %s\n", "muslimtify show --date 2022-01-01 --json",
-         "# Show prayer times for 2022-01-01 as JSON");
-  printf("  %-25s %s\n", "muslimtify show --date 2022-01-01 2023-01-01",
-         "# Show prayer times from 2022-01-01 to 2023-01-01");
+  printf("  %-40s %s\n", "muslimtify show --date 2022-01-01", "# One day");
+  printf("  %-40s %s\n", "muslimtify show --date 2022-01-01 --json", "# One day as JSON");
+  printf("  %-40s %s\n", "muslimtify show --date 2022-01-01 2022-01-07", "# Inclusive range");
+  printf("  %-40s %s\n", "muslimtify show --date 2022-01-01 2022-01-07 --headless",
+         "# Range as key=value");
+}
+
+static int mt_is_leap(int y) {
+  return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+}
+
+static int mt_days_in_month(int y, int m) {
+  static const int dm[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (m < 1 || m > 12)
+    return 0;
+  if (m == 2 && mt_is_leap(y))
+    return 29;
+  return dm[m - 1];
+}
+
+// Parse an ISO-ish "YYYY-MM-DD" date into y/m/d with range validation.
+// Returns 0 on success, -1 on malformed input, trailing junk, or an
+// out-of-range month/day (leap-aware). Components need not be zero-padded.
+static int parse_date(const char *s, int *y, int *m, int *d) {
+  if (s == NULL)
+    return -1;
+  int yy, mm, dd;
+  char extra;
+  if (sscanf(s, "%d-%d-%d%c", &yy, &mm, &dd, &extra) != 3)
+    return -1;
+  if (mm < 1 || mm > 12)
+    return -1;
+  if (dd < 1 || dd > mt_days_in_month(yy, mm))
+    return -1;
+  *y = yy;
+  *m = mm;
+  *d = dd;
+  return 0;
 }
 
 int handle_show(int argc, char **argv) {
   bool want_next = false;
   bool want_date = false;
+  int date_idx = -1;
   for (int i = 0; i < argc; i++) {
     if (strcmp(argv[i], "--next") == 0)
       want_next = true;
 
-    if (strcmp(argv[i], "--date") == 0)
+    if (strcmp(argv[i], "--date") == 0) {
       want_date = true;
+      date_idx = i;
+    }
   }
 
   if (cli_wants_help(argc, argv)) {
@@ -148,14 +187,60 @@ int handle_show(int argc, char **argv) {
       break;
     }
   } else if (want_date) {
-    if (argc > 4) {
-      fprintf(stderr, "Error: Too many arguments\n");
+    char *start_arg = (date_idx + 1 < argc) ? argv[date_idx + 1] : NULL;
+    char *end_arg = NULL;
+    if (date_idx + 2 < argc && strncmp(argv[date_idx + 2], "--", 2) != 0)
+      end_arg = argv[date_idx + 2];
+
+    int sy, sm, sd;
+    if (parse_date(start_arg, &sy, &sm, &sd) != 0) {
+      fprintf(stderr, "Error: Invalid date %s\n", start_arg ? start_arg : "(missing)");
       print_show_date_help();
       return 1;
     }
-    // TODO: switch(mode)
-    // TODO: if (argv[1] != NULL && argv[2] != NULL) show_prayer_time_at_range(argv[1], argv[2]);
-    // TODO: if (argv[1] != NULL && argv[2] != NULL) show_prayer_time_at_range(argv[1], argv[2]);
+
+    if (end_arg == NULL) {
+      // Single day
+      struct tm date_start = {0};
+      date_start.tm_year = sy - 1900;
+      date_start.tm_mon = sm - 1;
+      date_start.tm_mday = sd;
+      struct PrayerTimes start = prayer_times_for_config(&cfg, sy, sm, sd);
+      switch (mode) {
+      case OUTPUT_JSON:
+        display_prayer_times_json(&start, &cfg, &date_start);
+        break;
+      case OUTPUT_HEADLESS:
+        display_prayer_times_plain(&start, &cfg, &date_start);
+        break;
+      default:
+        display_prayer_times_table(&start, &cfg, &date_start);
+        break;
+      }
+    } else {
+      // Date range
+      int ey, em, ed;
+      if (parse_date(end_arg, &ey, &em, &ed) != 0) {
+        fprintf(stderr, "Error: Invalid date %s\n", end_arg);
+        print_show_date_help();
+        return 1;
+      }
+      if (sy > ey || (sy == ey && (sm > em || (sm == em && sd > ed)))) {
+        fprintf(stderr, "Error: end date is before start date\n");
+        return 1;
+      }
+      switch (mode) {
+      case OUTPUT_JSON:
+        display_prayer_times_range_json(&cfg, sy, sm, sd, ey, em, ed);
+        break;
+      case OUTPUT_HEADLESS:
+        display_prayer_times_range_plain(&cfg, sy, sm, sd, ey, em, ed);
+        break;
+      default:
+        display_prayer_times_range_table(&cfg, sy, sm, sd, ey, em, ed);
+        break;
+      }
+    }
   } else {
     switch (mode) {
     case OUTPUT_JSON:

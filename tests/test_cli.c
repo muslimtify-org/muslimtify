@@ -4,6 +4,7 @@
 #include "cli_internal.h"
 #include "config.h"
 #include "country.h"
+#include "display.h"
 #include "prayertimes.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -469,6 +470,100 @@ static void test_show(void) {
   check_contains("show old format hint", "--json");
 }
 
+static void test_show_range(void) {
+  printf("  show --date range...\n");
+  reset_config();
+
+  // single date still works (regression)
+  run(4, (char *[]){"m", "show", "--date", "2022-01-01", NULL});
+  check_ret("range single ret", 0);
+
+  // invalid month rejected
+  run(4, (char *[]){"m", "show", "--date", "2022-13-01", NULL});
+  check_ret("range bad month ret", 1);
+  check_contains("range bad month msg", "Invalid date");
+
+  // invalid day-of-month (Feb 30) rejected
+  run(4, (char *[]){"m", "show", "--date", "2022-02-30", NULL});
+  check_ret("range feb30 ret", 1);
+
+  // trailing junk rejected
+  run(4, (char *[]){"m", "show", "--date", "2022-01-01x", NULL});
+  check_ret("range junk ret", 1);
+
+  // reversed range rejected
+  run(5, (char *[]){"m", "show", "--date", "2022-01-03", "2022-01-01", NULL});
+  check_ret("range reversed ret", 1);
+  check_contains("range reversed msg", "end date is before start date");
+
+  // JSON range: array of day objects with dates
+  run(6, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", NULL});
+  check_ret("range json ret", 0);
+  check_contains("range json has date key", "\"date\":");
+  check_contains("range json d1", "\"2022-01-01\"");
+  check_contains("range json d2", "\"2022-01-02\"");
+  check_contains("range json d3", "\"2022-01-03\"");
+  check_contains("range json prayers", "\"prayers\"");
+  check_contains("range json fajr", "\"fajr\"");
+
+  // flag BEFORE the dates works identically
+  run(6, (char *[]){"m", "show", "--json", "--date", "2022-01-01", "2022-01-03", NULL});
+  check_ret("range json flag-first ret", 0);
+  check_contains("range json flag-first d2", "\"2022-01-02\"");
+
+  // single-day JSON still prayers-only (regression)
+  run(5, (char *[]){"m", "show", "--date", "2022-01-01", "--json", NULL});
+  check_ret("range single json ret", 0);
+  check_bool("range single json no date key", strstr(captured, "\"date\":") == NULL);
+  check_contains("range single json prayers", "\"prayers\"");
+
+  // headless range: date= blocks, enabled prayers only
+  run(6, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-02", "--headless", NULL});
+  check_ret("range headless ret", 0);
+  check_contains("range headless date1", "date=2022-01-01");
+  check_contains("range headless date2", "date=2022-01-02");
+  check_contains("range headless fajr", "fajr=");
+  check_bool("range headless no sunrise", strstr(captured, "sunrise=") == NULL);
+
+  // table range (default): pivoted table, one row per day, columns = enabled prayers only
+  run(5, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-02", NULL});
+  check_ret("range table ret", 0);
+  check_contains("range table header date", "Date");
+  check_contains("range table col fajr", "Fajr");
+  check_contains("range table col dhuhr", "Dhuhr");
+  check_contains("range table col isha", "Isha");
+  check_contains("range table d1", "2022-01-01");
+  check_contains("range table d2", "2022-01-02");
+  // disabled prayers (sunrise, dhuha by default) are hidden as columns
+  check_bool("range table hides sunrise", strstr(captured, "Sunrise") == NULL);
+  check_bool("range table hides dhuha", strstr(captured, "Dhuha") == NULL);
+  // unbroken full-width border (no internal + column separators)
+  check_bool("range table no cross border", strstr(captured, "-+-") == NULL);
+
+  // leap boundary crossing includes Feb 29 in 2024
+  run(6, (char *[]){"m", "show", "--date", "2024-02-27", "2024-03-01", "--headless", NULL});
+  check_ret("range leap ret", 0);
+  check_contains("range leap feb29", "date=2024-02-29");
+  check_contains("range leap mar1", "date=2024-03-01");
+
+  // non-leap 2023 has no Feb 29
+  run(6, (char *[]){"m", "show", "--date", "2023-02-27", "2023-03-01", "--headless", NULL});
+  check_ret("range nonleap ret", 0);
+  check_bool("range nonleap no feb29", strstr(captured, "date=2023-02-29") == NULL);
+  check_contains("range nonleap feb28", "date=2023-02-28");
+
+  // mutual exclusion still enforced on a range
+  run(7,
+      (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", "--headless", NULL});
+  check_ret("range json+headless ret", 1);
+
+  // per-command help documents the range form
+  run(4, (char *[]){"m", "show", "--date", "--help", NULL});
+  check_ret("range help ret", 0);
+  check_contains("range help usage", "muslimtify show --date");
+  check_contains("range help range", "<start> [end]");
+}
+
 static void test_next(void) {
   printf("  show --next...\n");
   reset_config();
@@ -499,6 +594,69 @@ static void test_next(void) {
   run(2, (char *[]){"m", "next", NULL});
   check_ret("bare next removed ret", 1);
   check_contains("bare next removed msg", "Unknown command");
+}
+
+// When all of today's prayers have passed, `show --next` rolls over to tomorrow's
+// Fajr. The displayed clock time must be TOMORROW's Fajr, not today's used as a
+// proxy. Driven directly (not via cli_run) because the CLI path reads the wall
+// clock; here we craft an "after isha" struct tm. Uses a high-latitude location
+// on a spring date so the day-to-day Fajr shift exceeds a minute, making the
+// today-vs-tomorrow distinction observable.
+static void test_next_after_isha(void) {
+  printf("  show --next after isha...\n");
+
+  Config cfg = config_default();
+  cfg.latitude = 51.5074;
+  cfg.longitude = -0.1278;
+  strncpy(cfg.timezone, "Europe/London", sizeof(cfg.timezone) - 1);
+  cfg.timezone_offset = 0.0;
+  cfg.auto_detect = false;
+
+  const int Y = 2022, M = 3, D = 20; // near the spring equinox
+  struct PrayerTimes today = prayer_times_for_config(&cfg, Y, M, D);
+  struct PrayerTimes tomorrow = prayer_times_for_config(&cfg, Y, M, D + 1);
+  char today_fajr[16], tomo_fajr[16];
+  format_time_hm(today.fajr, today_fajr, sizeof(today_fajr));
+  format_time_hm(tomorrow.fajr, tomo_fajr, sizeof(tomo_fajr));
+
+  // 23:00 on date D: every prayer today has passed, so next is tomorrow's Fajr.
+  struct tm now = {0};
+  now.tm_year = Y - 1900;
+  now.tm_mon = M - 1;
+  now.tm_mday = D;
+  now.tm_hour = 23;
+  now.tm_min = 0;
+
+  // Capture display_next_prayer_headless() called directly.
+  fflush(stdout);
+  int saved_out = dup(STDOUT_FILENO);
+  FILE *f = fopen(output_file, "w");
+  if (!f) {
+    check_bool("next after isha capture open", false);
+    return;
+  }
+  dup2(fileno(f), STDOUT_FILENO);
+  display_next_prayer_headless(&today, &cfg, &now);
+  fflush(stdout);
+  dup2(saved_out, STDOUT_FILENO);
+  close(saved_out);
+  fclose(f);
+  FILE *r = fopen(output_file, "r");
+  if (r) {
+    size_t n = fread(captured, 1, sizeof(captured) - 1, r);
+    captured[n] = '\0';
+    fclose(r);
+  } else {
+    captured[0] = '\0';
+  }
+
+  // Precondition: the chosen date/location actually shifts Fajr by >= 1 min, so
+  // "shows tomorrow" is distinguishable from "shows today".
+  check_bool("next after isha today!=tomorrow (precondition)", strcmp(today_fajr, tomo_fajr) != 0);
+
+  char expect[32];
+  snprintf(expect, sizeof(expect), "fajr=%s", tomo_fajr);
+  check_contains("next after isha shows tomorrow fajr", expect);
 }
 
 static void test_method(void) {
@@ -917,7 +1075,9 @@ int main(void) {
   test_location();
   test_removed_top_level();
   test_show();
+  test_show_range();
   test_next();
+  test_next_after_isha();
   test_method();
   test_madzhab();
   test_notification();
