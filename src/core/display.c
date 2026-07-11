@@ -29,6 +29,33 @@ static bool use_colors(void) {
 
 #define C(code) (use_colors() ? (code) : "")
 
+// Days since 1970-01-01 for a civil (proleptic Gregorian) date, and the
+// inverse. Howard Hinnant's public-domain algorithm. Used to iterate an
+// inclusive date range without touching struct tm / mktime (no DST hazards).
+static long mt_days_from_civil(int y, int m, int d) {
+  y -= m <= 2;
+  long era = (y >= 0 ? y : y - 399) / 400;
+  unsigned yoe = (unsigned)(y - era * 400);
+  unsigned doy = (unsigned)((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1);
+  unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return era * 146097L + (long)doe - 719468;
+}
+
+static void mt_civil_from_days(long z, int *y, int *m, int *d) {
+  z += 719468;
+  long era = (z >= 0 ? z : z - 146096) / 146097;
+  unsigned doe = (unsigned)(z - era * 146097);
+  unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+  long yy = (long)yoe + era * 400;
+  unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+  unsigned mp = (5 * doy + 2) / 153;
+  unsigned dd = doy - (153 * mp + 2) / 5 + 1;
+  unsigned mm = (mp < 10) ? (mp + 3) : (mp - 9);
+  *y = (int)(yy + (mm <= 2));
+  *m = (int)mm;
+  *d = (int)dd;
+}
+
 static void lower_copy(char *dst, size_t cap, const char *src) {
   size_t i = 0;
   for (; src[i] && i + 1 < cap; i++)
@@ -222,12 +249,12 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
   }
 }
 
-void display_prayer_times_json(const struct PrayerTimes *times, const Config *cfg,
-                               struct tm *date) {
-  (void)date;
-  printf("{\n");
-  printf("  \"prayers\": {\n");
-
+// Print the 7 prayer entries that form the CONTENTS of a "prayers": { ... }
+// object, one per line, each prefixed by `pad` spaces of indentation. The
+// caller prints the enclosing `"prayers": {` and `}`. Shared by single-day and
+// range JSON so their per-prayer shape stays in sync.
+static void print_prayer_entries(const struct PrayerTimes *times, const Config *cfg,
+                                 const char *pad) {
   const char *prayer_names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
   PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
                         PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
@@ -239,21 +266,49 @@ void display_prayer_times_json(const struct PrayerTimes *times, const Config *cf
 
     const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
 
-    printf("    \"%s\": {\n", prayer_names[i]);
-    printf("      \"time\": \"%s\",\n", time_str);
-    printf("      \"enabled\": %s,\n", pcfg->enabled ? "true" : "false");
-    printf("      \"reminders\": [");
+    printf("%s\"%s\": {\n", pad, prayer_names[i]);
+    printf("%s  \"time\": \"%s\",\n", pad, time_str);
+    printf("%s  \"enabled\": %s,\n", pad, pcfg->enabled ? "true" : "false");
+    printf("%s  \"reminders\": [", pad);
     for (int j = 0; j < pcfg->reminder_count; j++) {
       printf("%d", pcfg->reminders[j]);
       if (j < pcfg->reminder_count - 1)
         printf(", ");
     }
     printf("]\n");
-    printf("    }%s\n", i < 6 ? "," : "");
+    printf("%s}%s\n", pad, i < 6 ? "," : "");
   }
+}
 
+void display_prayer_times_json(const struct PrayerTimes *times, const Config *cfg,
+                               struct tm *date) {
+  (void)date;
+  printf("{\n");
+  printf("  \"prayers\": {\n");
+  print_prayer_entries(times, cfg, "    ");
   printf("  }\n");
   printf("}\n");
+}
+
+void display_prayer_times_range_json(const Config *cfg, int sy, int sm, int sd, int ey, int em,
+                                     int ed) {
+  long start = mt_days_from_civil(sy, sm, sd);
+  long end = mt_days_from_civil(ey, em, ed);
+
+  printf("[\n");
+  for (long z = start; z <= end; z++) {
+    int y, m, d;
+    mt_civil_from_days(z, &y, &m, &d);
+    struct PrayerTimes t = prayer_times_for_config(cfg, y, m, d);
+
+    printf("  {\n");
+    printf("    \"date\": \"%04d-%02d-%02d\",\n", y, m, d);
+    printf("    \"prayers\": {\n");
+    print_prayer_entries(&t, cfg, "      ");
+    printf("    }\n");
+    printf("  }%s\n", z < end ? "," : "");
+  }
+  printf("]\n");
 }
 
 // Resolve the next upcoming prayer and format its fields. Returns false (and

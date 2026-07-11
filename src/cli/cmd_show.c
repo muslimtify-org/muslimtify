@@ -226,6 +226,7 @@ int handle_show(int argc, char **argv) {
       }
       switch (mode) {
       case OUTPUT_JSON:
+        display_prayer_times_range_json(&cfg, sy, sm, sd, ey, em, ed);
         break;
       case OUTPUT_HEADLESS:
         break;

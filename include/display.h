@@ -27,6 +27,27 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
 void display_prayer_times_json(const struct PrayerTimes *times, const Config *cfg, struct tm *date);
 
 /**
+ * Display prayer times for an inclusive date range as a combined table
+ * (columns: Date | Prayer | Time), all 7 prayers per day.
+ */
+void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd, int ey, int em,
+                                      int ed);
+
+/**
+ * Display prayer times for an inclusive date range as `date=` blocks of
+ * lowercase key=value lines (enabled prayers only), blank-line separated.
+ */
+void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd, int ey, int em,
+                                      int ed);
+
+/**
+ * Display prayer times for an inclusive date range as a JSON array of
+ * { "date": "YYYY-MM-DD", "prayers": { ... } } objects.
+ */
+void display_prayer_times_range_json(const Config *cfg, int sy, int sm, int sd, int ey, int em,
+                                     int ed);
+
+/**
  * Display next prayer info
  */
 void display_next_prayer(const struct PrayerTimes *times, const Config *cfg,

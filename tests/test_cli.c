@@ -494,6 +494,27 @@ static void test_show_range(void) {
   run(5, (char *[]){"m", "show", "--date", "2022-01-03", "2022-01-01", NULL});
   check_ret("range reversed ret", 1);
   check_contains("range reversed msg", "end date is before start date");
+
+  // JSON range: array of day objects with dates
+  run(6, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", NULL});
+  check_ret("range json ret", 0);
+  check_contains("range json has date key", "\"date\":");
+  check_contains("range json d1", "\"2022-01-01\"");
+  check_contains("range json d2", "\"2022-01-02\"");
+  check_contains("range json d3", "\"2022-01-03\"");
+  check_contains("range json prayers", "\"prayers\"");
+  check_contains("range json fajr", "\"fajr\"");
+
+  // flag BEFORE the dates works identically
+  run(6, (char *[]){"m", "show", "--json", "--date", "2022-01-01", "2022-01-03", NULL});
+  check_ret("range json flag-first ret", 0);
+  check_contains("range json flag-first d2", "\"2022-01-02\"");
+
+  // single-day JSON still prayers-only (regression)
+  run(5, (char *[]){"m", "show", "--date", "2022-01-01", "--json", NULL});
+  check_ret("range single json ret", 0);
+  check_bool("range single json no date key", strstr(captured, "\"date\":") == NULL);
+  check_contains("range single json prayers", "\"prayers\"");
 }
 
 static void test_next(void) {
