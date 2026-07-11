@@ -229,6 +229,7 @@ int handle_show(int argc, char **argv) {
         display_prayer_times_range_json(&cfg, sy, sm, sd, ey, em, ed);
         break;
       case OUTPUT_HEADLESS:
+        display_prayer_times_range_plain(&cfg, sy, sm, sd, ey, em, ed);
         break;
       default:
         break;

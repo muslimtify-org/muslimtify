@@ -515,6 +515,14 @@ static void test_show_range(void) {
   check_ret("range single json ret", 0);
   check_bool("range single json no date key", strstr(captured, "\"date\":") == NULL);
   check_contains("range single json prayers", "\"prayers\"");
+
+  // headless range: date= blocks, enabled prayers only
+  run(6, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-02", "--headless", NULL});
+  check_ret("range headless ret", 0);
+  check_contains("range headless date1", "date=2022-01-01");
+  check_contains("range headless date2", "date=2022-01-02");
+  check_contains("range headless fajr", "fajr=");
+  check_bool("range headless no sunrise", strstr(captured, "sunrise=") == NULL);
 }
 
 static void test_next(void) {

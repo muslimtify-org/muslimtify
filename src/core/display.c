@@ -311,6 +311,34 @@ void display_prayer_times_range_json(const Config *cfg, int sy, int sm, int sd, 
   printf("]\n");
 }
 
+void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd, int ey, int em,
+                                      int ed) {
+  const char *prayer_names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
+  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
+                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+
+  long start = mt_days_from_civil(sy, sm, sd);
+  long end = mt_days_from_civil(ey, em, ed);
+
+  for (long z = start; z <= end; z++) {
+    int y, m, d;
+    mt_civil_from_days(z, &y, &m, &d);
+    struct PrayerTimes t = prayer_times_for_config(cfg, y, m, d);
+
+    printf("date=%04d-%02d-%02d\n", y, m, d);
+    for (int i = 0; i < 7; i++) {
+      const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
+      if (!pcfg->enabled)
+        continue;
+      char time_str[16];
+      format_time_hm(prayer_get_time(&t, types[i]), time_str, sizeof(time_str));
+      printf("%s=%s\n", prayer_names[i], time_str);
+    }
+    if (z < end)
+      printf("\n");
+  }
+}
+
 // Resolve the next upcoming prayer and format its fields. Returns false (and
 // writes nothing) when there is no upcoming prayer. `name` is the display name
 // as-is (capitalized); callers that need a lowercase key run lower_copy on it.
