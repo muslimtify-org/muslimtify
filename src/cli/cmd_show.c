@@ -232,6 +232,7 @@ int handle_show(int argc, char **argv) {
         display_prayer_times_range_plain(&cfg, sy, sm, sd, ey, em, ed);
         break;
       default:
+        display_prayer_times_range_table(&cfg, sy, sm, sd, ey, em, ed);
         break;
       }
     }

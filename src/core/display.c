@@ -339,6 +339,34 @@ void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd,
   }
 }
 
+void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd, int ey, int em,
+                                      int ed) {
+  const char *prayer_names[] = {"Fajr", "Sunrise", "Dhuha", "Dhuhr", "Asr", "Maghrib", "Isha"};
+  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
+                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+  const char *border = "+------------+---------+-------+";
+
+  long start = mt_days_from_civil(sy, sm, sd);
+  long end = mt_days_from_civil(ey, em, ed);
+
+  printf("%s\n", border);
+  printf("| %-10s | %-7s | %-5s |\n", "Date", "Prayer", "Time");
+  printf("%s\n", border);
+  for (long z = start; z <= end; z++) {
+    int y, m, d;
+    mt_civil_from_days(z, &y, &m, &d);
+    struct PrayerTimes t = prayer_times_for_config(cfg, y, m, d);
+    char date_str[16];
+    snprintf(date_str, sizeof(date_str), "%04d-%02d-%02d", y, m, d);
+    for (int i = 0; i < 7; i++) {
+      char time_str[16];
+      format_time_hm(prayer_get_time(&t, types[i]), time_str, sizeof(time_str));
+      printf("| %-10s | %-7s | %-5s |\n", date_str, prayer_names[i], time_str);
+    }
+  }
+  printf("%s\n", border);
+}
+
 // Resolve the next upcoming prayer and format its fields. Returns false (and
 // writes nothing) when there is no upcoming prayer. `name` is the display name
 // as-is (capitalized); callers that need a lowercase key run lower_copy on it.

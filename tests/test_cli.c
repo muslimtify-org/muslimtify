@@ -523,6 +523,30 @@ static void test_show_range(void) {
   check_contains("range headless date2", "date=2022-01-02");
   check_contains("range headless fajr", "fajr=");
   check_bool("range headless no sunrise", strstr(captured, "sunrise=") == NULL);
+
+  // table range (default): combined table with a Date column
+  run(5, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-02", NULL});
+  check_ret("range table ret", 0);
+  check_contains("range table header", "Date");
+  check_contains("range table d1", "2022-01-01");
+  check_contains("range table d2", "2022-01-02");
+  check_contains("range table fajr", "Fajr");
+
+  // leap boundary crossing includes Feb 29 in 2024
+  run(6, (char *[]){"m", "show", "--date", "2024-02-27", "2024-03-01", "--headless", NULL});
+  check_ret("range leap ret", 0);
+  check_contains("range leap feb29", "date=2024-02-29");
+  check_contains("range leap mar1", "date=2024-03-01");
+
+  // non-leap 2023 has no Feb 29
+  run(6, (char *[]){"m", "show", "--date", "2023-02-27", "2023-03-01", "--headless", NULL});
+  check_ret("range nonleap ret", 0);
+  check_bool("range nonleap no feb29", strstr(captured, "date=2023-02-29") == NULL);
+  check_contains("range nonleap feb28", "date=2023-02-28");
+
+  // mutual exclusion still enforced on a range
+  run(7, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", "--headless", NULL});
+  check_ret("range json+headless ret", 1);
 }
 
 static void test_next(void) {
