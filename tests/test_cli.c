@@ -4,6 +4,7 @@
 #include "cli_internal.h"
 #include "config.h"
 #include "country.h"
+#include "display.h"
 #include "prayertimes.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -595,6 +596,69 @@ static void test_next(void) {
   check_contains("bare next removed msg", "Unknown command");
 }
 
+// When all of today's prayers have passed, `show --next` rolls over to tomorrow's
+// Fajr. The displayed clock time must be TOMORROW's Fajr, not today's used as a
+// proxy. Driven directly (not via cli_run) because the CLI path reads the wall
+// clock; here we craft an "after isha" struct tm. Uses a high-latitude location
+// on a spring date so the day-to-day Fajr shift exceeds a minute, making the
+// today-vs-tomorrow distinction observable.
+static void test_next_after_isha(void) {
+  printf("  show --next after isha...\n");
+
+  Config cfg = config_default();
+  cfg.latitude = 51.5074;
+  cfg.longitude = -0.1278;
+  strncpy(cfg.timezone, "Europe/London", sizeof(cfg.timezone) - 1);
+  cfg.timezone_offset = 0.0;
+  cfg.auto_detect = false;
+
+  const int Y = 2022, M = 3, D = 20; // near the spring equinox
+  struct PrayerTimes today = prayer_times_for_config(&cfg, Y, M, D);
+  struct PrayerTimes tomorrow = prayer_times_for_config(&cfg, Y, M, D + 1);
+  char today_fajr[16], tomo_fajr[16];
+  format_time_hm(today.fajr, today_fajr, sizeof(today_fajr));
+  format_time_hm(tomorrow.fajr, tomo_fajr, sizeof(tomo_fajr));
+
+  // 23:00 on date D: every prayer today has passed, so next is tomorrow's Fajr.
+  struct tm now = {0};
+  now.tm_year = Y - 1900;
+  now.tm_mon = M - 1;
+  now.tm_mday = D;
+  now.tm_hour = 23;
+  now.tm_min = 0;
+
+  // Capture display_next_prayer_headless() called directly.
+  fflush(stdout);
+  int saved_out = dup(STDOUT_FILENO);
+  FILE *f = fopen(output_file, "w");
+  if (!f) {
+    check_bool("next after isha capture open", false);
+    return;
+  }
+  dup2(fileno(f), STDOUT_FILENO);
+  display_next_prayer_headless(&today, &cfg, &now);
+  fflush(stdout);
+  dup2(saved_out, STDOUT_FILENO);
+  close(saved_out);
+  fclose(f);
+  FILE *r = fopen(output_file, "r");
+  if (r) {
+    size_t n = fread(captured, 1, sizeof(captured) - 1, r);
+    captured[n] = '\0';
+    fclose(r);
+  } else {
+    captured[0] = '\0';
+  }
+
+  // Precondition: the chosen date/location actually shifts Fajr by >= 1 min, so
+  // "shows tomorrow" is distinguishable from "shows today".
+  check_bool("next after isha today!=tomorrow (precondition)", strcmp(today_fajr, tomo_fajr) != 0);
+
+  char expect[32];
+  snprintf(expect, sizeof(expect), "fajr=%s", tomo_fajr);
+  check_contains("next after isha shows tomorrow fajr", expect);
+}
+
 static void test_method(void) {
   printf("  method...\n");
   reset_config();
@@ -1013,6 +1077,7 @@ int main(void) {
   test_show();
   test_show_range();
   test_next();
+  test_next_after_isha();
   test_method();
   test_madzhab();
   test_notification();

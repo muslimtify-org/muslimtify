@@ -411,7 +411,24 @@ static bool next_prayer_info(const struct PrayerTimes *times, const Config *cfg,
     return false;
 
   *name = prayer_get_name(next);
-  format_time_hm(prayer_get_time(times, next), time_str, time_cap);
+
+  double now_dec = current_time->tm_hour + current_time->tm_min / 60.0;
+  double next_time = prayer_get_time(times, next);
+  if (next_time < now_dec) {
+    // The next occurrence is tomorrow (every prayer today has passed). Recompute
+    // that prayer's time for the next day's date so the displayed clock time is
+    // exact, and derive `remaining` from that same next-day time.
+    long serial = mt_days_from_civil(current_time->tm_year + 1900, current_time->tm_mon + 1,
+                                     current_time->tm_mday) +
+                  1;
+    int ny, nm, nd;
+    mt_civil_from_days(serial, &ny, &nm, &nd);
+    struct PrayerTimes tomorrow = prayer_times_for_config(cfg, ny, nm, nd);
+    next_time = prayer_get_time(&tomorrow, next);
+    minutes_until = (int)((next_time + 24.0 - now_dec) * 60.0);
+  }
+
+  format_time_hm(next_time, time_str, time_cap);
   snprintf(remaining, rem_cap, "%02d:%02d", minutes_until / 60, minutes_until % 60);
   return true;
 }
