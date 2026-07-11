@@ -74,6 +74,27 @@ static void print_show_date_help(void) {
          "# Show prayer times from 2022-01-01 to 2023-01-01");
 }
 
+static int get_time_at(char *date, struct tm *tm_now) {
+  if (date == NULL) {
+    return -1;
+  }
+
+  int year, month, day;
+
+  struct tm tm;
+  if (sscanf(date, "%d-%d-%d", &year, &month, &day) != 3) {
+    return -1;
+  }
+
+  tm.tm_year = year - 1900;
+  tm.tm_mon = month - 1;
+  tm.tm_mday = day;
+
+  *tm_now = tm;
+
+  return 0;
+}
+
 int handle_show(int argc, char **argv) {
   bool want_next = false;
   bool want_date = false;
@@ -148,14 +169,45 @@ int handle_show(int argc, char **argv) {
       break;
     }
   } else if (want_date) {
-    if (argc > 4) {
+    if (argc > 5) {
       fprintf(stderr, "Error: Too many arguments\n");
       print_show_date_help();
       return 1;
     }
-    // TODO: switch(mode)
-    // TODO: if (argv[1] != NULL && argv[2] != NULL) show_prayer_time_at_range(argv[1], argv[2]);
-    // TODO: if (argv[1] != NULL && argv[2] != NULL) show_prayer_time_at_range(argv[1], argv[2]);
+
+    struct tm date_start;
+    if (get_time_at(argv[1], &date_start) == -1) {
+      fprintf(stderr, "Error: Invalid date %s\n", argv[1]);
+      print_show_date_help();
+      return 1;
+    }
+
+    struct PrayerTimes start = prayer_times_for_config(&cfg, date_start.tm_year + 1900,
+                                                       date_start.tm_mon + 1, date_start.tm_mday);
+
+    struct tm date_end;
+    if (get_time_at(argv[2], &date_end) == -1) {
+      switch (mode) {
+      case OUTPUT_JSON:
+        display_prayer_times_json(&start, &cfg, &date_start);
+        break;
+      case OUTPUT_HEADLESS:
+        display_prayer_times_plain(&start, &cfg, &date_start);
+        break;
+      default:
+        display_prayer_times_table(&start, &cfg, &date_start);
+        break;
+      }
+    } else {
+      switch (mode) {
+      case OUTPUT_JSON:
+        break;
+      case OUTPUT_HEADLESS:
+        break;
+      default:
+        break;
+      }
+    }
   } else {
     switch (mode) {
     case OUTPUT_JSON:
