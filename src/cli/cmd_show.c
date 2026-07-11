@@ -55,23 +55,26 @@ static void print_show_next_help(void) {
 
 static void print_show_date_help(void) {
   printf("\n");
-  printf("Show prayer times at or until desire date as a table\n");
+  printf("Show prayer times for a single date or an inclusive date range\n");
   printf("\n");
-  printf("Usage: muslimtify show --date [date] <date> <options>\n");
+  printf("Usage: muslimtify show --date <start> [end] [options]\n");
   printf("\n");
   printf("Commands:\n");
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
-  printf("  %-25s %s\n", "--json", "Today's prayer times as JSON");
-  printf("  %-25s %s\n", "--headless", "Today's prayer times as key=value");
+  printf("  %-25s %s\n", "--json", "Prayer times as JSON (range: array of days)");
+  printf("  %-25s %s\n", "--headless", "Prayer times as key=value (range: date= blocks)");
+  printf("\n");
+  printf("Notes:\n");
+  printf("  %s\n", "Dates are yyyy-mm-dd. --json/--headless may appear before or after the dates.");
   printf("\n");
   printf("Examples:\n");
-  printf("  %-25s %s\n", "muslimtify show --date 2022-01-01", "# Show prayer times for 2022-01-01");
-  printf("  %-25s %s\n", "muslimtify show --date 2022-01-01 --json",
-         "# Show prayer times for 2022-01-01 as JSON");
-  printf("  %-25s %s\n", "muslimtify show --date 2022-01-01 2023-01-01",
-         "# Show prayer times from 2022-01-01 to 2023-01-01");
+  printf("  %-40s %s\n", "muslimtify show --date 2022-01-01", "# One day");
+  printf("  %-40s %s\n", "muslimtify show --date 2022-01-01 --json", "# One day as JSON");
+  printf("  %-40s %s\n", "muslimtify show --date 2022-01-01 2022-01-07", "# Inclusive range");
+  printf("  %-40s %s\n", "muslimtify show --date 2022-01-01 2022-01-07 --headless",
+         "# Range as key=value");
 }
 
 static int mt_is_leap(int y) { return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0; }

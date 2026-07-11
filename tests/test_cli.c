@@ -547,6 +547,12 @@ static void test_show_range(void) {
   // mutual exclusion still enforced on a range
   run(7, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", "--headless", NULL});
   check_ret("range json+headless ret", 1);
+
+  // per-command help documents the range form
+  run(4, (char *[]){"m", "show", "--date", "--help", NULL});
+  check_ret("range help ret", 0);
+  check_contains("range help usage", "muslimtify show --date");
+  check_contains("range help range", "<start> [end]");
 }
 
 static void test_next(void) {

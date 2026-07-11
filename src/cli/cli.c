@@ -129,8 +129,8 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "    --next [options]", "Show next prayer");
   printf("  %-25s %s\n", "      --json", "Show next prayer as JSON");
   printf("  %-25s %s\n", "      --headless", "Show next prayer as key=value");
-  printf("  %-25s %s\n", "    --date <date> <date>",
-         "Show prayer time at or until desire date (yyyy-mm-dd)");
+  printf("  %-25s %s\n", "    --date <start> [end]",
+         "Show prayer times for a date or inclusive range (yyyy-mm-dd)");
 
   printf("\n");
 
