@@ -469,6 +469,33 @@ static void test_show(void) {
   check_contains("show old format hint", "--json");
 }
 
+static void test_show_range(void) {
+  printf("  show --date range...\n");
+  reset_config();
+
+  // single date still works (regression)
+  run(4, (char *[]){"m", "show", "--date", "2022-01-01", NULL});
+  check_ret("range single ret", 0);
+
+  // invalid month rejected
+  run(4, (char *[]){"m", "show", "--date", "2022-13-01", NULL});
+  check_ret("range bad month ret", 1);
+  check_contains("range bad month msg", "Invalid date");
+
+  // invalid day-of-month (Feb 30) rejected
+  run(4, (char *[]){"m", "show", "--date", "2022-02-30", NULL});
+  check_ret("range feb30 ret", 1);
+
+  // trailing junk rejected
+  run(4, (char *[]){"m", "show", "--date", "2022-01-01x", NULL});
+  check_ret("range junk ret", 1);
+
+  // reversed range rejected
+  run(5, (char *[]){"m", "show", "--date", "2022-01-03", "2022-01-01", NULL});
+  check_ret("range reversed ret", 1);
+  check_contains("range reversed msg", "end date is before start date");
+}
+
 static void test_next(void) {
   printf("  show --next...\n");
   reset_config();
@@ -917,6 +944,7 @@ int main(void) {
   test_location();
   test_removed_top_level();
   test_show();
+  test_show_range();
   test_next();
   test_method();
   test_madzhab();
