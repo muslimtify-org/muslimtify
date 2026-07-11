@@ -545,7 +545,8 @@ static void test_show_range(void) {
   check_contains("range nonleap feb28", "date=2023-02-28");
 
   // mutual exclusion still enforced on a range
-  run(7, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", "--headless", NULL});
+  run(7,
+      (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", "--headless", NULL});
   check_ret("range json+headless ret", 1);
 
   // per-command help documents the range form

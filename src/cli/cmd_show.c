@@ -77,7 +77,9 @@ static void print_show_date_help(void) {
          "# Range as key=value");
 }
 
-static int mt_is_leap(int y) { return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0; }
+static int mt_is_leap(int y) {
+  return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+}
 
 static int mt_days_in_month(int y, int m) {
   static const int dm[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
