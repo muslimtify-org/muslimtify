@@ -524,13 +524,20 @@ static void test_show_range(void) {
   check_contains("range headless fajr", "fajr=");
   check_bool("range headless no sunrise", strstr(captured, "sunrise=") == NULL);
 
-  // table range (default): combined table with a Date column
+  // table range (default): pivoted table, one row per day, columns = enabled prayers only
   run(5, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-02", NULL});
   check_ret("range table ret", 0);
-  check_contains("range table header", "Date");
+  check_contains("range table header date", "Date");
+  check_contains("range table col fajr", "Fajr");
+  check_contains("range table col dhuhr", "Dhuhr");
+  check_contains("range table col isha", "Isha");
   check_contains("range table d1", "2022-01-01");
   check_contains("range table d2", "2022-01-02");
-  check_contains("range table fajr", "Fajr");
+  // disabled prayers (sunrise, dhuha by default) are hidden as columns
+  check_bool("range table hides sunrise", strstr(captured, "Sunrise") == NULL);
+  check_bool("range table hides dhuha", strstr(captured, "Dhuha") == NULL);
+  // unbroken full-width border (no internal + column separators)
+  check_bool("range table no cross border", strstr(captured, "-+-") == NULL);
 
   // leap boundary crossing includes Feb 29 in 2024
   run(6, (char *[]){"m", "show", "--date", "2024-02-27", "2024-03-01", "--headless", NULL});

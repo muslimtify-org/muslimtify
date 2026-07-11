@@ -339,32 +339,64 @@ void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd,
   }
 }
 
+// Print a single unbroken horizontal rule: '+' then `inner` dashes then "+\n".
+static void range_hrule(int inner) {
+  putchar('+');
+  for (int i = 0; i < inner; i++)
+    putchar('-');
+  printf("+\n");
+}
+
 void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd, int ey, int em,
                                       int ed) {
   const char *prayer_names[] = {"Fajr", "Sunrise", "Dhuha", "Dhuhr", "Asr", "Maghrib", "Isha"};
   PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
                         PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
-  const char *border = "+------------+---------+-------+";
+
+  // Columns are the enabled prayers only; disabled ones are omitted entirely.
+  int col[7];
+  int ncol = 0;
+  for (int i = 0; i < 7; i++) {
+    if (prayer_get_config(cfg, types[i])->enabled)
+      col[ncol++] = i;
+  }
+
+  // Column widths: Date is "YYYY-MM-DD" (10); each prayer is max(name, "HH:MM"=5).
+  const int date_w = 10;
+  int col_w[7];
+  for (int c = 0; c < ncol; c++) {
+    int len = (int)strlen(prayer_names[col[c]]);
+    col_w[c] = len > 5 ? len : 5;
+  }
+
+  // Total printed row length, for an unbroken border spanning the whole table.
+  // Each cell prints as "| %-*s " = width + 3 chars; a trailing "|" closes the row.
+  int row_len = 1 + (date_w + 3);
+  for (int c = 0; c < ncol; c++)
+    row_len += col_w[c] + 3;
+
+  range_hrule(row_len - 2);
+  printf("| %-*s ", date_w, "Date");
+  for (int c = 0; c < ncol; c++)
+    printf("| %-*s ", col_w[c], prayer_names[col[c]]);
+  printf("|\n");
+  range_hrule(row_len - 2);
 
   long start = mt_days_from_civil(sy, sm, sd);
   long end = mt_days_from_civil(ey, em, ed);
-
-  printf("%s\n", border);
-  printf("| %-10s | %-7s | %-5s |\n", "Date", "Prayer", "Time");
-  printf("%s\n", border);
   for (long z = start; z <= end; z++) {
     int y, m, d;
     mt_civil_from_days(z, &y, &m, &d);
     struct PrayerTimes t = prayer_times_for_config(cfg, y, m, d);
-    char date_str[16];
-    snprintf(date_str, sizeof(date_str), "%04d-%02d-%02d", y, m, d);
-    for (int i = 0; i < 7; i++) {
+    printf("| %04d-%02d-%02d ", y, m, d);
+    for (int c = 0; c < ncol; c++) {
       char time_str[16];
-      format_time_hm(prayer_get_time(&t, types[i]), time_str, sizeof(time_str));
-      printf("| %-10s | %-7s | %-5s |\n", date_str, prayer_names[i], time_str);
+      format_time_hm(prayer_get_time(&t, types[col[c]]), time_str, sizeof(time_str));
+      printf("| %-*s ", col_w[c], time_str);
     }
+    printf("|\n");
   }
-  printf("%s\n", border);
+  range_hrule(row_len - 2);
 }
 
 // Resolve the next upcoming prayer and format its fields. Returns false (and
