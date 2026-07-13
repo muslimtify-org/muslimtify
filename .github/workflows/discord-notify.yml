@@ -1,0 +1,94 @@
+name: Discord Notifications
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+  release:
+    types: [published]
+  watch:
+    types: [started]
+  issue_comment:
+    types: [created]
+  discussion:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: New issue
+        if: github.event_name == 'issues'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0x1f883d
+          title: "New issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
+          url: ${{ github.event.issue.html_url }}
+          description: "Opened by ${{ github.event.issue.user.login }}"
+
+      - name: New pull request
+        if: github.event_name == 'pull_request_target'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0x8250df
+          title: "New PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}"
+          url: ${{ github.event.pull_request.html_url }}
+          description: "Opened by ${{ github.event.pull_request.user.login }}"
+
+      - name: New comment on issue or PR
+        if: github.event_name == 'issue_comment'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0x57606a
+          title: "New comment on ${{ github.event.issue.pull_request && 'PR' || 'issue' }} #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
+          url: ${{ github.event.comment.html_url }}
+          description: "Comment by ${{ github.event.comment.user.login }}"
+
+      - name: New release
+        if: github.event_name == 'release'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0xd4a72c
+          title: "Released ${{ github.event.release.tag_name }}: ${{ github.event.release.name }}"
+          url: ${{ github.event.release.html_url }}
+          description: "Published by ${{ github.event.release.author.login }}"
+
+      - name: New star
+        if: github.event_name == 'watch'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0xeac54f
+          title: "New star from ${{ github.event.sender.login }}"
+          url: ${{ github.event.sender.html_url }}
+          description: "${{ github.event.repository.full_name }} now has ${{ github.event.repository.stargazers_count }} stars"
+
+      - name: New discussion
+        if: github.event_name == 'discussion'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0x0969da
+          title: "New discussion #${{ github.event.discussion.number }}: ${{ github.event.discussion.title }}"
+          url: ${{ github.event.discussion.html_url }}
+          description: "Started by ${{ github.event.discussion.user.login }} in ${{ github.event.discussion.category.name }}"
