@@ -5,10 +5,11 @@
 ## Changes
 
 <!-- What does this PR change and why? explain your changes -->
-
 -
 
 ## Testing
+
+<!-- All tests must pass before PR is merged. -->
 
 - [ ] All tests pass (`ctest --output-on-failure`)
 - [ ] No compiler warnings
