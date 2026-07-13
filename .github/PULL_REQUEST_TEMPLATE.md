@@ -1,18 +1,11 @@
 ## Summary
 
-<<<<<<< Updated upstream
-What does this PR do and why?
-
-## Changes
-
-=======
 <!-- A short summary of the PR. If it fixes an issue, please link to it with Closes #123. -->
 
 ## Changes
 
 <!-- What does this PR change and why? explain your changes -->
 
->>>>>>> Stashed changes
 -
 
 ## Testing
