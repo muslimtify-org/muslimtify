@@ -13,8 +13,6 @@ on:
     types: [created]
   discussion:
     types: [created]
-  discussion_comment:
-    types: [created]
 
 permissions:
   contents: read
@@ -94,15 +92,3 @@ jobs:
           title: "New discussion #${{ github.event.discussion.number }}: ${{ github.event.discussion.title }}"
           url: ${{ github.event.discussion.html_url }}
           description: "Started by ${{ github.event.discussion.user.login }} in ${{ github.event.discussion.category.name }}"
-
-      - name: New discussion comment
-        if: github.event_name == 'discussion_comment'
-        uses: sarisia/actions-status-discord@v1.16.0
-        with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          nodetail: true
-          username: GitHub
-          color: 0x0969da
-          title: "New comment on #${{ github.event.discussion.number }}: ${{ github.event.discussion.title }}"
-          url: ${{ github.event.comment.html_url }}
-          description: "Comment by ${{ github.event.comment.user.login }}"
