@@ -26,7 +26,6 @@ jobs:
         uses: sarisia/actions-status-discord@v1.16.0
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          nodetail: true
           username: GitHub
           color: ${{ github.event.action == 'closed' && '0x8250df' || '0x1f883d' }}
           title: "Issue #${{ github.event.issue.number }} ${{ github.event.action }}: ${{ github.event.issue.title }}"
@@ -38,7 +37,6 @@ jobs:
         uses: sarisia/actions-status-discord@v1.16.0
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          nodetail: true
           username: GitHub
           color: ${{ github.event.pull_request.merged && '0x8250df' || (github.event.action == 'closed' && '0xcf222e' || '0x1f883d') }}
           title: "PR #${{ github.event.pull_request.number }} ${{ github.event.pull_request.merged && 'merged' || github.event.action }}: ${{ github.event.pull_request.title }}"
@@ -50,7 +48,6 @@ jobs:
         uses: sarisia/actions-status-discord@v1.16.0
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          nodetail: true
           username: GitHub
           color: 0x57606a
           title: "New comment on ${{ github.event.issue.pull_request && 'PR' || 'issue' }} #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
@@ -62,7 +59,6 @@ jobs:
         uses: sarisia/actions-status-discord@v1.16.0
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          nodetail: true
           username: GitHub
           color: 0xd4a72c
           title: "Released ${{ github.event.release.tag_name }}: ${{ github.event.release.name }}"
@@ -74,7 +70,6 @@ jobs:
         uses: sarisia/actions-status-discord@v1.16.0
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          nodetail: true
           username: GitHub
           color: 0xeac54f
           title: "New star from ${{ github.event.sender.login }}"
@@ -86,7 +81,6 @@ jobs:
         uses: sarisia/actions-status-discord@v1.16.0
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
-          nodetail: true
           username: GitHub
           color: 0x0969da
           title: "New discussion #${{ github.event.discussion.number }}: ${{ github.event.discussion.title }}"
