@@ -9,6 +9,12 @@ on:
     types: [published]
   watch:
     types: [started]
+  issue_comment:
+    types: [created]
+  discussion:
+    types: [created]
+  discussion_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -41,6 +47,18 @@ jobs:
           url: ${{ github.event.pull_request.html_url }}
           description: "Opened by ${{ github.event.pull_request.user.login }}"
 
+      - name: New comment on issue or PR
+        if: github.event_name == 'issue_comment'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0x57606a
+          title: "New comment on ${{ github.event.issue.pull_request && 'PR' || 'issue' }} #${{ github.event.issue.number }}: ${{ github.event.issue.title }}"
+          url: ${{ github.event.comment.html_url }}
+          description: "Comment by ${{ github.event.comment.user.login }}"
+
       - name: New release
         if: github.event_name == 'release'
         uses: sarisia/actions-status-discord@v1.16.0
@@ -64,3 +82,27 @@ jobs:
           title: "New star from ${{ github.event.sender.login }}"
           url: ${{ github.event.sender.html_url }}
           description: "${{ github.event.repository.full_name }} now has ${{ github.event.repository.stargazers_count }} stars"
+
+      - name: New discussion
+        if: github.event_name == 'discussion'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0x0969da
+          title: "New discussion #${{ github.event.discussion.number }}: ${{ github.event.discussion.title }}"
+          url: ${{ github.event.discussion.html_url }}
+          description: "Started by ${{ github.event.discussion.user.login }} in ${{ github.event.discussion.category.name }}"
+
+      - name: New discussion comment
+        if: github.event_name == 'discussion_comment'
+        uses: sarisia/actions-status-discord@v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          nodetail: true
+          username: GitHub
+          color: 0x0969da
+          title: "New comment on #${{ github.event.discussion.number }}: ${{ github.event.discussion.title }}"
+          url: ${{ github.event.comment.html_url }}
+          description: "Comment by ${{ github.event.comment.user.login }}"
