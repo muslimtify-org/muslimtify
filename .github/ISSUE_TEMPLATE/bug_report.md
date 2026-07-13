@@ -6,15 +6,15 @@ labels: bug
 ---
 
 **Describe the bug**
-A clear description of what went wrong.
+<!-- A clear description of what went wrong. -->
 
 **To reproduce**
-Steps to reproduce:
+<!-- Steps to reproduce the issue. -->
 1. Run `muslimtify ...`
 2. ...
 
 **Expected behavior**
-What you expected to happen.
+<!-- A clear description of what you expected to happen. -->
 
 **Environment**
 - OS/Distro:
@@ -22,4 +22,4 @@ What you expected to happen.
 - Install method (AUR/COPR/PPA/source):
 
 **Additional context**
-Relevant config, logs (`journalctl --user -u muslimtify`), or screenshots.
+<!-- Relevant config, logs (`journalctl --user -u muslimtify`), or screenshots. -->
