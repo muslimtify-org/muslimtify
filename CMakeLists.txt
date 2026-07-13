@@ -9,7 +9,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
         STRINGS Debug Release RelWithDebInfo MinSizeRel)
 endif()
 
-set(FULL_PROJECT_VERSION "${PROJECT_VERSION}-alpha01")
+set(FULL_PROJECT_VERSION "${PROJECT_VERSION}")
 
 # -- C standard and output dirs ------------------------------------------------
 
