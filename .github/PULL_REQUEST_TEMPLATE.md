@@ -1,9 +1,18 @@
 ## Summary
 
+<<<<<<< Updated upstream
 What does this PR do and why?
 
 ## Changes
 
+=======
+<!-- A short summary of the PR. If it fixes an issue, please link to it with Closes #123. -->
+
+## Changes
+
+<!-- What does this PR change and why? explain your changes -->
+
+>>>>>>> Stashed changes
 -
 
 ## Testing
@@ -12,6 +21,7 @@ What does this PR do and why?
 - [ ] No compiler warnings
 - [ ] Code formatted with `clang-format`
 
-## Related Issues
+## AI disclosure
 
-Closes #
+<!-- Required by AI_POLICY.md. State the tool(s) used and how much of the work was AI-assisted,
+     or write "No AI used". You are responsible for every line you submit. -->
