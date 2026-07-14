@@ -25,7 +25,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > - Embedded Device Support
 
 > [!Important]
-> This project is available for Linux and Windows users, but not yet for Mac users because we need a Mac device to make Muslimtify run on macOS. We are looking for brothers and sisters who have a Mac and experience in low-level C programming to contribute to the project and help bring Muslimtify to macOS. Alternatively, you can support me via GitHub Sponsors or Ko-fi in the sponsor section.
+> This project is available for Linux and Windows users, but not yet for Mac users because we need a Mac device to make Muslimtify run on macOS. We are looking for brothers and sisters who have a Mac and experience in low-level C programming to contribute to the project and help bring Muslimtify to macOS. Alternatively, you can support us via GitHub Sponsors in the sponsor section.
 
 ## Installation
 
