@@ -118,8 +118,9 @@ add_library(muslimtify_core OBJECT
     src/core/display.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
-    $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/linux/platform_linux.c>
-    $<IF:$<BOOL:${WIN32}>,src/platform/windows/timezone.c,src/platform/linux/timezone.c>
+    $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/posix/platform_posix.c>
+    $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/platform_linux.c>
+    $<IF:$<BOOL:${WIN32}>,src/platform/windows/timezone.c,src/platform/posix/timezone.c>
 )
 muslimtify_set_target_defaults(muslimtify_core)
 
@@ -202,6 +203,7 @@ if(BUILD_TESTING)
         add_executable(test_cmd_daemon
             tests/test_cmd_daemon.c
             src/cli/cmd_daemon.c
+            src/platform/posix/platform_posix.c
             src/platform/linux/platform_linux.c
         )
         muslimtify_set_target_defaults(test_cmd_daemon)
@@ -235,6 +237,7 @@ if(BUILD_TESTING)
     add_executable(test_platform
         tests/test_platform.c
         $<$<BOOL:${WIN32}>:src/platform/windows/platform_win.c>
+        $<$<NOT:$<BOOL:${WIN32}>>:src/platform/posix/platform_posix.c>
         $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/platform_linux.c>
     )
     muslimtify_set_target_defaults(test_platform)
