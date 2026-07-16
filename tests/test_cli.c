@@ -401,6 +401,29 @@ static void test_location(void) {
     config_load(&cfg);
     check_bool("location set city-only keeps tz", strcmp(cfg.timezone, "Asia/Jakarta") == 0);
   }
+
+  reset_config();
+
+  // Valid: sets the interval (seconds stored as-is). The display of the stored
+  // value is asserted in Task 5 (needs the display.c headless/json changes).
+  run(4, (char *[]){"m", "location", "set", "--refresh-interval=21600", NULL});
+  check_ret("refresh-interval set ret", 0);
+
+  // Valid: exactly the floor.
+  run(4, (char *[]){"m", "location", "set", "--refresh-interval=3600", NULL});
+  check_ret("refresh-interval floor ret", 0);
+
+  // Valid: 0 disables.
+  run(4, (char *[]){"m", "location", "set", "--refresh-interval=0", NULL});
+  check_ret("refresh-interval disable ret", 0);
+
+  // Invalid: below the floor is rejected.
+  run(4, (char *[]){"m", "location", "set", "--refresh-interval=1800", NULL});
+  check_ret("refresh-interval below-floor rejected", 1);
+
+  // Invalid: non-numeric is rejected.
+  run(4, (char *[]){"m", "location", "set", "--refresh-interval=abc", NULL});
+  check_ret("refresh-interval non-numeric rejected", 1);
 }
 
 static void test_removed_top_level(void) {
