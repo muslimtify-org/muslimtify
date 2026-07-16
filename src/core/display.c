@@ -511,21 +511,17 @@ static void json_str(const char *s) {
   putchar('"');
 }
 
-// Render refresh_interval for the human table: "disabled" when 0, else "<n>s".
-static void format_refresh_interval(const Config *cfg, char *buf, size_t cap) {
-  if (cfg->refresh_interval <= 0)
-    snprintf(buf, cap, "disabled");
-  else
-    snprintf(buf, cap, "%llds", (long long)cfg->refresh_interval);
-}
-
 void display_location(const Config *cfg) {
   char coords[32], gmt[16];
   snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
   snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
 
+  // "disabled" when 0, else "<n>s".
   char refresh[24];
-  format_refresh_interval(cfg, refresh, sizeof(refresh));
+  if (cfg->refresh_interval <= 0)
+    snprintf(refresh, sizeof(refresh), "disabled");
+  else
+    snprintf(refresh, sizeof(refresh), "%llds", (long long)cfg->refresh_interval);
 
   const char *rows[][2] = {
       {"coordinates", coords},     {"city", cfg->city},   {"country", cfg->country},
