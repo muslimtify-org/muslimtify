@@ -20,7 +20,7 @@ extern "C" {
 
 // Location auto-refresh (TTL). refresh_interval is stored in SECONDS.
 // Default 12h; enforced minimum 1h (0 means auto-refresh disabled).
-#define LOCATION_DEFAULT_REFRESH_SECONDS (12 * 60 * 60)
+#define LOCATION_DEFAULT_REFRESH_SECONDS ((int64_t)12 * 60 * 60)
 #define LOCATION_MIN_REFRESH_SECONDS 3600
 
 typedef struct {
