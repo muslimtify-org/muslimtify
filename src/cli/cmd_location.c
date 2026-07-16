@@ -368,6 +368,8 @@ static void print_location_help(void) {
   printf("  %-25s %s\n", "muslimtify location", "# Show current location");
   printf("  %-25s %s\n", "muslimtify location --json", "# Show location as JSON");
   printf("  %-25s %s\n", "muslimtify location set --auto", "# Detect location from IP");
+  printf("  %-25s %s\n", "muslimtify location set --refresh-interval=21600",
+         "# Auto-refresh every 6h (0=off)");
 }
 
 int handle_location(int argc, char **argv) {
