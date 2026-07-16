@@ -357,7 +357,15 @@ static void print_location_help(void) {
   printf("Usage: muslimtify location [options]\n");
   printf("\n");
   printf("Commands:\n");
-  printf("  %-25s %s\n", "set [options]", "Update saved location (see 'location set --help')");
+  printf("  %-25s %s\n", "set [options]", "Update saved location fields");
+  printf("  %-25s %s\n", "      --lat=<latitude>", "Set latitude");
+  printf("  %-25s %s\n", "      --long=<longitude>", "Set longitude");
+  printf("  %-25s %s\n", "      --timezone=<iana>", "Set IANA timezone");
+  printf("  %-25s %s\n", "      --city=<name>", "Set city label");
+  printf("  %-25s %s\n", "      --country=<iso2>", "Set ISO-2 country code");
+  printf("  %-25s %s\n", "      --auto", "Detect coordinates/timezone/country from IP");
+  printf("  %-25s %s\n", "      --refresh-interval=<s>",
+         "Auto-refresh interval in seconds (0=off, min 3600)");
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
