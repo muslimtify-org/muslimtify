@@ -11,6 +11,8 @@ int seconds_until_next_minute(time_t now) {
 #ifndef MUSLIMTIFY_DAEMON_LOOP_TEST
 
 #include "check_cycle.h"
+#include "config.h"
+#include "location.h"
 
 #include <signal.h>
 #include <stdio.h>
@@ -41,12 +43,27 @@ int run_daemon_loop(void) {
   printf("muslimtify daemon: started (Ctrl+C or SIGTERM to stop)\n");
   fflush(stdout);
 
+  bool refreshed = false;
   while (!g_stop) {
     if (run_check_cycle() != 0) {
       fprintf(stderr, "muslimtify daemon: check cycle reported an error, continuing\n");
     }
     if (g_stop)
       break;
+
+    /* Refresh location once per daemon start (i.e. once per boot, since systemd
+     * launches this at login). Done AFTER the first check so a slow or offline
+     * network never delays the first notification; the fresh coordinates take
+     * effect from the next cycle onward. Non-fatal: on failure we keep the
+     * cached location and carry on. */
+    if (!refreshed) {
+      refreshed = true;
+      Config cfg;
+      if (config_load(&cfg) == 0 && location_refresh(&cfg) != 0) {
+        fprintf(stderr, "muslimtify daemon: location refresh failed, using cached location\n");
+      }
+    }
+
     sleep_to_next_minute();
   }
 

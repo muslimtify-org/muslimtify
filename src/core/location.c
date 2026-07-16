@@ -281,3 +281,35 @@ int ensure_location(Config *cfg) {
 
   return 0;
 }
+
+/* Core of location_refresh with the fetch step injected, so tests can drive the
+ * copy-then-commit fail-safe deterministically without a network round-trip.
+ * Non-static (declared test-only) to keep the seam out of the public header. */
+int location_refresh_with(Config *cfg, int (*fetch)(Config *)) {
+  if (!cfg)
+    return -1;
+
+  /* Respect a manually-configured location: only auto-detected setups get
+   * refreshed. */
+  if (!cfg->auto_detect)
+    return 0;
+
+  /* Fetch into a copy so a failed/partial lookup cannot clobber the cached
+   * coordinates. The struct holds only fixed-size fields, so a shallow copy
+   * is a complete snapshot. */
+  Config candidate = *cfg;
+  if (fetch(&candidate) != 0)
+    return -1; /* keep *cfg (last known good) untouched */
+
+  *cfg = candidate;
+  if (config_save(cfg) != 0) {
+    fprintf(stderr, "Error: Failed to save refreshed location\n");
+    return -1;
+  }
+
+  return 0;
+}
+
+int location_refresh(Config *cfg) {
+  return location_refresh_with(cfg, location_fetch);
+}

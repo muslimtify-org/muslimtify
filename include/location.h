@@ -55,6 +55,29 @@ int location_fetch(Config *cfg);
 int location_prepare(Config *cfg);
 
 /**
+ * Force a fresh location lookup from ipinfo.io, ignoring any cached
+ * coordinates, and persist the result. Unlike location_prepare(), this does
+ * NOT skip when coordinates are already set — it always re-fetches. Intended
+ * to run once at daemon startup so a machine that moved between boots picks
+ * up its new location.
+ *
+ * Fail-safe by design:
+ *   - If auto_detect is disabled, this is a no-op (returns 0), leaving a
+ *     manually-set location untouched. Note the converse: with auto_detect
+ *     enabled, any hand-edited coordinates are replaced on each refresh — set
+ *     auto_detect=false (e.g. via `location set`) to pin coordinates.
+ *   - If the network fetch fails, the passed-in config is left unmodified
+ *     and -1 is returned, so a boot with no network keeps the last known
+ *     good location instead of wiping it to 0,0.
+ *
+ * On success `*cfg` is updated (latitude/longitude/timezone/country) and
+ * saved to disk. The calculation_method is intentionally left as-is.
+ *
+ * Returns 0 on success or when auto_detect is off, -1 on fetch/save failure.
+ */
+int location_refresh(Config *cfg);
+
+/**
  * CLI-facing wrapper around location preparation.
  * Preserves interactive status output when auto-detect runs.
  */
