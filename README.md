@@ -159,6 +159,7 @@ muslimtify method --auto                        # select method from the detecte
 muslimtify location set --lat=-6.175 --long=106.82  # set location manually (uses system timezone)
 muslimtify location set --timezone=Asia/Jakarta     # override timezone
 muslimtify location set --city=Jakarta              # add a city label
+muslimtify location set --refresh-interval=21600    # re-check location every 6h (0=off, min 3600)
 muslimtify method --list          # list all available calculation methods
 muslimtify method mwl             # set calculation method
 muslimtify madzhab hanafi         # set madzhab (shafi/hanafi)

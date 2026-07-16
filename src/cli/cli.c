@@ -159,6 +159,9 @@ void cli_print_help(void) {
 
   printf("  %-25s %s\n", "      --auto", "Detect from IP address");
 
+  printf("  %-25s %s\n", "      --refresh-interval=<s>",
+         "Auto-refresh interval in seconds (0=off, min 3600)");
+
   printf("\n");
 
   /*
