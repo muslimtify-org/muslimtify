@@ -410,7 +410,8 @@ static void test_location_refresh(void) {
   if (rc_off == 0 && off_unchanged) {
     printf("  PASS: auto_detect off is a no-op (rc=0, coords preserved)\n");
   } else {
-    printf("  FAIL: auto_detect off rc=%d lat=%.5f lng=%.5f\n", rc_off, off.latitude, off.longitude);
+    printf("  FAIL: auto_detect off rc=%d lat=%.5f lng=%.5f\n", rc_off, off.latitude,
+           off.longitude);
     failures++;
   }
 
@@ -428,7 +429,8 @@ static void test_location_refresh(void) {
   if (rc_fail == -1 && preserved) {
     printf("  PASS: failed fetch keeps cached coords (rc=-1, no clobber)\n");
   } else {
-    printf("  FAIL: failed fetch rc=%d lat=%.5f lng=%.5f\n", rc_fail, keep.latitude, keep.longitude);
+    printf("  FAIL: failed fetch rc=%d lat=%.5f lng=%.5f\n", rc_fail, keep.latitude,
+           keep.longitude);
     failures++;
   }
 

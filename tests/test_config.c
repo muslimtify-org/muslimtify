@@ -463,7 +463,7 @@ static void test_refresh_interval(void) {
 
   // Round-trip: a set interval + timestamp survive save/load.
   Config out = config_default();
-  out.refresh_interval = 21600;   // 6h
+  out.refresh_interval = 21600; // 6h
   out.updated_at = 1752624000;
   config_save(&out);
   Config in;

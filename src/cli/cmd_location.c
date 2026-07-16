@@ -57,7 +57,8 @@ static void print_location_set_help(void) {
   printf("  %-25s %s\n", "--city=<name>", "Set city label");
   printf("  %-25s %s\n", "--country=<iso2>", "Set ISO-2 country code");
   printf("  %-25s %s\n", "--auto", "Detect coordinates/timezone/country from IP");
-  printf("  %-25s %s\n", "--refresh-interval=<s>", "Auto-refresh interval in seconds (0=off, min 3600)");
+  printf("  %-25s %s\n", "--refresh-interval=<s>",
+         "Auto-refresh interval in seconds (0=off, min 3600)");
   printf("\n");
   printf("Note: --auto may be combined only with --city / --country.\n");
   printf("\n");
@@ -270,8 +271,9 @@ static int location_set_handler(int argc, char **argv) {
     errno = 0;
     long long ri = strtoll(override_refresh, &end_ri, 10);
     if (end_ri == override_refresh || *end_ri != '\0' || errno == ERANGE || ri < 0) {
-      fprintf(stderr, "Error: Invalid --refresh-interval '%s' (expected a non-negative "
-                      "integer number of seconds)\n",
+      fprintf(stderr,
+              "Error: Invalid --refresh-interval '%s' (expected a non-negative "
+              "integer number of seconds)\n",
               override_refresh);
       return 1;
     }
