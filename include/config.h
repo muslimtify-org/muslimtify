@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +17,11 @@ extern "C" {
 // (handle_offset), config_validate, and clamped on load (parse_prayer_config).
 #define PRAYER_OFFSET_MIN (-60)
 #define PRAYER_OFFSET_MAX 60
+
+// Location auto-refresh (TTL). refresh_interval is stored in SECONDS.
+// Default 12h; enforced minimum 1h (0 means auto-refresh disabled).
+#define LOCATION_DEFAULT_REFRESH_SECONDS (12 * 60 * 60)
+#define LOCATION_MIN_REFRESH_SECONDS 3600
 
 typedef struct {
   bool enabled;
@@ -35,6 +41,8 @@ typedef struct {
   bool auto_detect;
   char city[128];
   char country[64];
+  int64_t updated_at;       // unix seconds of last successful location fetch (0 = never)
+  int64_t refresh_interval; // TTL in seconds; 0 = disabled, else >= LOCATION_MIN_REFRESH_SECONDS
 
   // Prayers
   PrayerConfig fajr;

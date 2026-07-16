@@ -458,6 +458,47 @@ static void test_sound_migration(void) {
   check_bool("migrate false->off", strcmp(b.notification_sound, "off") == 0);
 }
 
+static void test_refresh_interval(void) {
+  printf("test_refresh_interval\n");
+
+  // Round-trip: a set interval + timestamp survive save/load.
+  Config out = config_default();
+  out.refresh_interval = 21600;   // 6h
+  out.updated_at = 1752624000;
+  config_save(&out);
+  Config in;
+  check_bool("load ok", config_load(&in) == 0);
+  check_bool("refresh_interval round-trips", in.refresh_interval == 21600);
+  check_bool("updated_at round-trips", in.updated_at == 1752624000);
+
+  // Missing keys → 12h default (NOT 0/disabled) and updated_at 0.
+  FILE *f = fopen(config_get_path(), "w");
+  fputs("{\n  \"location\": {\n    \"latitude\": 1.0,\n    \"longitude\": 2.0\n  }\n}\n", f);
+  fclose(f);
+  Config miss;
+  check_bool("missing load ok", config_load(&miss) == 0);
+  check_bool("missing refresh_interval defaults to 12h",
+             miss.refresh_interval == LOCATION_DEFAULT_REFRESH_SECONDS);
+  check_bool("missing updated_at defaults to 0", miss.updated_at == 0);
+
+  // Below-floor positive value is clamped up to the 1h minimum on load.
+  f = fopen(config_get_path(), "w");
+  fputs("{\n  \"location\": {\n    \"refresh_interval\": 600\n  }\n}\n", f);
+  fclose(f);
+  Config clamp;
+  check_bool("clamp load ok", config_load(&clamp) == 0);
+  check_bool("sub-minimum interval clamped to 3600",
+             clamp.refresh_interval == LOCATION_MIN_REFRESH_SECONDS);
+
+  // 0 (disabled) is preserved, not clamped.
+  f = fopen(config_get_path(), "w");
+  fputs("{\n  \"location\": {\n    \"refresh_interval\": 0\n  }\n}\n", f);
+  fclose(f);
+  Config off;
+  check_bool("disabled load ok", config_load(&off) == 0);
+  check_bool("interval 0 preserved (disabled)", off.refresh_interval == 0);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -477,6 +518,7 @@ int main(void) {
   test_offset_clamp_on_load();
   test_config_size_cap();
   test_config_perms();
+  test_refresh_interval();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
