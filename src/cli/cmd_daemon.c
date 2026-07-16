@@ -3,6 +3,7 @@
 #include "cli_internal.h"
 #include "daemon_loop.h"
 #include "platform.h"
+#include "util.h"
 #include <errno.h>
 #include <linux/limits.h>
 #include <pwd.h>
@@ -225,7 +226,7 @@ static int daemon_uninstall_handler(int argc, char **argv) {
   char path[PATH_MAX];
   int removed = 0;
   const char *units[] = {"muslimtify.service", "muslimtify.timer"};
-  for (int i = 0; i < 2; i++) {
+  for (size_t i = 0; i < ARRAY_LEN(units); i++) {
     snprintf(path, sizeof(path), "%s/.config/systemd/user/%s", home, units[i]);
     if (remove(path) == 0) {
       printf("✓ Removed %s\n", path);
