@@ -1,8 +1,6 @@
 #ifndef CLI_INTERNAL_H
 #define CLI_INTERNAL_H
 
-#include "util.h"
-
 #include <stdbool.h>
 #include <string.h>
 
@@ -21,8 +19,6 @@ static inline const CommandEntry *dispatch_lookup(const CommandEntry *table, int
   }
   return NULL;
 }
-
-#define DISPATCH_N(table) ((int)ARRAY_LEN(table))
 
 typedef enum { OUTPUT_TABLE, OUTPUT_JSON, OUTPUT_HEADLESS } OutputMode;
 

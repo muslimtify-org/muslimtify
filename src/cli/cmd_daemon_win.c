@@ -262,7 +262,7 @@ int handle_daemon(int argc, char **argv) {
   }
   if (argc > 0) {
     const CommandEntry *sub =
-        dispatch_lookup(daemon_commands, DISPATCH_N(daemon_commands), argv[0]);
+        dispatch_lookup(daemon_commands, ARRAY_LEN(daemon_commands), argv[0]);
     if (sub)
       return sub->handler(argc - 1, argv + 1);
 
