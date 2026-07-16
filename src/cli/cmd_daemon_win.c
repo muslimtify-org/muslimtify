@@ -2,6 +2,7 @@
 #include "cli_internal.h"
 #include "platform.h"
 #include "toast_activator.h"
+#include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
