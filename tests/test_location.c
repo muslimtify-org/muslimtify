@@ -465,6 +465,38 @@ static void test_location_refresh(void) {
 #endif
 }
 
+static void test_location_is_stale(void) {
+  printf("\n-- location_is_stale --\n");
+  const int64_t NOW = 1000000; // fixed reference time
+  struct {
+    bool auto_detect;
+    int64_t interval;
+    int64_t updated_at;
+    bool expect;
+    const char *label;
+  } cases[] = {
+      {true, 3600, NOW, false, "fresh (age 0) not stale"},
+      {true, 3600, NOW - 3599, false, "age interval-1 not stale"},
+      {true, 3600, NOW - 3600, true, "age == interval is stale"},
+      {true, 3600, 0, true, "never-fetched (updated_at 0) is stale"},
+      {true, 0, 0, false, "interval 0 (disabled) never stale"},
+      {false, 3600, 0, false, "auto_detect off never stale"},
+  };
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    Config c = config_default();
+    c.auto_detect = cases[i].auto_detect;
+    c.refresh_interval = cases[i].interval;
+    c.updated_at = cases[i].updated_at;
+    total++;
+    if (location_is_stale(&c, NOW) == cases[i].expect) {
+      printf("  PASS: %s\n", cases[i].label);
+    } else {
+      printf("  FAIL: %s\n", cases[i].label);
+      failures++;
+    }
+  }
+}
+
 int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
@@ -482,6 +514,7 @@ int main(void) {
   test_timezone_name_is_valid();
   test_location_harden_curl();
   test_location_refresh();
+  test_location_is_stale();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;

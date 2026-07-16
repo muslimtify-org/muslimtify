@@ -78,6 +78,14 @@ int location_prepare(Config *cfg);
 int location_refresh(Config *cfg);
 
 /**
+ * Pure, network-free staleness check for the daemon check cycle. Returns true
+ * iff auto-detect is on, the interval is enabled (> 0), and the saved location
+ * is at least `refresh_interval` seconds old. `updated_at == 0` (never fetched)
+ * with a positive interval is always stale.
+ */
+bool location_is_stale(const Config *cfg, int64_t now);
+
+/**
  * CLI-facing wrapper around location preparation.
  * Preserves interactive status output when auto-detect runs.
  */

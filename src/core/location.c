@@ -211,6 +211,8 @@ int location_fetch(Config *cfg) {
   json_end(ctx);
   free(response.data);
 
+  cfg->updated_at = (int64_t)time(NULL);
+
   return 0;
 }
 
@@ -312,4 +314,12 @@ int location_refresh_with(Config *cfg, int (*fetch)(Config *)) {
 
 int location_refresh(Config *cfg) {
   return location_refresh_with(cfg, location_fetch);
+}
+
+bool location_is_stale(const Config *cfg, int64_t now) {
+  if (!cfg || !cfg->auto_detect)
+    return false;
+  if (cfg->refresh_interval <= 0) /* disabled */
+    return false;
+  return (now - cfg->updated_at) >= cfg->refresh_interval;
 }
