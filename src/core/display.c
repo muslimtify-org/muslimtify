@@ -5,6 +5,7 @@
 #include "display.h"
 #include "platform.h"
 #include "prayer_checker.h"
+#include "util.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -529,7 +530,7 @@ void display_location(const Config *cfg) {
   };
 
   int nw = (int)strlen("Name"), vw = (int)strlen("Value");
-  for (int i = 0; i < 6; i++) {
+  for (size_t i = 0; i < ARRAY_LEN(rows); i++) {
     int l = (int)strlen(rows[i][0]);
     if (l > nw)
       nw = l;
@@ -541,7 +542,7 @@ void display_location(const Config *cfg) {
   loc_border(nw, vw);
   printf("| %-*s | %-*s |\n", nw, "Name", vw, "Value");
   loc_border(nw, vw);
-  for (int i = 0; i < 6; i++)
+  for (size_t i = 0; i < ARRAY_LEN(rows); i++)
     printf("| %-*s | %-*s |\n", nw, rows[i][0], vw, rows[i][1]);
   loc_border(nw, vw);
 }
