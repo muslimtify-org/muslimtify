@@ -194,6 +194,13 @@ static void test_location(void) {
   check_contains("location headless coords", "coordinates=");
   check_contains("location headless gmt", "gmt=");
 
+  // refresh_interval appears in headless + json output
+  run(4, (char *[]){"m", "location", "set", "--refresh-interval=21600", NULL});
+  run(3, (char *[]){"m", "location", "--headless", NULL});
+  check_contains("location headless has refresh_interval", "refresh_interval=21600");
+  run(3, (char *[]){"m", "location", "--json", NULL});
+  check_contains("location json has refresh_interval", "\"refresh_interval\":");
+
   // mutual exclusion
   run(4, (char *[]){"m", "location", "--json", "--headless", NULL});
   check_ret("location json+headless ret", 1);
