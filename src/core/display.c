@@ -516,13 +516,20 @@ void display_location(const Config *cfg) {
   snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
   snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
 
+  // "disabled" when 0, else "<n>s".
+  char refresh[24];
+  if (cfg->refresh_interval <= 0)
+    snprintf(refresh, sizeof(refresh), "disabled");
+  else
+    snprintf(refresh, sizeof(refresh), "%llds", (long long)cfg->refresh_interval);
+
   const char *rows[][2] = {
       {"coordinates", coords},     {"city", cfg->city}, {"country", cfg->country},
-      {"timezone", cfg->timezone}, {"gmt", gmt},
+      {"timezone", cfg->timezone}, {"gmt", gmt},        {"refresh_interval", refresh},
   };
 
   int nw = (int)strlen("Name"), vw = (int)strlen("Value");
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 6; i++) {
     int l = (int)strlen(rows[i][0]);
     if (l > nw)
       nw = l;
@@ -534,7 +541,7 @@ void display_location(const Config *cfg) {
   loc_border(nw, vw);
   printf("| %-*s | %-*s |\n", nw, "Name", vw, "Value");
   loc_border(nw, vw);
-  for (int i = 0; i < 5; i++)
+  for (int i = 0; i < 6; i++)
     printf("| %-*s | %-*s |\n", nw, rows[i][0], vw, rows[i][1]);
   loc_border(nw, vw);
 }
@@ -545,6 +552,7 @@ void display_location_headless(const Config *cfg) {
   printf("country=%s\n", cfg->country);
   printf("timezone=%s\n", cfg->timezone);
   printf("gmt=UTC%+.1f\n", cfg->timezone_offset);
+  printf("refresh_interval=%lld\n", (long long)cfg->refresh_interval);
 }
 
 void display_location_json(const Config *cfg) {
@@ -567,7 +575,9 @@ void display_location_json(const Config *cfg) {
   printf(",\n");
   printf("  \"gmt\": ");
   json_str(gmt);
-  printf("\n}\n");
+  printf(",\n");
+  printf("  \"refresh_interval\": %lld\n", (long long)cfg->refresh_interval);
+  printf("}\n");
 }
 
 void display_notification_settings(const Config *cfg) {

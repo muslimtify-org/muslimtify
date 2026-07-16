@@ -31,7 +31,8 @@ static void set_country(Config *cfg, const char *code) {
 
 static const char *LOCATION_SET_USAGE =
     "Usage: muslimtify location set [--lat=<latitude>] [--long=<longitude>] "
-    "[--timezone=<iana>] [--city=<name>] [--country=<iso2>]\n";
+    "[--timezone=<iana>] [--city=<name>] [--country=<iso2>] "
+    "[--refresh-interval=<seconds>]\n";
 
 // Returns true if `tz` is one of the canonical UTC aliases (so an offset of 0.0
 // is expected, not a sign of an unrecognized zone).
@@ -56,6 +57,8 @@ static void print_location_set_help(void) {
   printf("  %-25s %s\n", "--city=<name>", "Set city label");
   printf("  %-25s %s\n", "--country=<iso2>", "Set ISO-2 country code");
   printf("  %-25s %s\n", "--auto", "Detect coordinates/timezone/country from IP");
+  printf("  %-25s %s\n", "--refresh-interval=<s>",
+         "Auto-refresh interval in seconds (0=off, min 3600)");
   printf("\n");
   printf("Note: --auto may be combined only with --city / --country.\n");
   printf("\n");
@@ -76,6 +79,7 @@ static int location_set_handler(int argc, char **argv) {
   const char *override_tz = NULL;
   const char *override_city = NULL;
   const char *override_country = NULL;
+  const char *override_refresh = NULL;
 
   for (int i = 0; i < argc; ++i) {
     if (strncmp(argv[i], "--lat=", 6) == 0) {
@@ -138,6 +142,20 @@ static int location_set_handler(int argc, char **argv) {
         return 1;
       }
       override_country = argv[++i];
+    } else if (strncmp(argv[i], "--refresh-interval=", 19) == 0) {
+      override_refresh = argv[i] + 19;
+      if (*override_refresh == '\0') {
+        fprintf(stderr, "Error: --refresh-interval requires a value in seconds "
+                        "(e.g. --refresh-interval=43200, or 0 to disable)\n");
+        return 1;
+      }
+    } else if (strcmp(argv[i], "--refresh-interval") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "Error: --refresh-interval requires a value in seconds "
+                        "(e.g. --refresh-interval 43200, or 0 to disable)\n");
+        return 1;
+      }
+      override_refresh = argv[++i];
     } else if (strcmp(argv[i], "--auto") == 0) {
       auto_detect = true;
     } else {
@@ -192,7 +210,8 @@ static int location_set_handler(int argc, char **argv) {
     return 0;
   }
 
-  if (!override_lat && !override_lon && !override_tz && !override_city && !override_country) {
+  if (!override_lat && !override_lon && !override_tz && !override_city && !override_country &&
+      !override_refresh) {
     fputs(LOCATION_SET_USAGE, stderr);
     return 1;
   }
@@ -247,6 +266,25 @@ static int location_set_handler(int argc, char **argv) {
     set_country(&cfg, override_country);
   }
 
+  if (override_refresh) {
+    char *end_ri;
+    errno = 0;
+    long long ri = strtoll(override_refresh, &end_ri, 10);
+    if (end_ri == override_refresh || *end_ri != '\0' || errno == ERANGE || ri < 0) {
+      fprintf(stderr,
+              "Error: Invalid --refresh-interval '%s' (expected a non-negative "
+              "integer number of seconds)\n",
+              override_refresh);
+      return 1;
+    }
+    if (ri > 0 && ri < LOCATION_MIN_REFRESH_SECONDS) {
+      fprintf(stderr, "Error: --refresh-interval must be 0 (disabled) or at least %d seconds\n",
+              LOCATION_MIN_REFRESH_SECONDS);
+      return 1;
+    }
+    cfg.refresh_interval = (int64_t)ri;
+  }
+
   if (override_tz) {
     // Explicit override — validate it resolves to something other than the
     // implicit UTC fallback. Useful when the host OS timezone differs from
@@ -294,6 +332,12 @@ static int location_set_handler(int argc, char **argv) {
   else if (coords_changed)
     printf("Timezone updated to %s (UTC%+.1f) from system timezone\n", cfg.timezone,
            cfg.timezone_offset);
+  if (override_refresh) {
+    if (cfg.refresh_interval == 0)
+      printf("Auto-refresh disabled\n");
+    else
+      printf("Refresh interval updated to %llds\n", (long long)cfg.refresh_interval);
+  }
 
   // Coordinates and timezone jointly determine the prayer times, so prompt the
   // user to sanity-check whichever of the pair they did not just set.
@@ -315,7 +359,15 @@ static void print_location_help(void) {
   printf("Usage: muslimtify location [options]\n");
   printf("\n");
   printf("Commands:\n");
-  printf("  %-25s %s\n", "set [options]", "Update saved location (see 'location set --help')");
+  printf("  %-25s %s\n", "set [options]", "Update saved location fields");
+  printf("  %-25s %s\n", "      --lat=<latitude>", "Set latitude");
+  printf("  %-25s %s\n", "      --long=<longitude>", "Set longitude");
+  printf("  %-25s %s\n", "      --timezone=<iana>", "Set IANA timezone");
+  printf("  %-25s %s\n", "      --city=<name>", "Set city label");
+  printf("  %-25s %s\n", "      --country=<iso2>", "Set ISO-2 country code");
+  printf("  %-25s %s\n", "      --auto", "Detect coordinates/timezone/country from IP");
+  printf("  %-25s %s\n", "      --refresh-interval=<s>",
+         "Auto-refresh interval in seconds (0=off, min 3600)");
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
@@ -326,6 +378,8 @@ static void print_location_help(void) {
   printf("  %-25s %s\n", "muslimtify location", "# Show current location");
   printf("  %-25s %s\n", "muslimtify location --json", "# Show location as JSON");
   printf("  %-25s %s\n", "muslimtify location set --auto", "# Detect location from IP");
+  printf("  %-25s %s\n", "muslimtify location set --refresh-interval=21600",
+         "# Auto-refresh every 6h (0=off)");
 }
 
 int handle_location(int argc, char **argv) {

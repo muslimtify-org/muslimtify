@@ -54,6 +54,8 @@ Config config_default(void) {
     log_truncation("timezone");
   }
   cfg.timezone_offset = 0.0;
+  cfg.updated_at = 0;
+  cfg.refresh_interval = LOCATION_DEFAULT_REFRESH_SECONDS;
 
   // Prayer defaults with reminders [30, 15, 5]
   int default_reminders[] = {30, 15, 5};
@@ -191,6 +193,8 @@ static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, ",\n");
   fprintf(f, "    \"timezone_offset\": %.1f,\n", cfg->timezone_offset);
   fprintf(f, "    \"auto_detect\": %s,\n", cfg->auto_detect ? "true" : "false");
+  fprintf(f, "    \"updated_at\": %lld,\n", (long long)cfg->updated_at);
+  fprintf(f, "    \"refresh_interval\": %lld,\n", (long long)cfg->refresh_interval);
   fprintf(f, "    \"city\": ");
   json_escape_string(f, cfg->city);
   fprintf(f, ",\n");
@@ -436,6 +440,8 @@ int config_load(Config *cfg) {
     char *auto_detect_str = get_value(ctx, "auto_detect", location);
     char *city_str = get_value(ctx, "city", location);
     char *country_str = get_value(ctx, "country", location);
+    char *updated_at_str = get_value(ctx, "updated_at", location);
+    char *refresh_interval_str = get_value(ctx, "refresh_interval", location);
 
     if (lat_str)
       cfg->latitude = strtod(lat_str, NULL);
@@ -460,6 +466,14 @@ int config_load(Config *cfg) {
         log_truncation("country");
       }
     }
+    if (updated_at_str)
+      cfg->updated_at = (int64_t)strtoll(updated_at_str, NULL, 10);
+    if (refresh_interval_str)
+      cfg->refresh_interval = (int64_t)strtoll(refresh_interval_str, NULL, 10);
+    // Enforce the 1-hour floor even against a hand-edited config. 0 (disabled)
+    // is left untouched; only positive sub-minimum values are raised.
+    if (cfg->refresh_interval > 0 && cfg->refresh_interval < LOCATION_MIN_REFRESH_SECONDS)
+      cfg->refresh_interval = LOCATION_MIN_REFRESH_SECONDS;
   }
 
   // Parse prayers
