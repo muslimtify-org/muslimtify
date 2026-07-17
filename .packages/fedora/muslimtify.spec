@@ -83,7 +83,7 @@ fi
 - Refactor source tree into src/{core,cli,platform}/ subdirectories
 - CI: enforce non-empty test suites on Windows
 
-* Thu Apr 03 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.2.1-1
+* Fri Apr 03 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.2.1-1
 - Auto-detect location and method on daemon install
 - Bug fixes and improvements
 
