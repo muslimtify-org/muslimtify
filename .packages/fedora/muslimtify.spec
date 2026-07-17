@@ -1,5 +1,5 @@
 Name:           muslimtify
-Version:        0.3.1
+Version:        0.3.2
 Release:        1%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
 License:        MIT
@@ -50,6 +50,10 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
+* Fri Jul 17 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.3.2-1
+- add ARRAY_LEN helper and replace harcoded array lengths
+- add cross-platform location auto-refresh with configurable interval
+
 * Mon Jul 13 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.3.1-1
 - Rework 'show --date' to accept a single date or an inclusive range, with full support in the table, --json, and --headless output modes
 - Validate input dates up front; reject malformed or out-of-order ranges with a clear error

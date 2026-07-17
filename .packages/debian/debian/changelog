@@ -1,3 +1,10 @@
+muslimtify (0.3.2-1) unstable; urgency=medium
+
+  * add ARRAY_LEN helper and replace harcoded array lengths
+  * add cross-platform location auto-refresh with configurable interval
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Fri, 17 Jul 2026 15:56:06 +0700
+
 muslimtify (0.3.1-1) unstable; urgency=medium
 
   * Rework "show --date" to accept a single date or an inclusive range, with full support in the table, --json, and --headless output modes
