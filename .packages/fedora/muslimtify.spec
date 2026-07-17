@@ -15,9 +15,7 @@ Requires:       libnotify
 Requires:       libcurl
 
 %description
-Muslimtify is a lightweight CLI tool that sends desktop notifications
-for Islamic prayer times with customizable reminders. It integrates
-with a systemd user service and supports per-prayer configuration.
+A daily prayer notification daemon for Muslims on Windows and Linux, supporting 21 global standard calculation methods, all madzhab, all country.
 
 %prep
 %autosetup -n %{name}-%{version}
