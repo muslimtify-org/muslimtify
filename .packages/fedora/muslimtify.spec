@@ -51,6 +51,26 @@ fi
 
 %changelog
 * Mon Jul 13 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.3.1-1
+- Rework 'show --date' to accept a single date or an inclusive range, with full support in the table, --json, and --headless output modes
+- Validate input dates up front; reject malformed or out-of-order ranges with a clear error
+- Fix 'show --next' rollover after the last prayer of the day; the wrapped prayer's time is recomputed for the next day rather than reusing today's clock time
+- Rewrite the 'show --date' help text to cover single-date and range behaviour
+- Ship the bundled adhan.mp3 inside the package
+
+* Thu Jul 09 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.3.0-1
+- Redesign the command-line into show/location/notification/method/madzhab verbs with --json and --headless output (breaking change)
+- Add per-prayer adhan audio with a bundled adhan and a cancellable notification
+- Add 'offset <prayer|all> <minutes>' to shift individual prayer times
+- Harden security: TLS-only location fetch, timezone validation before setenv, 0600 config and cache files, adhan path checks
+- Remove the config and check commands; reset by deleting config.json
+
+* Sun Jun 28 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.2.5-1
+- Fix the Windows silent install hanging on a network call, which failed winget validation on the 0.2.4 manifest
+- 'daemon install' now only registers the scheduled task and returns immediately; location and method are auto-detected lazily on the task's first run
+- Normalize mixed-slash paths during Windows install-time runtime-dependency resolution (CMake policy CMP0207)
+- Remove the unused MUSLIMTIFY_CMD_DAEMON_WIN_TEST guard and dead includes from the Windows daemon command
+
+* Sat Jun 27 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.2.4-1
 - Refactor the timer-driven daemon into a long-running systemd user service (Type=simple); drop the .timer
 - Auto-remove the legacy systemd timer on install and upgrade
 - Render the systemd unit from a single configure-time template
