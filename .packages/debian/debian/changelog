@@ -1,4 +1,21 @@
+muslimtify (0.3.2-1) unstable; urgency=medium
+
+  * add ARRAY_LEN helper and replace harcoded array lengths
+  * add cross-platform location auto-refresh with configurable interval
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Fri, 17 Jul 2026 15:56:06 +0700
+
 muslimtify (0.3.1-1) unstable; urgency=medium
+
+  * Rework "show --date" to accept a single date or an inclusive range, with full support in the table, --json, and --headless output modes
+  * Validate input dates up front; reject malformed or out-of-order ranges with a clear error instead of emitting garbage
+  * Fix "show --next" rollover after the last prayer of the day; the wrapped prayer's time is recomputed for the next day rather than reusing today's clock time
+  * Rewrite the "show --date" help text to cover single-date and range behaviour
+  * Ship the bundled adhan.mp3 inside the Fedora and Windows packages
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Mon, 13 Jul 2026 18:32:12 +0700
+
+muslimtify (0.3.0-1) unstable; urgency=medium
 
   * Redesign the command-line into show/location/notification/method/madzhab verbs with --json and --headless output (breaking change)
   * Add per-prayer adhan audio with a bundled adhan and a cancellable notification, including a Windows toast Stop button
@@ -6,7 +23,28 @@ muslimtify (0.3.1-1) unstable; urgency=medium
   * Harden security: TLS-only location fetch, timezone validation before setenv, 0600 config and cache files, adhan path checks
   * Remove the config and check commands; reset by deleting config.json
 
- -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Mon, 13 Jul 2026 18:07:52 +0700
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Thu, 09 Jul 2026 14:50:07 +0700
+
+muslimtify (0.2.5-1) unstable; urgency=medium
+
+  * Fix the Windows silent install hanging on a network call, which failed winget validation with Validation-Unattended-Failed on the 0.2.4 manifest
+  * "daemon install" now only registers the scheduled task and returns immediately; location and method are auto-detected lazily on the task's first run instead of during setup
+  * Normalize mixed-slash paths during Windows install-time runtime-dependency resolution (CMake policy CMP0207)
+  * Remove the unused MUSLIMTIFY_CMD_DAEMON_WIN_TEST guard and dead includes from the Windows daemon command
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Sun, 28 Jun 2026 06:25:20 +0700
+
+muslimtify (0.2.4-1) unstable; urgency=medium
+
+  * Replace the per-minute systemd timer with a long-running, self-scheduling daemon ("daemon run")
+  * Ship the systemd user unit as a long-running Type=simple service with Restart=on-failure; remove muslimtify.timer entirely
+  * Sleep in bounded, interruptible naps aligned to the top of each minute, so a suspend/resume or clock change cannot overshoot or skip a prayer
+  * Handle SIGTERM/SIGINT for graceful shutdown instead of being killed mid-sleep
+  * Disable and remove a leftover muslimtify.timer on install and uninstall; postinst calls "daemon install", so PPA upgrades self-heal with no manual steps
+  * Keep "muslimtify check" working unchanged for manual runs or custom scheduling
+  * Add unit tests for the systemd unit builder and the loop sleep interval
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Sat, 27 Jun 2026 21:21:32 +0700
 
 muslimtify (0.2.3-2) unstable; urgency=medium
 
@@ -129,4 +167,4 @@ muslimtify (0.1.1-1) unstable; urgency=medium
 
   * Initial Debian packaging.
 
- -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Tue, 25 Feb 2026 00:00:00 +0700
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Wed, 25 Feb 2026 00:00:00 +0700

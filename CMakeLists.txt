@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22...3.31)
-project(muslimtify VERSION 0.3.1 LANGUAGES C)
+project(muslimtify VERSION 0.3.2 LANGUAGES C)
 
 # -- Default build type --------------------------------------------------------
 
