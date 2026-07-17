@@ -78,8 +78,13 @@ done
 
 if [ "$mismatch" -ne 0 ]; then
     echo "" >&2
-    echo "==> FAIL: packaging versions disagree. Run ./bump-version.sh <version>" >&2
-    echo "    to resync every file, then re-run this check." >&2
+    echo "==> FAIL: packaging versions disagree." >&2
+    echo "    Run ./bump-version.sh <version> to resync the generated fields." >&2
+    echo "" >&2
+    echo "    EXCEPT debian/changelog — bump-version.sh does not write it, because" >&2
+    echo "    the changelog IS the Debian version. If it is the file flagged above," >&2
+    echo "    hand-write a new top stanza (date -R timestamp), then re-run:" >&2
+    echo "        muslimtify (${REF}-1) unstable; urgency=medium" >&2
     exit 1
 fi
 
