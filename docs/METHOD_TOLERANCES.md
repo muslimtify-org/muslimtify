@@ -18,7 +18,7 @@ Islamic jurisprudence.
 
 ## Per-Method Analysis
 
-### Kemenag (Indonesia) — 2 min tolerance
+### Kemenag (Indonesia): 2 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -41,7 +41,7 @@ Sources:
 
 ---
 
-### MWL (Muslim World League) — 2 min tolerance
+### MWL (Muslim World League): 2 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -58,7 +58,7 @@ guidance is +2 minutes precaution.
 
 ---
 
-### ISNA / FCNA (North America) — 2 min tolerance
+### ISNA / FCNA (North America): 2 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -83,7 +83,7 @@ Sources:
 
 ---
 
-### Egypt (EGAS) — 2 min tolerance
+### Egypt (EGAS): 2 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -100,7 +100,7 @@ Fajr closer to 15-18 degrees.
 
 ---
 
-### Umm al-Qura (Makkah) — 3 min tolerance
+### Umm al-Qura (Makkah): 3 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -124,7 +124,7 @@ Sources:
 
 ---
 
-### Karachi — 2 min tolerance
+### Karachi: 2 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -140,7 +140,7 @@ Asian practice follows standard 2-minute precautionary addition.
 
 ---
 
-### JAKIM (Malaysia) — 2 min tolerance
+### JAKIM (Malaysia): 2 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -165,7 +165,7 @@ Sources:
 
 ---
 
-### MUIS (Singapore) — 2 min tolerance
+### MUIS (Singapore): 2 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -175,14 +175,14 @@ Sources:
 
 MUIS does not publicly document methodology or accuracy standards. Third-party implementations
 report 1-3 minute discrepancies. Since Singapore is geographically small (~50km), zone-based
-corrections are not needed. MUIS, JAKIM, and Kemenag share identical angles (20/18) — they are
+corrections are not needed. MUIS, JAKIM, and Kemenag share identical angles (20/18), they are
 algorithmically equivalent except for ihtiyat and rounding.
 
 **Recommended test tolerance: 2 minutes**
 
 ---
 
-### Diyanet (Turkey) — 2 min tolerance
+### Diyanet (Turkey): 2 min tolerance
 
 | Parameter | Value |
 |-----------|-------|
@@ -196,7 +196,7 @@ temkin is standardized at 10 minutes. The 1982 Supreme Religious Council reform 
 previously excessive temkin values. Turkish sources warn that omitting temkin creates 15-20 minute
 errors in imsak times at latitudes 36-42 degrees.
 
-**Recommended test tolerance: 2 minutes** (for our implementation which does not apply temkin;
+**Recommended test tolerance: 2 minutes** (for our implementation which does not apply temkin,
 comparisons against official Diyanet times will show larger differences due to temkin)
 
 Sources:
@@ -217,7 +217,7 @@ Sources:
 | **Karachi** | 2 min | Standard ihtiyat practice |
 | **JAKIM** | 2 min | Zone constraint ≤2 min |
 | **MUIS** | 2 min | Matches JAKIM/Kemenag parameters |
-| **Diyanet** | 2 min | Without temkin; official times differ by temkin amount |
+| **Diyanet** | 2 min | Without temkin, official times differ by temkin amount |
 | **All others** | 2 min | Default conservative standard |
 
 **Note:** These tolerances are for validating our calculator against reference sources (Aladhan

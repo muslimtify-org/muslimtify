@@ -49,3 +49,5 @@ docs/plans/
 docs/specs/
 docs/verifications/
 CLAUDE.md
+/package-lock.json
+/package.json

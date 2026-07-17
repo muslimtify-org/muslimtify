@@ -2,6 +2,7 @@
 #include "cli_internal.h"
 #include "config.h"
 #include "prayertimes.h"
+#include "util.h"
 #include "version.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -159,6 +160,9 @@ void cli_print_help(void) {
 
   printf("  %-25s %s\n", "      --auto", "Detect from IP address");
 
+  printf("  %-25s %s\n", "      --refresh-interval=<s>",
+         "Auto-refresh interval in seconds (0=off, min 3600)");
+
   printf("\n");
 
   /*
@@ -267,7 +271,7 @@ int cli_run(int argc, char **argv) {
   }
 
   const char *cmd = argv[1];
-  const CommandEntry *entry = dispatch_lookup(top_commands, DISPATCH_N(top_commands), cmd);
+  const CommandEntry *entry = dispatch_lookup(top_commands, ARRAY_LEN(top_commands), cmd);
   if (entry)
     return entry->handler(argc - 2, argv + 2);
 

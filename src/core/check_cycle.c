@@ -24,6 +24,15 @@ int run_check_cycle(void) {
     return 1;
   }
 
+  // Periodic refresh: once the saved auto-detected location is older than the
+  // configured interval, re-fetch it. Non-fatal — location_refresh keeps the
+  // last known good coordinates on failure. Shared by the Linux daemon loop and
+  // the Windows scheduled task (both call run_check_cycle).
+  if (location_is_stale(&cfg, (int64_t)time(NULL))) {
+    if (location_refresh(&cfg) != 0)
+      fprintf(stderr, "check: location refresh failed, using cached location\n");
+  }
+
   time_t now = time(NULL);
   struct tm tm_buf;
   platform_localtime(&now, &tm_buf);

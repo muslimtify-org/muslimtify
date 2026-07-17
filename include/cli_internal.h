@@ -20,8 +20,6 @@ static inline const CommandEntry *dispatch_lookup(const CommandEntry *table, int
   return NULL;
 }
 
-#define DISPATCH_N(table) ((int)(sizeof(table) / sizeof((table)[0])))
-
 typedef enum { OUTPUT_TABLE, OUTPUT_JSON, OUTPUT_HEADLESS } OutputMode;
 
 // Scan argv for --json / --headless; set *out (default OUTPUT_TABLE).
