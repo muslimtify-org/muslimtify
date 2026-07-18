@@ -2,6 +2,7 @@
 #define LOCATION_H
 
 #include "config.h"
+#include "platform_native.h"
 
 #include <time.h>
 
@@ -46,6 +47,25 @@ int get_system_timezone(char *buf, size_t cap);
  * Returns: 0 on success, -1 on failure.
  */
 int location_fetch(Config *cfg);
+
+/**
+ * Try to read coordinates from a local gpsd receiver. On GPS_OK, writes
+ * latitude/longitude and derives the timezone from the host system (GPS carries
+ * no timezone); country is left unchanged. Returns a GpsStatus describing the
+ * outcome. Exposed so `location gps on` can probe before enabling.
+ */
+GpsStatus location_fetch_gps(Config *cfg);
+
+/**
+ * Orchestrator core with injected sources (test seam, mirrors
+ * location_refresh_with). When cfg->use_gps is set it calls gps() first: a
+ * GPS_OK returns immediately; a structural failure (GPS_NO_DAEMON /
+ * GPS_NO_DEVICE / GPS_UNAVAILABLE) warns once on stderr and sets use_gps=false
+ * so the next fetch stops trying; a GPS_NO_FIX is silent and keeps use_gps on.
+ * Any non-OK GPS outcome falls through to ipinfo(). Returns the 0/-1 of the
+ * source that produced the result.
+ */
+int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *));
 
 /**
  * Quiet helper that ensures location data exists.
