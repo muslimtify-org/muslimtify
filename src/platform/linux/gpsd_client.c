@@ -54,8 +54,8 @@ void gpsd_scan_line(const char *line, GpsdScan *scan) {
         double dlat = strtod(lat, &elat);
         double dlon = strtod(lon, &elon);
         // Require a full numeric parse and a valid geographic range.
-        if (elat != lat && elon != lon && isfinite(dlat) && isfinite(dlon) &&
-            dlat >= -90.0 && dlat <= 90.0 && dlon >= -180.0 && dlon <= 180.0) {
+        if (elat != lat && elon != lon && isfinite(dlat) && isfinite(dlon) && dlat >= -90.0 &&
+            dlat <= 90.0 && dlon >= -180.0 && dlon <= 180.0) {
           scan->lat = dlat;
           scan->lng = dlon;
           scan->have_fix = true;
