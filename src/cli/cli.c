@@ -163,6 +163,8 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "      --refresh-interval=<s>",
          "Auto-refresh interval in seconds (0=off, min 3600)");
 
+  printf("  %-25s %s\n", "    gps <on|off>", "Enable/disable GPS (gpsd) location source");
+
   printf("\n");
 
   /*
@@ -255,6 +257,8 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "muslimtify location set --lat=-6.21 --long=106.84", "# Set coordinates");
 
   printf("  %-25s %s\n", "muslimtify location set --timezone=Asia/Jakarta", "# Override timezone");
+
+  printf("  %-25s %s\n", "muslimtify location gps on", "# Use local gpsd for location");
 
   printf("\n");
 
