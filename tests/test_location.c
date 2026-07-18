@@ -12,6 +12,10 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef _WIN32
+#include "platform/linux/gpsd_client.h"
+#endif
+
 // Defined (non-static) in src/core/location.c; declared here test-only to keep
 // <curl/curl.h> out of the public location.h header.
 extern CURLcode location_harden_curl(CURL *curl);
@@ -590,6 +594,64 @@ static void test_location_is_stale(void) {
   }
 }
 
+#ifndef _WIN32
+static void test_gpsd_scan_line(void) {
+  printf("\n-- gpsd_scan_line --\n");
+
+  // Valid 3D fix -> coordinates captured, device seen.
+  GpsdScan s1 = {0};
+  gpsd_scan_line("{\"class\":\"TPV\",\"mode\":3,\"lat\":-6.2,\"lon\":106.8}", &s1);
+  expect(s1.have_fix && s1.saw_device && fabs(s1.lat - (-6.2)) < 1e-9 &&
+             fabs(s1.lng - 106.8) < 1e-9,
+         "valid TPV 3D fix -> have_fix + coords");
+
+  // mode 1 = no fix, but the report proves a device exists.
+  GpsdScan s2 = {0};
+  gpsd_scan_line("{\"class\":\"TPV\",\"mode\":1}", &s2);
+  expect(!s2.have_fix && s2.saw_device, "TPV mode 1 -> device, no fix");
+
+  // SKY report -> device present, no fix.
+  GpsdScan s3 = {0};
+  gpsd_scan_line("{\"class\":\"SKY\",\"device\":\"/dev/ttyUSB0\"}", &s3);
+  expect(!s3.have_fix && s3.saw_device, "SKY -> device seen, no fix");
+
+  // Out-of-range latitude is rejected.
+  GpsdScan s4 = {0};
+  gpsd_scan_line("{\"class\":\"TPV\",\"mode\":3,\"lat\":99.0,\"lon\":10.0}", &s4);
+  expect(!s4.have_fix, "out-of-range lat rejected");
+
+  // VERSION line -> nothing.
+  GpsdScan s5 = {0};
+  gpsd_scan_line("{\"class\":\"VERSION\",\"release\":\"3.25\"}", &s5);
+  expect(!s5.have_fix && !s5.saw_device, "VERSION -> nothing");
+
+  // Hostile: non-numeric lat/lon with format-string chars must be rejected and
+  // never interpreted as a format.
+  GpsdScan s6 = {0};
+  gpsd_scan_line("{\"class\":\"TPV\",\"mode\":3,\"lat\":\"%n%s\",\"lon\":\"%x\"}", &s6);
+  expect(!s6.have_fix, "non-numeric lat/lon rejected");
+
+  // Hostile: garbage / non-JSON does not crash and yields nothing.
+  GpsdScan s7 = {0};
+  gpsd_scan_line("not json at all }{][", &s7);
+  expect(!s7.have_fix && !s7.saw_device, "garbage line -> nothing");
+
+  // Hostile: an over-long line (> parser cap) is ignored safely.
+  char big[9000];
+  memset(big, 'a', sizeof(big) - 1);
+  big[sizeof(big) - 1] = '\0';
+  GpsdScan s8 = {0};
+  gpsd_scan_line(big, &s8);
+  expect(!s8.have_fix && !s8.saw_device, "over-long line ignored");
+
+  // NULL args must not crash.
+  GpsdScan s9 = {0};
+  gpsd_scan_line(NULL, &s9);
+  gpsd_scan_line("{}", NULL);
+  expect(!s9.have_fix, "NULL args safe");
+}
+#endif /* _WIN32 */
+
 int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
@@ -608,6 +670,9 @@ int main(void) {
   test_location_harden_curl();
   test_location_refresh();
   test_location_fetch_core();
+#ifndef _WIN32
+  test_gpsd_scan_line();
+#endif
   test_location_is_stale();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
