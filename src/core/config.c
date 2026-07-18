@@ -50,6 +50,7 @@ Config config_default(void) {
 
   // Location defaults
   cfg.auto_detect = true;
+  cfg.use_gps = false;
   if (!copy_string(cfg.timezone, sizeof(cfg.timezone), "UTC")) {
     log_truncation("timezone");
   }
@@ -193,6 +194,7 @@ static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, ",\n");
   fprintf(f, "    \"timezone_offset\": %.1f,\n", cfg->timezone_offset);
   fprintf(f, "    \"auto_detect\": %s,\n", cfg->auto_detect ? "true" : "false");
+  fprintf(f, "    \"use_gps\": %s,\n", cfg->use_gps ? "true" : "false");
   fprintf(f, "    \"updated_at\": %lld,\n", (long long)cfg->updated_at);
   fprintf(f, "    \"refresh_interval\": %lld,\n", (long long)cfg->refresh_interval);
   fprintf(f, "    \"city\": ");
@@ -438,6 +440,7 @@ int config_load(Config *cfg) {
     char *tz_str = get_value(ctx, "timezone", location);
     char *tz_offset_str = get_value(ctx, "timezone_offset", location);
     char *auto_detect_str = get_value(ctx, "auto_detect", location);
+    char *use_gps_str = get_value(ctx, "use_gps", location);
     char *city_str = get_value(ctx, "city", location);
     char *country_str = get_value(ctx, "country", location);
     char *updated_at_str = get_value(ctx, "updated_at", location);
@@ -456,6 +459,8 @@ int config_load(Config *cfg) {
       cfg->timezone_offset = strtod(tz_offset_str, NULL);
     if (auto_detect_str)
       cfg->auto_detect = strcmp(auto_detect_str, "true") == 0;
+    if (use_gps_str)
+      cfg->use_gps = strcmp(use_gps_str, "true") == 0;
     if (city_str) {
       if (!copy_string(cfg->city, sizeof(cfg->city), city_str)) {
         log_truncation("city");

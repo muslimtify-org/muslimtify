@@ -223,6 +223,7 @@ static void test_default(void) {
   check_bool("default auto_detect", cfg.auto_detect);
   check_bool("default lat=0", cfg.latitude == 0.0);
   check_bool("default lon=0", cfg.longitude == 0.0);
+  check_bool("default use_gps off", cfg.use_gps == false);
   check_bool("default fajr enabled", cfg.fajr.enabled);
   check_bool("default sunrise disabled", !cfg.sunrise.enabled);
   check_bool("default dhuha disabled", !cfg.dhuha.enabled);
@@ -277,6 +278,7 @@ static void test_round_trip(void) {
   strncpy(out.timezone, "Asia/Jakarta", sizeof(out.timezone) - 1);
   out.timezone_offset = 7.0;
   out.auto_detect = false;
+  out.use_gps = true;
   strncpy(out.city, "Jakarta", sizeof(out.city) - 1);
   strncpy(out.country, "Indonesia", sizeof(out.country) - 1);
   out.fajr.enabled = true;
@@ -308,6 +310,7 @@ static void test_round_trip(void) {
   check_bool("rt timezone", strcmp(in.timezone, out.timezone) == 0);
   check_bool("rt tz_offset", fabs(in.timezone_offset - out.timezone_offset) < 0.1);
   check_bool("rt auto_detect", in.auto_detect == out.auto_detect);
+  check_bool("rt use_gps", in.use_gps == out.use_gps);
   check_bool("rt city", strcmp(in.city, out.city) == 0);
   check_bool("rt country", strcmp(in.country, out.country) == 0);
   check_bool("rt fajr enabled", in.fajr.enabled == out.fajr.enabled);
