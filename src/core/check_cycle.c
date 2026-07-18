@@ -12,6 +12,19 @@
 #include <string.h>
 #include <time.h>
 
+// Fire a missed trigger only if it came due within this many minutes of now.
+// Covers any realistic adhan length and short cycle overruns, while dropping
+// prayers missed by a long suspend/resume rather than replaying them.
+#define CATCHUP_MAX_MIN 15
+
+TriggerAction trigger_catchup_action(int trigger_minute, int current_minute) {
+  if (trigger_minute > current_minute)
+    return TRIGGER_KEEP;
+  if (current_minute - trigger_minute <= CATCHUP_MAX_MIN)
+    return TRIGGER_FIRE;
+  return TRIGGER_DROP;
+}
+
 int run_check_cycle(void) {
   Config cfg;
   if (config_load(&cfg) != 0) {
