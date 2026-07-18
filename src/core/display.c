@@ -30,32 +30,9 @@ static bool use_colors(void) {
 
 #define C(code) (use_colors() ? (code) : "")
 
-// Days since 1970-01-01 for a civil (proleptic Gregorian) date, and the
-// inverse. Howard Hinnant's public-domain algorithm. Used to iterate an
+// Calendar serial <-> civil-date helpers (mt_days_from_civil / mt_civil_from_days)
+// live in prayertimes.h so config.c can share them; used here to iterate an
 // inclusive date range without touching struct tm / mktime (no DST hazards).
-static long mt_days_from_civil(int y, int m, int d) {
-  y -= m <= 2;
-  long era = (y >= 0 ? y : y - 399) / 400;
-  unsigned yoe = (unsigned)(y - era * 400);
-  unsigned doy = (unsigned)((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1);
-  unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097L + (long)doe - 719468;
-}
-
-static void mt_civil_from_days(long z, int *y, int *m, int *d) {
-  z += 719468;
-  long era = (z >= 0 ? z : z - 146096) / 146097;
-  unsigned doe = (unsigned)(z - era * 146097);
-  unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-  long yy = (long)yoe + era * 400;
-  unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-  unsigned mp = (5 * doy + 2) / 153;
-  unsigned dd = doy - (153 * mp + 2) / 5 + 1;
-  unsigned mm = (mp < 10) ? (mp + 3) : (mp - 9);
-  *y = (int)(yy + (mm <= 2));
-  *m = (int)mm;
-  *d = (int)dd;
-}
 
 static void lower_copy(char *dst, size_t cap, const char *src) {
   size_t i = 0;
@@ -512,10 +489,19 @@ static void json_str(const char *s) {
   putchar('"');
 }
 
+// The location display shows the offset in effect for TODAY, so it tracks DST
+// rather than the value frozen in the config when the location was last set.
+static double display_current_offset(const Config *cfg) {
+  time_t now_t = time(NULL);
+  struct tm lt;
+  platform_localtime(&now_t, &lt);
+  return effective_tz_offset(cfg, lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday);
+}
+
 void display_location(const Config *cfg) {
   char coords[32], gmt[16];
   snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
-  snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
+  snprintf(gmt, sizeof(gmt), "UTC%+.1f", display_current_offset(cfg));
 
   // "disabled" when 0, else "<n>s".
   char refresh[24];
@@ -557,7 +543,7 @@ void display_location_headless(const Config *cfg) {
   printf("city=%s\n", cfg->city);
   printf("country=%s\n", cfg->country);
   printf("timezone=%s\n", cfg->timezone);
-  printf("gmt=UTC%+.1f\n", cfg->timezone_offset);
+  printf("gmt=UTC%+.1f\n", display_current_offset(cfg));
   printf("gps=%s\n", cfg->use_gps ? "true" : "false");
   printf("refresh_interval=%lld\n", (long long)cfg->refresh_interval);
 }
@@ -565,7 +551,7 @@ void display_location_headless(const Config *cfg) {
 void display_location_json(const Config *cfg) {
   char coords[32], gmt[16];
   snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
-  snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
+  snprintf(gmt, sizeof(gmt), "UTC%+.1f", display_current_offset(cfg));
 
   printf("{\n");
   printf("  \"coordinates\": ");

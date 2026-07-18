@@ -340,6 +340,7 @@ static void test_offset_apply(void) {
   cfg.latitude = -6.2088;
   cfg.longitude = 106.8456;
   cfg.timezone_offset = 7.0;
+  cfg.timezone[0] = '\0'; // use the stored offset directly (test targets per-prayer offset apply)
 
   MethodParams params = method_params_from_config(&cfg);
   struct PrayerTimes raw = calculate_prayer_times(2026, 1, 15, cfg.latitude, cfg.longitude,
@@ -364,6 +365,7 @@ static void test_offset_wrap(void) {
   cfg.latitude = 51.5074;
   cfg.longitude = -0.1278;
   cfg.timezone_offset = 1.0;
+  cfg.timezone[0] = '\0'; // use the stored offset directly (test targets midnight wrap)
   int y = 2026, m = 6, d = 15;
 
   MethodParams params = method_params_from_config(&cfg);
@@ -502,6 +504,52 @@ static void test_refresh_interval(void) {
   check_bool("interval 0 preserved (disabled)", off.refresh_interval == 0);
 }
 
+static void test_effective_tz_offset(void) {
+  printf("  effective_tz_offset (DST-aware)...\n");
+
+  Config cfg = config_default();
+  cfg.timezone_offset = 99.0; // sentinel: must be ignored when tz name is valid
+
+  // America/New_York: EST (UTC-5) in January, EDT (UTC-4) in July 2023.
+  strncpy(cfg.timezone, "America/New_York", sizeof(cfg.timezone) - 1);
+  cfg.timezone[sizeof(cfg.timezone) - 1] = '\0';
+  check_bool("NY winter EST -5.0", fabs(effective_tz_offset(&cfg, 2023, 1, 15) - (-5.0)) < 1e-6);
+  check_bool("NY summer EDT -4.0", fabs(effective_tz_offset(&cfg, 2023, 7, 15) - (-4.0)) < 1e-6);
+  // Spring-forward day (2023-03-12): noon UTC is past the 02:00-local transition,
+  // so the day resolves to EDT (-4.0), confirming the noon-UTC sampling choice.
+  check_bool("NY DST transition day uses EDT -4.0",
+             fabs(effective_tz_offset(&cfg, 2023, 3, 12) - (-4.0)) < 1e-6);
+
+  // Invalid/empty timezone name -> fall back to the stored scalar.
+  cfg.timezone[0] = '\0';
+  cfg.timezone_offset = 3.5;
+  check_bool("invalid tz falls back to stored offset",
+             fabs(effective_tz_offset(&cfg, 2023, 7, 15) - 3.5) < 1e-6);
+}
+
+// End-to-end: prayer_times_for_config must compute with the DST-correct offset
+// derived from cfg->timezone, ignoring a wrong stored scalar for a valid tz.
+static void test_prayer_times_uses_dst_offset(void) {
+  printf("  prayer_times_for_config uses DST offset...\n");
+
+  Config cfg = config_default();
+  cfg.latitude = 40.7128;
+  cfg.longitude = -74.0060;
+  strncpy(cfg.timezone, "America/New_York", sizeof(cfg.timezone) - 1);
+  cfg.timezone[sizeof(cfg.timezone) - 1] = '\0';
+  cfg.timezone_offset = 99.0; // wrong on purpose; must be ignored for a valid tz
+
+  MethodParams params = method_params_from_config(&cfg);
+  // 2023-07-15 is EDT (UTC-4); config_default has zero per-prayer offsets, so a
+  // correct implementation matches calculate_prayer_times computed at -4.0.
+  struct PrayerTimes expected =
+      calculate_prayer_times(2023, 7, 15, cfg.latitude, cfg.longitude, -4.0, &params);
+  struct PrayerTimes got = prayer_times_for_config(&cfg, 2023, 7, 15);
+
+  check_bool("dhuhr uses EDT, not the stored scalar", fabs(got.dhuhr - expected.dhuhr) < 1e-9);
+  check_bool("fajr uses EDT, not the stored scalar", fabs(got.fajr - expected.fajr) < 1e-9);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -522,6 +570,8 @@ int main(void) {
   test_config_size_cap();
   test_config_perms();
   test_refresh_interval();
+  test_effective_tz_offset();
+  test_prayer_times_uses_dst_offset();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

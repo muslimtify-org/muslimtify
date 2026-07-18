@@ -2,6 +2,7 @@
 #define JSON_IMPLEMENTATION
 #include "config.h"
 #include "json.h"
+#include "location.h"
 #include "platform.h"
 #include "string_util.h"
 #include <ctype.h>
@@ -9,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 // Refuse to load a config file larger than this; a sane config is a few KB.
 #define MAX_CONFIG_FILE_BYTES (1024L * 1024L)
@@ -772,10 +774,21 @@ static double offset_wrap_day(double hours) {
   return hours;
 }
 
+double effective_tz_offset(const Config *cfg, int year, int month, int day) {
+  if (!timezone_name_is_valid(cfg->timezone))
+    return cfg->timezone_offset;
+  // Noon UTC of the target date sits safely inside the day's DST regime for
+  // every zone (transitions occur ~01:00-03:00 local). mt_days_from_civil is the
+  // shared calendar helper in prayertimes.h.
+  time_t when = (time_t)mt_days_from_civil(year, month, day) * 86400 + 43200;
+  return parse_timezone_offset(cfg->timezone, when);
+}
+
 struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day) {
   MethodParams params = method_params_from_config(cfg);
-  struct PrayerTimes t = calculate_prayer_times(year, month, day, cfg->latitude, cfg->longitude,
-                                                cfg->timezone_offset, &params);
+  struct PrayerTimes t =
+      calculate_prayer_times(year, month, day, cfg->latitude, cfg->longitude,
+                             effective_tz_offset(cfg, year, month, day), &params);
 
   // Apply each prayer's offset to the RESULT and re-normalize into [0, 24) so a
   // prayer pushed across midnight stays a valid minute-of-day for the cache,
