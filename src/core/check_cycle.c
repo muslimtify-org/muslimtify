@@ -69,9 +69,17 @@ int run_check_cycle(void) {
   }
 
   bool notified = false;
+  bool dirty = false;
   int i = 0;
   while (i < cache.trigger_count) {
-    if (cache.triggers[i].minute == current_min) {
+    TriggerAction action = trigger_catchup_action(cache.triggers[i].minute, current_min);
+
+    if (action == TRIGGER_KEEP) {
+      i++;
+      continue;
+    }
+
+    if (action == TRIGGER_FIRE) {
       if (!notified) {
         if (!notify_init_once("Muslimtify")) {
           fprintf(stderr, "Error: Failed to initialize notification system\n");
@@ -94,17 +102,17 @@ int run_check_cycle(void) {
         notify_prayer(cache.triggers[i].prayer, time_str, cache.triggers[i].minutes_before,
                       cfg.notification_urgency, sound_preset);
       }
-
-      cache_remove_trigger(&cache, i);
-    } else {
-      i++;
     }
+
+    // FIRE or DROP: consume the trigger so it can't linger to the next cycle.
+    cache_remove_trigger(&cache, i);
+    dirty = true;
   }
 
-  if (notified) {
+  if (notified)
     notify_cleanup();
+  if (dirty)
     cache_save(&cache);
-  }
 
   return 0;
 }
