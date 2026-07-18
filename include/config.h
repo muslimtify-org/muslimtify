@@ -123,6 +123,13 @@ void config_format_reminders(const PrayerConfig *prayer, char *buffer, size_t bu
 MethodParams method_params_from_config(const Config *cfg);
 
 /**
+ * Effective UTC offset (in hours) for the given civil date, derived from the
+ * IANA cfg->timezone so DST and historical zone changes are honored. Falls back
+ * to the stored cfg->timezone_offset when cfg->timezone is absent or invalid.
+ */
+double effective_tz_offset(const Config *cfg, int year, int month, int day);
+
+/**
  * Compute prayer times for the config's location/method on the given date.
  */
 struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day);

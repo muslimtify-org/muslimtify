@@ -502,6 +502,25 @@ static void test_refresh_interval(void) {
   check_bool("interval 0 preserved (disabled)", off.refresh_interval == 0);
 }
 
+static void test_effective_tz_offset(void) {
+  printf("  effective_tz_offset (DST-aware)...\n");
+
+  Config cfg = config_default();
+  cfg.timezone_offset = 99.0; // sentinel: must be ignored when tz name is valid
+
+  // America/New_York: EST (UTC-5) in January, EDT (UTC-4) in July 2023.
+  strncpy(cfg.timezone, "America/New_York", sizeof(cfg.timezone) - 1);
+  cfg.timezone[sizeof(cfg.timezone) - 1] = '\0';
+  check_bool("NY winter EST -5.0", fabs(effective_tz_offset(&cfg, 2023, 1, 15) - (-5.0)) < 1e-6);
+  check_bool("NY summer EDT -4.0", fabs(effective_tz_offset(&cfg, 2023, 7, 15) - (-4.0)) < 1e-6);
+
+  // Invalid/empty timezone name -> fall back to the stored scalar.
+  cfg.timezone[0] = '\0';
+  cfg.timezone_offset = 3.5;
+  check_bool("invalid tz falls back to stored offset",
+             fabs(effective_tz_offset(&cfg, 2023, 7, 15) - 3.5) < 1e-6);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -522,6 +541,7 @@ int main(void) {
   test_config_size_cap();
   test_config_perms();
   test_refresh_interval();
+  test_effective_tz_offset();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

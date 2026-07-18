@@ -2,6 +2,7 @@
 #define JSON_IMPLEMENTATION
 #include "config.h"
 #include "json.h"
+#include "location.h"
 #include "platform.h"
 #include "string_util.h"
 #include <ctype.h>
@@ -9,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 // Refuse to load a config file larger than this; a sane config is a few KB.
 #define MAX_CONFIG_FILE_BYTES (1024L * 1024L)
@@ -770,6 +772,26 @@ static double offset_wrap_day(double hours) {
   if (hours >= 24.0)
     return hours - 24.0;
   return hours;
+}
+
+// vibekit: duplicate of display.c's mt_days_from_civil; fold into one shared
+// calendar helper when the deferred display.c de-duplication lands.
+static long tz_days_from_civil(int y, int m, int d) {
+  y -= m <= 2;
+  long era = (y >= 0 ? y : y - 399) / 400;
+  unsigned yoe = (unsigned)(y - era * 400);
+  unsigned doy = (unsigned)((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1);
+  unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return era * 146097L + (long)doe - 719468;
+}
+
+double effective_tz_offset(const Config *cfg, int year, int month, int day) {
+  if (!timezone_name_is_valid(cfg->timezone))
+    return cfg->timezone_offset;
+  // Noon UTC of the target date sits safely inside the day's DST regime for
+  // every zone (transitions occur ~01:00-03:00 local).
+  time_t when = (time_t)tz_days_from_civil(year, month, day) * 86400 + 43200;
+  return parse_timezone_offset(cfg->timezone, when);
 }
 
 struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day) {
