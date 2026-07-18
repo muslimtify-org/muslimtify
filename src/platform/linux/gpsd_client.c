@@ -22,6 +22,13 @@
 // are ignored (never grown or partially parsed).
 #define GPSD_LINE_MAX 8192
 
+// gpsd socket/protocol bounds (loopback host is hardcoded in gpsd_connect).
+#define GPSD_PORT 2947
+#define GPSD_CONNECT_TIMEOUT_MS 2000
+#define GPSD_READ_DEADLINE_MS 5000
+#define GPSD_MAX_LINES 256
+#define GPSD_WATCH "?WATCH={\"enable\":true,\"json\":true};\n"
+
 void gpsd_scan_line(const char *line, GpsdScan *scan) {
   if (!line || !scan)
     return;
@@ -67,12 +74,6 @@ void gpsd_scan_line(const char *line, GpsdScan *scan) {
   json_end(ctx);
 }
 
-#define GPSD_PORT 2947
-#define GPSD_CONNECT_TIMEOUT_MS 2000
-#define GPSD_READ_DEADLINE_MS 5000
-#define GPSD_MAX_LINES 256
-#define GPSD_WATCH "?WATCH={\"enable\":true,\"json\":true};\n"
-
 // Monotonic milliseconds, for a wall-clock read deadline independent of any
 // single recv timeout.
 static long gpsd_now_ms(void) {
@@ -90,10 +91,8 @@ static int gpsd_connect(void) {
     return -1;
 
   int flags = fcntl(fd, F_GETFL, 0);
-  if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
-    close(fd);
-    return -1;
-  }
+  if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+    goto fail;
 
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
@@ -108,30 +107,27 @@ static int gpsd_connect(void) {
     do {
       pr = poll(&pfd, 1, GPSD_CONNECT_TIMEOUT_MS);
     } while (pr < 0 && errno == EINTR);
-    if (pr <= 0) {
-      close(fd);
-      return -1;
-    }
+    if (pr <= 0)
+      goto fail;
     int soerr = 0;
     socklen_t len = sizeof(soerr);
-    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &len) < 0 || soerr != 0) {
-      close(fd);
-      return -1;
-    }
+    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &len) < 0 || soerr != 0)
+      goto fail;
   } else if (rc < 0) {
-    close(fd);
-    return -1;
+    goto fail;
   }
 
   // Back to blocking, with a receive/send timeout as a second read bound.
-  if (fcntl(fd, F_SETFL, flags) < 0) {
-    close(fd);
-    return -1;
-  }
+  if (fcntl(fd, F_SETFL, flags) < 0)
+    goto fail;
   struct timeval tv = {.tv_sec = GPSD_READ_DEADLINE_MS / 1000, .tv_usec = 0};
   setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
   setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
   return fd;
+
+fail:
+  close(fd);
+  return -1;
 }
 
 // Send all bytes, tolerating short writes and EINTR. Returns 0 on success.
