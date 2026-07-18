@@ -1,8 +1,8 @@
 #include "location.h"
 #include "country.h"
 #include "json.h"
-#include "string_util.h"
 #include "platform_native.h"
+#include "string_util.h"
 #include <curl/curl.h>
 #include <math.h>
 #include <stdint.h>

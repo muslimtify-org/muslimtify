@@ -25,7 +25,12 @@ typedef enum {
 
 // Write the running executable's absolute path (null-terminated) into buf.
 // Returns bytes written (> 0), or -1 on failure (buf set to "").
+// POSIX-only: uses ssize_t and is implemented by the posix/linux layer. Windows
+// resolves the exe path in platform_win.c and never calls this, so the
+// declaration is hidden there (MSVC has no ssize_t).
+#ifndef _WIN32
 ssize_t platform_native_exe_path(char *buf, size_t cap);
+#endif
 
 // Get the current location (lat/lng) of the device. See GpsStatus for outcomes.
 GpsStatus platform_native_get_location(PlatformLatLng *latlong);

@@ -525,8 +525,12 @@ void display_location(const Config *cfg) {
     snprintf(refresh, sizeof(refresh), "%llds", (long long)cfg->refresh_interval);
 
   const char *rows[][2] = {
-      {"coordinates", coords},     {"city", cfg->city}, {"country", cfg->country},
-      {"timezone", cfg->timezone}, {"gmt", gmt},        {"refresh_interval", refresh},
+      {"coordinates", coords},
+      {"city", cfg->city},
+      {"country", cfg->country},
+      {"timezone", cfg->timezone},
+      {"gmt", gmt},
+      {"refresh_interval", refresh},
       {"gps", cfg->use_gps ? "enabled" : "disabled"},
   };
 

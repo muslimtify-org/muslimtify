@@ -543,8 +543,7 @@ static void test_location_fetch_core(void) {
   Config d = config_default();
   d.use_gps = true;
   int rc_d = location_fetch_core(&d, stub_gps_nodaemon, stub_ipinfo);
-  expect(rc_d == 0 && core_ipinfo_calls == 1 && !d.use_gps,
-         "no-daemon auto-disables use_gps");
+  expect(rc_d == 0 && core_ipinfo_calls == 1 && !d.use_gps, "no-daemon auto-disables use_gps");
 
   core_ipinfo_calls = 0;
   Config e = config_default();

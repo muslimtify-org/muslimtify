@@ -3,8 +3,8 @@
 
 #include "platform_native.h"
 
-#include <unistd.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 #ifdef HAVE_LIBGPS
 #include <gps.h>
