@@ -1,4 +1,5 @@
 #include "platform.h"
+#include "platform_native.h"
 #include <direct.h>
 #include <io.h>
 #include <malloc.h>
@@ -332,4 +333,11 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
 void platform_restrict_to_owner(FILE *f) {
   // %APPDATA% / %LOCALAPPDATA% are user-scoped by their default ACL; no action.
   (void)f;
+}
+
+/* Windows has no gpsd integration; report "no GPS support" so location
+   resolution falls back to ipinfo. */
+GpsStatus platform_native_get_location(PlatformLatLng *latlong) {
+  (void)latlong;
+  return GPS_UNAVAILABLE;
 }
