@@ -402,22 +402,19 @@ static int location_gps_handler(int argc, char **argv) {
     GpsStatus st = location_fetch_gps(&cfg);
     switch (st) {
     case GPS_OK:
-      cfg.use_gps = true;
-      if (config_save(&cfg) != 0) {
-        fprintf(stderr, "Error: Failed to save config\n");
-        return 1;
-      }
-      cache_invalidate();
-      printf("✓ GPS ready — enabled. Location: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
-      return 0;
     case GPS_NO_FIX:
+      // Both enable: a fix is ready now, or a device is present and GPS will
+      // engage once it gets one. Only the confirmation message differs.
       cfg.use_gps = true;
       if (config_save(&cfg) != 0) {
         fprintf(stderr, "Error: Failed to save config\n");
         return 1;
       }
       cache_invalidate();
-      printf("✓ GPS enabled. No fix yet; using ipinfo until a fix is available.\n");
+      if (st == GPS_OK)
+        printf("✓ GPS ready — enabled. Location: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
+      else
+        printf("✓ GPS enabled. No fix yet; using ipinfo until a fix is available.\n");
       return 0;
     case GPS_NO_DAEMON:
       fprintf(stderr, "GPS: cannot reach gpsd. Install and start it, then try again.\n");
