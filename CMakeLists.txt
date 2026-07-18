@@ -66,13 +66,6 @@ else()
     find_package(Threads REQUIRED)
     pkg_check_modules(LIBNOTIFY REQUIRED libnotify)
     pkg_check_modules(LIBCURL REQUIRED libcurl)
-    # gpsd client library (libgps) is optional: when present, muslimtify can
-    # read lat/long from a local GPS receiver via the running gpsd daemon.
-    # When absent, the build still succeeds and location falls back to ipinfo.
-    pkg_check_modules(LIBGPS IMPORTED_TARGET libgps)
-    if(LIBGPS_FOUND)
-        add_compile_definitions(HAVE_LIBGPS)
-    endif()
 endif()
 
 # -- Generated version header -------------------------------------------------
@@ -155,9 +148,6 @@ else()
     target_include_directories(muslimtify_cli  PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
     target_link_libraries(muslimtify_core PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
-    if(LIBGPS_FOUND)
-        target_link_libraries(muslimtify_core PUBLIC PkgConfig::LIBGPS)
-    endif()
 endif()
 
 # -- Main executable ----------------------------------------------------------
@@ -219,11 +209,6 @@ if(BUILD_TESTING)
         )
         muslimtify_set_target_defaults(test_cmd_daemon)
         target_include_directories(test_cmd_daemon PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        # platform_linux.c pulls in libgps under HAVE_LIBGPS; link it here since
-        # this target compiles the file directly (not via muslimtify_core).
-        if(LIBGPS_FOUND)
-            target_link_libraries(test_cmd_daemon PkgConfig::LIBGPS)
-        endif()
         target_compile_definitions(test_cmd_daemon PRIVATE MUSLIMTIFY_CMD_DAEMON_TEST)
         add_test(NAME cmd_daemon COMMAND test_cmd_daemon)
 
@@ -257,11 +242,6 @@ if(BUILD_TESTING)
         $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/platform_linux.c>
     )
     muslimtify_set_target_defaults(test_platform)
-    # platform_linux.c pulls in libgps under HAVE_LIBGPS; link it here since
-    # this target compiles the file directly (not via muslimtify_core).
-    if(LIBGPS_FOUND)
-        target_link_libraries(test_platform PkgConfig::LIBGPS)
-    endif()
     add_test(NAME platform COMMAND test_platform)
 
     add_executable(test_prayertimes tests/test_prayertimes.c)

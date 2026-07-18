@@ -14,8 +14,8 @@ typedef struct {
 // auto-disable, or silently retry.
 typedef enum {
   GPS_OK = 0,           /* got a valid fix; *latlong written */
-  GPS_UNAVAILABLE = -1, /* build has no libgps (Windows / no-libgps stub) */
-  GPS_NO_DAEMON = -2,   /* gps_open failed: gpsd not installed / not running */
+  GPS_UNAVAILABLE = -1, /* no GPS client on this platform (Windows stub) */
+  GPS_NO_DAEMON = -2,   /* could not connect to gpsd (not installed / running) */
   GPS_NO_DEVICE = -3,   /* gpsd reachable but reports zero GPS devices */
   GPS_NO_FIX = -4,      /* device present, but no fix before the timeout */
 } GpsStatus;
