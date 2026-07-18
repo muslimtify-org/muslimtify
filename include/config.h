@@ -39,6 +39,7 @@ typedef struct {
   char timezone[64];
   double timezone_offset;
   bool auto_detect;
+  bool use_gps; // read coordinates from local gpsd instead of ipinfo
   char city[128];
   char country[64];
   int64_t updated_at;       // unix seconds of last successful location fetch (0 = never)

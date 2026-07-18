@@ -120,6 +120,7 @@ add_library(muslimtify_core OBJECT
     $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/posix/platform_posix.c>
     $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/platform_linux.c>
+    $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/gpsd_client.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/timezone.c,src/platform/posix/timezone.c>
 )
 muslimtify_set_target_defaults(muslimtify_core)

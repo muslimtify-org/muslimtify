@@ -1,7 +1,7 @@
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
-#include "platform_native.h"
+#include "platform/posix/native_posix.h"
 
 #include <unistd.h>
 

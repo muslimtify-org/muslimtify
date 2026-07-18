@@ -1,6 +1,7 @@
 #include "location.h"
 #include "country.h"
 #include "json.h"
+#include "platform.h"
 #include "string_util.h"
 #include <curl/curl.h>
 #include <math.h>
@@ -104,7 +105,7 @@ CURLcode location_harden_curl(CURL *curl) {
   return CURLE_OK;
 }
 
-int location_fetch(Config *cfg) {
+static int location_fetch_ipinfo(Config *cfg) {
   if (!cfg)
     return -1;
 
@@ -214,6 +215,67 @@ int location_fetch(Config *cfg) {
   cfg->updated_at = (int64_t)time(NULL);
 
   return 0;
+}
+
+static const char *gps_disable_message(GpsStatus st) {
+  switch (st) {
+  case GPS_NO_DAEMON:
+    return "GPS: gpsd is no longer reachable; disabling GPS and using ipinfo. "
+           "Re-enable with 'muslimtify location gps on'.";
+  case GPS_NO_DEVICE:
+    return "GPS: no GPS device detected; disabling GPS and using ipinfo. "
+           "Re-enable with 'muslimtify location gps on'.";
+  case GPS_UNAVAILABLE:
+  default:
+    return "GPS: this build has no GPS support; disabling GPS and using ipinfo.";
+  }
+}
+
+GpsStatus location_fetch_gps(Config *cfg) {
+  if (!cfg)
+    return GPS_UNAVAILABLE;
+
+  PlatformLatLng ll;
+  GpsStatus st = platform_get_location(&ll);
+  if (st != GPS_OK)
+    return st;
+
+  if (!(ll.lat >= -90.0 && ll.lat <= 90.0 && ll.lng >= -180.0 && ll.lng <= 180.0))
+    return GPS_NO_FIX;
+
+  cfg->latitude = ll.lat;
+  cfg->longitude = ll.lng;
+  // GPS carries no timezone: derive it from the host system. On failure
+  // get_system_timezone sets "UTC"; continue with that.
+  (void)get_system_timezone(cfg->timezone, sizeof(cfg->timezone));
+  cfg->timezone_offset = parse_timezone_offset(cfg->timezone, time(NULL));
+  cfg->updated_at = (int64_t)time(NULL);
+  return GPS_OK; // country intentionally left unchanged
+}
+
+int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *)) {
+  if (!cfg)
+    return -1;
+
+  if (cfg->use_gps) {
+    GpsStatus st = gps(cfg);
+    if (st == GPS_OK)
+      return 0; // GPS fix wins
+    // Structural failure: hardware/daemon is genuinely gone. Warn once and
+    // auto-disable so we stop trying; whoever saves *cfg persists use_gps.
+    if (st == GPS_NO_DAEMON || st == GPS_NO_DEVICE || st == GPS_UNAVAILABLE) {
+      fprintf(stderr, "%s\n", gps_disable_message(st));
+      cfg->use_gps = false;
+    }
+    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled and fall through to
+    // ipinfo for this cycle; GPS is retried on the next fetch.
+  }
+
+  return ipinfo(cfg);
+}
+
+int location_fetch(Config *cfg) {
+  return location_fetch_core(cfg, location_fetch_gps, location_fetch_ipinfo);
 }
 
 int config_auto_detect(Config *cfg) {

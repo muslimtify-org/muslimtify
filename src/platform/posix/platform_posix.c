@@ -1,8 +1,8 @@
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
+#include "native_posix.h"
 #include "platform.h"
-#include "platform_native.h"
 #include <errno.h>
 #include <pwd.h>
 #include <stdio.h>

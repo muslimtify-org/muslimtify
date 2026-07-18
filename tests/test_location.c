@@ -12,6 +12,10 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef _WIN32
+#include "platform/linux/gpsd_client.h"
+#endif
+
 // Defined (non-static) in src/core/location.c; declared here test-only to keep
 // <curl/curl.h> out of the public location.h header.
 extern CURLcode location_harden_curl(CURL *curl);
@@ -467,6 +471,97 @@ static void test_location_refresh(void) {
 #endif
 }
 
+// -- location_fetch_core: GPS-first / ipinfo-fallback decision matrix --------
+// Injected stubs let us drive every GpsStatus branch without gpsd or network.
+
+static int core_ipinfo_calls;
+
+static int stub_ipinfo(Config *cfg) {
+  cfg->latitude = -6.2;
+  cfg->longitude = 106.8;
+  core_ipinfo_calls++;
+  return 0;
+}
+
+static GpsStatus stub_gps_ok(Config *cfg) {
+  cfg->latitude = 1.5;
+  cfg->longitude = 2.5;
+  return GPS_OK;
+}
+static GpsStatus stub_gps_nofix(Config *cfg) {
+  (void)cfg;
+  return GPS_NO_FIX;
+}
+static GpsStatus stub_gps_nodaemon(Config *cfg) {
+  (void)cfg;
+  return GPS_NO_DAEMON;
+}
+static GpsStatus stub_gps_nodevice(Config *cfg) {
+  (void)cfg;
+  return GPS_NO_DEVICE;
+}
+static GpsStatus stub_gps_unavailable(Config *cfg) {
+  (void)cfg;
+  return GPS_UNAVAILABLE;
+}
+
+static void expect(bool cond, const char *label) {
+  total++;
+  if (cond) {
+    printf("  PASS: %s\n", label);
+  } else {
+    printf("  FAIL: %s\n", label);
+    failures++;
+  }
+}
+
+static void test_location_fetch_core(void) {
+  printf("\n-- location_fetch_core --\n");
+
+  // use_gps off: ipinfo is the only source.
+  core_ipinfo_calls = 0;
+  Config a = config_default();
+  a.use_gps = false;
+  int rc_a = location_fetch_core(&a, stub_gps_ok, stub_ipinfo);
+  expect(rc_a == 0 && core_ipinfo_calls == 1 && fabs(a.latitude - (-6.2)) < 1e-9,
+         "use_gps off -> ipinfo only");
+
+  // use_gps on + GPS fix: GPS wins, ipinfo untouched, flag stays on.
+  core_ipinfo_calls = 0;
+  Config b = config_default();
+  b.use_gps = true;
+  int rc_b = location_fetch_core(&b, stub_gps_ok, stub_ipinfo);
+  expect(rc_b == 0 && core_ipinfo_calls == 0 && fabs(b.latitude - 1.5) < 1e-9 && b.use_gps,
+         "GPS fix wins, use_gps stays on");
+
+  // use_gps on + no fix (transient): fall back to ipinfo, keep GPS on.
+  core_ipinfo_calls = 0;
+  Config c = config_default();
+  c.use_gps = true;
+  int rc_c = location_fetch_core(&c, stub_gps_nofix, stub_ipinfo);
+  expect(rc_c == 0 && core_ipinfo_calls == 1 && c.use_gps,
+         "no-fix falls back to ipinfo, use_gps stays on");
+
+  // use_gps on + structural failures: fall back AND auto-disable.
+  core_ipinfo_calls = 0;
+  Config d = config_default();
+  d.use_gps = true;
+  int rc_d = location_fetch_core(&d, stub_gps_nodaemon, stub_ipinfo);
+  expect(rc_d == 0 && core_ipinfo_calls == 1 && !d.use_gps, "no-daemon auto-disables use_gps");
+
+  core_ipinfo_calls = 0;
+  Config e = config_default();
+  e.use_gps = true;
+  location_fetch_core(&e, stub_gps_nodevice, stub_ipinfo);
+  expect(core_ipinfo_calls == 1 && !e.use_gps, "no-device auto-disables use_gps");
+
+  core_ipinfo_calls = 0;
+  Config f = config_default();
+  f.use_gps = true;
+  location_fetch_core(&f, stub_gps_unavailable, stub_ipinfo);
+  expect(core_ipinfo_calls == 1 && !f.use_gps, "unavailable auto-disables use_gps");
+}
+
 static void test_location_is_stale(void) {
   printf("\n-- location_is_stale --\n");
   const int64_t NOW = 1000000; // fixed reference time
@@ -499,6 +594,64 @@ static void test_location_is_stale(void) {
   }
 }
 
+#ifndef _WIN32
+static void test_gpsd_scan_line(void) {
+  printf("\n-- gpsd_scan_line --\n");
+
+  // Valid 3D fix -> coordinates captured, device seen.
+  GpsdScan s1 = {0};
+  gpsd_scan_line("{\"class\":\"TPV\",\"mode\":3,\"lat\":-6.2,\"lon\":106.8}", &s1);
+  expect(s1.have_fix && s1.saw_device && fabs(s1.lat - (-6.2)) < 1e-9 &&
+             fabs(s1.lng - 106.8) < 1e-9,
+         "valid TPV 3D fix -> have_fix + coords");
+
+  // mode 1 = no fix, but the report proves a device exists.
+  GpsdScan s2 = {0};
+  gpsd_scan_line("{\"class\":\"TPV\",\"mode\":1}", &s2);
+  expect(!s2.have_fix && s2.saw_device, "TPV mode 1 -> device, no fix");
+
+  // SKY report -> device present, no fix.
+  GpsdScan s3 = {0};
+  gpsd_scan_line("{\"class\":\"SKY\",\"device\":\"/dev/ttyUSB0\"}", &s3);
+  expect(!s3.have_fix && s3.saw_device, "SKY -> device seen, no fix");
+
+  // Out-of-range latitude is rejected.
+  GpsdScan s4 = {0};
+  gpsd_scan_line("{\"class\":\"TPV\",\"mode\":3,\"lat\":99.0,\"lon\":10.0}", &s4);
+  expect(!s4.have_fix, "out-of-range lat rejected");
+
+  // VERSION line -> nothing.
+  GpsdScan s5 = {0};
+  gpsd_scan_line("{\"class\":\"VERSION\",\"release\":\"3.25\"}", &s5);
+  expect(!s5.have_fix && !s5.saw_device, "VERSION -> nothing");
+
+  // Hostile: non-numeric lat/lon with format-string chars must be rejected and
+  // never interpreted as a format.
+  GpsdScan s6 = {0};
+  gpsd_scan_line("{\"class\":\"TPV\",\"mode\":3,\"lat\":\"%n%s\",\"lon\":\"%x\"}", &s6);
+  expect(!s6.have_fix, "non-numeric lat/lon rejected");
+
+  // Hostile: garbage / non-JSON does not crash and yields nothing.
+  GpsdScan s7 = {0};
+  gpsd_scan_line("not json at all }{][", &s7);
+  expect(!s7.have_fix && !s7.saw_device, "garbage line -> nothing");
+
+  // Hostile: an over-long line (> parser cap) is ignored safely.
+  char big[9000];
+  memset(big, 'a', sizeof(big) - 1);
+  big[sizeof(big) - 1] = '\0';
+  GpsdScan s8 = {0};
+  gpsd_scan_line(big, &s8);
+  expect(!s8.have_fix && !s8.saw_device, "over-long line ignored");
+
+  // NULL args must not crash.
+  GpsdScan s9 = {0};
+  gpsd_scan_line(NULL, &s9);
+  gpsd_scan_line("{}", NULL);
+  expect(!s9.have_fix, "NULL args safe");
+}
+#endif /* _WIN32 */
+
 int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
@@ -516,6 +669,10 @@ int main(void) {
   test_timezone_name_is_valid();
   test_location_harden_curl();
   test_location_refresh();
+  test_location_fetch_core();
+#ifndef _WIN32
+  test_gpsd_scan_line();
+#endif
   test_location_is_stale();
 
   printf("\n%d/%d tests passed\n", total - failures, total);
