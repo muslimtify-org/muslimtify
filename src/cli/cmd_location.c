@@ -352,6 +352,90 @@ static int location_set_handler(int argc, char **argv) {
   return 0;
 }
 
+static void print_location_gps_help(void) {
+  printf("\n");
+  printf("Enable or disable reading location from a local gpsd receiver\n");
+  printf("\n");
+  printf("Usage: muslimtify location gps [on|off]\n");
+  printf("\n");
+  printf("Commands:\n");
+  printf("  %-25s %s\n", "on", "Probe GPS and enable it if a receiver is available");
+  printf("  %-25s %s\n", "off", "Disable GPS (use ipinfo network geolocation)");
+  printf("  %-25s %s\n", "-h, --help", "Show this help");
+  printf("\n");
+  printf("With no argument, shows whether GPS is currently enabled.\n");
+}
+
+static int location_gps_handler(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    print_location_gps_help();
+    return 0;
+  }
+
+  Config cfg;
+  if (config_load(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to load config\n");
+    return 1;
+  }
+
+  // No argument: report current state.
+  if (argc == 0) {
+    printf("GPS is %s\n", cfg.use_gps ? "enabled" : "disabled");
+    return 0;
+  }
+
+  if (strcmp(argv[0], "off") == 0) {
+    cfg.use_gps = false;
+    if (config_save(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to save config\n");
+      return 1;
+    }
+    cache_invalidate();
+    printf("GPS disabled; using ipinfo network geolocation.\n");
+    return 0;
+  }
+
+  if (strcmp(argv[0], "on") == 0) {
+    // Validating enable: probe GPS now and only persist use_gps=true if a
+    // receiver is present. A transient no-fix (device present, no signal yet)
+    // still enables, since GPS engages once a fix is available.
+    GpsStatus st = location_fetch_gps(&cfg);
+    switch (st) {
+    case GPS_OK:
+      cfg.use_gps = true;
+      if (config_save(&cfg) != 0) {
+        fprintf(stderr, "Error: Failed to save config\n");
+        return 1;
+      }
+      cache_invalidate();
+      printf("✓ GPS ready — enabled. Location: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
+      return 0;
+    case GPS_NO_FIX:
+      cfg.use_gps = true;
+      if (config_save(&cfg) != 0) {
+        fprintf(stderr, "Error: Failed to save config\n");
+        return 1;
+      }
+      cache_invalidate();
+      printf("✓ GPS enabled. No fix yet; using ipinfo until a fix is available.\n");
+      return 0;
+    case GPS_NO_DAEMON:
+      fprintf(stderr, "GPS: cannot reach gpsd. Install and start it, then try again.\n");
+      return 1;
+    case GPS_NO_DEVICE:
+      fprintf(stderr, "GPS: no GPS device detected. Connect one, then try again.\n");
+      return 1;
+    case GPS_UNAVAILABLE:
+    default:
+      fprintf(stderr, "GPS not available in this build.\n");
+      return 1;
+    }
+  }
+
+  fprintf(stderr, "Error: unknown 'location gps' argument '%s' (expected on|off)\n", argv[0]);
+  return 1;
+}
+
 static void print_location_help(void) {
   printf("\n");
   printf("Show or update your saved location\n");
@@ -368,6 +452,7 @@ static void print_location_help(void) {
   printf("  %-25s %s\n", "      --auto", "Detect coordinates/timezone/country from IP");
   printf("  %-25s %s\n", "      --refresh-interval=<s>",
          "Auto-refresh interval in seconds (0=off, min 3600)");
+  printf("  %-25s %s\n", "gps [on|off]", "Enable/disable GPS (gpsd) location source");
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
@@ -378,6 +463,7 @@ static void print_location_help(void) {
   printf("  %-25s %s\n", "muslimtify location", "# Show current location");
   printf("  %-25s %s\n", "muslimtify location --json", "# Show location as JSON");
   printf("  %-25s %s\n", "muslimtify location set --auto", "# Detect location from IP");
+  printf("  %-25s %s\n", "muslimtify location gps on", "# Use local gpsd for location");
   printf("  %-25s %s\n", "muslimtify location set --refresh-interval=21600",
          "# Auto-refresh every 6h (0=off)");
 }
@@ -385,6 +471,9 @@ static void print_location_help(void) {
 int handle_location(int argc, char **argv) {
   if (argc > 0 && strcmp(argv[0], "set") == 0)
     return location_set_handler(argc - 1, argv + 1);
+
+  if (argc > 0 && strcmp(argv[0], "gps") == 0)
+    return location_gps_handler(argc - 1, argv + 1);
 
   if (argc > 0 && strcmp(argv[0], "show") == 0) {
     fprintf(
