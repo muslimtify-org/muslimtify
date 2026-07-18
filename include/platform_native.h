@@ -1,9 +1,6 @@
 #ifndef PLATFORM_NATIVE_H
 #define PLATFORM_NATIVE_H
 
-#include <stddef.h>
-#include <sys/types.h> /* ssize_t */
-
 typedef struct {
   double lat;
   double lng;
@@ -20,18 +17,12 @@ typedef enum {
   GPS_NO_FIX = -4,      /* device present, but no fix before the timeout */
 } GpsStatus;
 
-// Per-OS primitives backing the portable layer (src/platform/posix/). Each
-// target supplies its own implementation; posix/ stays unchanged across them.
-
-// Write the running executable's absolute path (null-terminated) into buf.
-// Returns bytes written (> 0), or -1 on failure (buf set to "").
-// POSIX-only: uses ssize_t and is implemented by the posix/linux layer. Windows
-// resolves the exe path in platform_win.c and never calls this, so the
-// declaration is hidden there (MSVC has no ssize_t).
-#ifndef _WIN32
-ssize_t platform_native_exe_path(char *buf, size_t cap);
-#endif
-
+// Cross-platform device-location primitive. Each OS supplies its own
+// implementation: Linux reads a running gpsd over a socket
+// (src/platform/linux/gpsd_client.c); Windows returns GPS_UNAVAILABLE
+// (src/platform/windows/platform_win.c). Kept free of POSIX-only types so it
+// compiles in every build (it is included via location.h everywhere).
+//
 // Get the current location (lat/lng) of the device. See GpsStatus for outcomes.
 GpsStatus platform_native_get_location(PlatformLatLng *latlong);
 
