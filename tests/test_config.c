@@ -340,6 +340,7 @@ static void test_offset_apply(void) {
   cfg.latitude = -6.2088;
   cfg.longitude = 106.8456;
   cfg.timezone_offset = 7.0;
+  cfg.timezone[0] = '\0'; // use the stored offset directly (test targets per-prayer offset apply)
 
   MethodParams params = method_params_from_config(&cfg);
   struct PrayerTimes raw = calculate_prayer_times(2026, 1, 15, cfg.latitude, cfg.longitude,
@@ -364,6 +365,7 @@ static void test_offset_wrap(void) {
   cfg.latitude = 51.5074;
   cfg.longitude = -0.1278;
   cfg.timezone_offset = 1.0;
+  cfg.timezone[0] = '\0'; // use the stored offset directly (test targets midnight wrap)
   int y = 2026, m = 6, d = 15;
 
   MethodParams params = method_params_from_config(&cfg);

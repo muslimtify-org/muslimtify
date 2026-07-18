@@ -797,7 +797,7 @@ double effective_tz_offset(const Config *cfg, int year, int month, int day) {
 struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day) {
   MethodParams params = method_params_from_config(cfg);
   struct PrayerTimes t = calculate_prayer_times(year, month, day, cfg->latitude, cfg->longitude,
-                                                cfg->timezone_offset, &params);
+                                                effective_tz_offset(cfg, year, month, day), &params);
 
   // Apply each prayer's offset to the RESULT and re-normalize into [0, 24) so a
   // prayer pushed across midnight stays a valid minute-of-day for the cache,
