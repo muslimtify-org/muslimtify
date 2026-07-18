@@ -30,32 +30,9 @@ static bool use_colors(void) {
 
 #define C(code) (use_colors() ? (code) : "")
 
-// Days since 1970-01-01 for a civil (proleptic Gregorian) date, and the
-// inverse. Howard Hinnant's public-domain algorithm. Used to iterate an
+// Calendar serial <-> civil-date helpers (mt_days_from_civil / mt_civil_from_days)
+// live in prayertimes.h so config.c can share them; used here to iterate an
 // inclusive date range without touching struct tm / mktime (no DST hazards).
-static long mt_days_from_civil(int y, int m, int d) {
-  y -= m <= 2;
-  long era = (y >= 0 ? y : y - 399) / 400;
-  unsigned yoe = (unsigned)(y - era * 400);
-  unsigned doy = (unsigned)((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1);
-  unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097L + (long)doe - 719468;
-}
-
-static void mt_civil_from_days(long z, int *y, int *m, int *d) {
-  z += 719468;
-  long era = (z >= 0 ? z : z - 146096) / 146097;
-  unsigned doe = (unsigned)(z - era * 146097);
-  unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-  long yy = (long)yoe + era * 400;
-  unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-  unsigned mp = (5 * doy + 2) / 153;
-  unsigned dd = doy - (153 * mp + 2) / 5 + 1;
-  unsigned mm = (mp < 10) ? (mp + 3) : (mp - 9);
-  *y = (int)(yy + (mm <= 2));
-  *m = (int)mm;
-  *d = (int)dd;
-}
 
 static void lower_copy(char *dst, size_t cap, const char *src) {
   size_t i = 0;

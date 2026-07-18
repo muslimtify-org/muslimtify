@@ -774,23 +774,13 @@ static double offset_wrap_day(double hours) {
   return hours;
 }
 
-// vibekit: duplicate of display.c's mt_days_from_civil; fold into one shared
-// calendar helper when the deferred display.c de-duplication lands.
-static long tz_days_from_civil(int y, int m, int d) {
-  y -= m <= 2;
-  long era = (y >= 0 ? y : y - 399) / 400;
-  unsigned yoe = (unsigned)(y - era * 400);
-  unsigned doy = (unsigned)((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1);
-  unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-  return era * 146097L + (long)doe - 719468;
-}
-
 double effective_tz_offset(const Config *cfg, int year, int month, int day) {
   if (!timezone_name_is_valid(cfg->timezone))
     return cfg->timezone_offset;
   // Noon UTC of the target date sits safely inside the day's DST regime for
-  // every zone (transitions occur ~01:00-03:00 local).
-  time_t when = (time_t)tz_days_from_civil(year, month, day) * 86400 + 43200;
+  // every zone (transitions occur ~01:00-03:00 local). mt_days_from_civil is the
+  // shared calendar helper in prayertimes.h.
+  time_t when = (time_t)mt_days_from_civil(year, month, day) * 86400 + 43200;
   return parse_timezone_offset(cfg->timezone, when);
 }
 
