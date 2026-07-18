@@ -512,10 +512,19 @@ static void json_str(const char *s) {
   putchar('"');
 }
 
+// The location display shows the offset in effect for TODAY, so it tracks DST
+// rather than the value frozen in the config when the location was last set.
+static double display_current_offset(const Config *cfg) {
+  time_t now_t = time(NULL);
+  struct tm lt;
+  platform_localtime(&now_t, &lt);
+  return effective_tz_offset(cfg, lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday);
+}
+
 void display_location(const Config *cfg) {
   char coords[32], gmt[16];
   snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
-  snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
+  snprintf(gmt, sizeof(gmt), "UTC%+.1f", display_current_offset(cfg));
 
   // "disabled" when 0, else "<n>s".
   char refresh[24];
@@ -557,7 +566,7 @@ void display_location_headless(const Config *cfg) {
   printf("city=%s\n", cfg->city);
   printf("country=%s\n", cfg->country);
   printf("timezone=%s\n", cfg->timezone);
-  printf("gmt=UTC%+.1f\n", cfg->timezone_offset);
+  printf("gmt=UTC%+.1f\n", display_current_offset(cfg));
   printf("gps=%s\n", cfg->use_gps ? "true" : "false");
   printf("refresh_interval=%lld\n", (long long)cfg->refresh_interval);
 }
@@ -565,7 +574,7 @@ void display_location_headless(const Config *cfg) {
 void display_location_json(const Config *cfg) {
   char coords[32], gmt[16];
   snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
-  snprintf(gmt, sizeof(gmt), "UTC%+.1f", cfg->timezone_offset);
+  snprintf(gmt, sizeof(gmt), "UTC%+.1f", display_current_offset(cfg));
 
   printf("{\n");
   printf("  \"coordinates\": ");
