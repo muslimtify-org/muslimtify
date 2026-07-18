@@ -527,6 +527,7 @@ void display_location(const Config *cfg) {
   const char *rows[][2] = {
       {"coordinates", coords},     {"city", cfg->city}, {"country", cfg->country},
       {"timezone", cfg->timezone}, {"gmt", gmt},        {"refresh_interval", refresh},
+      {"gps", cfg->use_gps ? "enabled" : "disabled"},
   };
 
   int nw = (int)strlen("Name"), vw = (int)strlen("Value");
@@ -553,6 +554,7 @@ void display_location_headless(const Config *cfg) {
   printf("country=%s\n", cfg->country);
   printf("timezone=%s\n", cfg->timezone);
   printf("gmt=UTC%+.1f\n", cfg->timezone_offset);
+  printf("gps=%s\n", cfg->use_gps ? "true" : "false");
   printf("refresh_interval=%lld\n", (long long)cfg->refresh_interval);
 }
 
@@ -577,6 +579,7 @@ void display_location_json(const Config *cfg) {
   printf("  \"gmt\": ");
   json_str(gmt);
   printf(",\n");
+  printf("  \"gps\": %s,\n", cfg->use_gps ? "true" : "false");
   printf("  \"refresh_interval\": %lld\n", (long long)cfg->refresh_interval);
   printf("}\n");
 }
