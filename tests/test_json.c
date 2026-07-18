@@ -192,6 +192,25 @@ static void test_unicode_passthrough(void) {
   json_end(ctx);
 }
 
+static void test_string_trailing_backslash_no_oob(void) {
+  printf("test_string_trailing_backslash_no_oob\n");
+  // Malformed: string value is unterminated and ends in a lone backslash.
+  // The buffer is heap-allocated to its exact length so an over-read past the
+  // NUL terminator is a heap-buffer-overflow (ASan aborts in the Debug build).
+  const char *raw = "{\"loc\":\"abc\\";
+  size_t len = strlen(raw);
+  char *buf = malloc(len + 1);
+  check_not_null(buf, "malloc for trailing-backslash buffer");
+  memcpy(buf, raw, len + 1);
+
+  JsonContext *ctx = json_begin();
+  char *val = get_value(ctx, "loc", buf);
+  // Fixed behavior: scan stops at the NUL, value is the 4 bytes "abc\".
+  check_str(val, "abc\\", "trailing backslash does not read past buffer");
+  json_end(ctx);
+  free(buf);
+}
+
 /* -- Edge cases ------------------------------------------------------------- */
 
 static void test_key_inside_value(void) {
@@ -282,6 +301,7 @@ int main(void) {
   test_escaped_tab();
   test_escaped_keys();
   test_unicode_passthrough();
+  test_string_trailing_backslash_no_oob();
 
   test_key_inside_value();
   test_multiple_get_value();
