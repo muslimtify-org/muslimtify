@@ -1,7 +1,7 @@
 #include "location.h"
 #include "country.h"
 #include "json.h"
-#include "platform_native.h"
+#include "platform.h"
 #include "string_util.h"
 #include <curl/curl.h>
 #include <math.h>
@@ -236,7 +236,7 @@ GpsStatus location_fetch_gps(Config *cfg) {
     return GPS_UNAVAILABLE;
 
   PlatformLatLng ll;
-  GpsStatus st = platform_native_get_location(&ll);
+  GpsStatus st = platform_get_location(&ll);
   if (st != GPS_OK)
     return st;
 

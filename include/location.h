@@ -2,7 +2,7 @@
 #define LOCATION_H
 
 #include "config.h"
-#include "platform_native.h"
+#include "platform.h"
 
 #include <time.h>
 

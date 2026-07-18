@@ -121,6 +121,34 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
  */
 void platform_restrict_to_owner(FILE *f);
 
+/**
+ * A geographic coordinate in decimal degrees.
+ */
+typedef struct {
+  double lat;
+  double lng;
+} PlatformLatLng;
+
+/**
+ * Outcome of platform_get_location. GPS_OK (0) is success; the negative codes
+ * distinguish failure modes so callers can warn, auto-disable, or silently retry.
+ */
+typedef enum {
+  GPS_OK = 0,           /* got a valid fix; *latlong written */
+  GPS_UNAVAILABLE = -1, /* no GPS client on this platform (not yet implemented) */
+  GPS_NO_DAEMON = -2,   /* could not connect to the GPS service (e.g. gpsd) */
+  GPS_NO_DEVICE = -3,   /* GPS service reachable but reports no device */
+  GPS_NO_FIX = -4,      /* device present, but no fix before the timeout */
+} GpsStatus;
+
+/**
+ * Read the device's current location (lat/lng). Each platform supplies its own
+ * source: Linux reads a running gpsd over a socket; other platforms provide their
+ * native equivalent (or GPS_UNAVAILABLE until implemented). Returns GPS_OK with
+ * *latlong written, or a GpsStatus failure code.
+ */
+GpsStatus platform_get_location(PlatformLatLng *latlong);
+
 #ifdef __cplusplus
 }
 #endif

@@ -3,7 +3,7 @@
 #include "gpsd_client.h"
 
 #include "json.h"
-#include "platform_native.h"
+#include "platform.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -149,7 +149,7 @@ static int gpsd_send_all(int fd, const char *data, size_t len) {
   return 0;
 }
 
-GpsStatus platform_native_get_location(PlatformLatLng *latlong) {
+GpsStatus platform_get_location(PlatformLatLng *latlong) {
   if (!latlong)
     return GPS_NO_FIX;
 

@@ -1,5 +1,4 @@
 #include "platform.h"
-#include "platform_native.h"
 #include <direct.h>
 #include <io.h>
 #include <malloc.h>
@@ -337,7 +336,7 @@ void platform_restrict_to_owner(FILE *f) {
 
 /* Windows has no gpsd integration; report "no GPS support" so location
    resolution falls back to ipinfo. */
-GpsStatus platform_native_get_location(PlatformLatLng *latlong) {
+GpsStatus platform_get_location(PlatformLatLng *latlong) {
   (void)latlong;
   return GPS_UNAVAILABLE;
 }
