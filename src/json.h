@@ -552,8 +552,11 @@ static char *json_extract_value(JsonArena *JSON_RESTRICT arena,
     cursor++;
     const char *scan = cursor;
     while (*scan && *scan != '"') {
-      if (*scan == '\\')
+      if (*scan == '\\') {
         scan++; // Skip escaped char
+        if (!*scan)
+          break; // don't step past the NUL terminator
+      }
       scan++;
     }
     size_t raw_len = scan - cursor;
