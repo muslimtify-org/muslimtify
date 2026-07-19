@@ -1094,6 +1094,22 @@ static void test_notification(void) {
   check_contains("notification reminder help usage", "--reminder");
 }
 
+static void test_location_set_timezone_validation(void) {
+  printf("test_location_set_timezone_validation\n");
+  reset_config();
+
+  // A real UTC+0 zone (GMT year-round, no DST) must be accepted. The old
+  // heuristic (offset==0.0 && !is_utc_zone) wrongly rejected it. Issue #51.
+  run(4, (char *[]){"m", "location", "set", "--timezone=Africa/Abidjan", NULL});
+  check_ret("real UTC+0 zone accepted", 0);
+  check_contains("real UTC+0 zone confirmed", "Africa/Abidjan");
+
+  // A format-valid but nonexistent zone must be rejected.
+  run(4, (char *[]){"m", "location", "set", "--timezone=Asia/Nowhere", NULL});
+  check_bool("nonexistent zone rejected", last_ret != 0);
+  check_contains("nonexistent zone error", "Unknown timezone");
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1113,6 +1129,7 @@ int main(void) {
   test_notification();
   test_daemon_errors();
   test_offset();
+  test_location_set_timezone_validation();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
