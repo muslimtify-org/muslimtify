@@ -675,6 +675,27 @@ static void test_timezone_exists(void) {
     printf("  FAIL: empty name should not exist\n");
     failures++;
   }
+
+#ifndef _WIN32
+  // TZDIR is honored exclusively: a bogus TZDIR makes even a real zone read as
+  // missing, confirming the POSIX path-resolution respects the override.
+  char *saved = getenv("TZDIR");
+  char *saved_dup = saved ? strdup(saved) : NULL;
+  setenv("TZDIR", "/nonexistent-zoneinfo-xyz", 1);
+  total++;
+  if (!timezone_exists("America/New_York")) {
+    printf("  PASS: bogus TZDIR makes a real zone unresolvable\n");
+  } else {
+    printf("  FAIL: bogus TZDIR should make a real zone unresolvable\n");
+    failures++;
+  }
+  if (saved_dup) {
+    setenv("TZDIR", saved_dup, 1);
+    free(saved_dup);
+  } else {
+    unsetenv("TZDIR");
+  }
+#endif
 }
 
 int main(void) {
