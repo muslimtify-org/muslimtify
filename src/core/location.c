@@ -186,8 +186,8 @@ static int location_fetch_ipinfo(Config *cfg) {
   // reaches setenv("TZ")/tzset() or gets persisted to config.
   char *tz_str = get_value(ctx, "timezone", response.data);
   if (tz_str) {
-    if (!timezone_name_is_valid(tz_str)) {
-      fprintf(stderr, "location: ignoring invalid timezone from API\n");
+    if (!timezone_exists(tz_str)) {
+      fprintf(stderr, "location: ignoring invalid/unknown timezone from API\n");
     } else {
       if (!copy_string(cfg->timezone, sizeof(cfg->timezone), tz_str)) {
         location_log_trunc("timezone");

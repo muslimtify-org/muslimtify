@@ -525,6 +525,14 @@ static void test_effective_tz_offset(void) {
   cfg.timezone_offset = 3.5;
   check_bool("invalid tz falls back to stored offset",
              fabs(effective_tz_offset(&cfg, 2023, 7, 15) - 3.5) < 1e-6);
+
+  // Format-valid but nonexistent zone must fall back to the stored offset,
+  // not silently resolve to UTC (0.0). Issue #51.
+  strncpy(cfg.timezone, "Asia/Nowhere", sizeof(cfg.timezone) - 1);
+  cfg.timezone[sizeof(cfg.timezone) - 1] = '\0';
+  cfg.timezone_offset = 3.5;
+  check_bool("nonexistent zone falls back to stored offset",
+             fabs(effective_tz_offset(&cfg, 2023, 7, 15) - 3.5) < 1e-6);
 }
 
 // End-to-end: prayer_times_for_config must compute with the DST-correct offset

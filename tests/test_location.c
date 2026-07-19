@@ -652,6 +652,52 @@ static void test_gpsd_scan_line(void) {
 }
 #endif /* _WIN32 */
 
+static void test_timezone_exists(void) {
+  printf("\n-- timezone_exists --\n");
+  total++;
+  if (timezone_exists("America/New_York")) {
+    printf("  PASS: America/New_York exists\n");
+  } else {
+    printf("  FAIL: America/New_York should exist\n");
+    failures++;
+  }
+  total++;
+  if (!timezone_exists("Asia/Nowhere")) {
+    printf("  PASS: Asia/Nowhere does not exist\n");
+  } else {
+    printf("  FAIL: Asia/Nowhere should not exist\n");
+    failures++;
+  }
+  total++;
+  if (!timezone_exists("")) {
+    printf("  PASS: empty name does not exist\n");
+  } else {
+    printf("  FAIL: empty name should not exist\n");
+    failures++;
+  }
+
+#ifndef _WIN32
+  // TZDIR is honored exclusively: a bogus TZDIR makes even a real zone read as
+  // missing, confirming the POSIX path-resolution respects the override.
+  char *saved = getenv("TZDIR");
+  char *saved_dup = saved ? strdup(saved) : NULL;
+  setenv("TZDIR", "/nonexistent-zoneinfo-xyz", 1);
+  total++;
+  if (!timezone_exists("America/New_York")) {
+    printf("  PASS: bogus TZDIR makes a real zone unresolvable\n");
+  } else {
+    printf("  FAIL: bogus TZDIR should make a real zone unresolvable\n");
+    failures++;
+  }
+  if (saved_dup) {
+    setenv("TZDIR", saved_dup, 1);
+    free(saved_dup);
+  } else {
+    unsetenv("TZDIR");
+  }
+#endif
+}
+
 int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
@@ -667,6 +713,7 @@ int main(void) {
 #endif
   test_get_system_timezone();
   test_timezone_name_is_valid();
+  test_timezone_exists();
   test_location_harden_curl();
   test_location_refresh();
   test_location_fetch_core();

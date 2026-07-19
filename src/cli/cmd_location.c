@@ -34,13 +34,6 @@ static const char *LOCATION_SET_USAGE =
     "[--timezone=<iana>] [--city=<name>] [--country=<iso2>] "
     "[--refresh-interval=<seconds>]\n";
 
-// Returns true if `tz` is one of the canonical UTC aliases (so an offset of 0.0
-// is expected, not a sign of an unrecognized zone).
-static bool is_utc_zone(const char *tz) {
-  return strcmp(tz, "UTC") == 0 || strcmp(tz, "Etc/UTC") == 0 || strcmp(tz, "Etc/GMT") == 0 ||
-         strcmp(tz, "GMT") == 0;
-}
-
 static void print_location_set_help(void) {
   printf("\n");
   printf("Update saved location fields\n");
@@ -286,14 +279,15 @@ static int location_set_handler(int argc, char **argv) {
   }
 
   if (override_tz) {
-    // Explicit override — validate it resolves to something other than the
-    // implicit UTC fallback. Useful when the host OS timezone differs from
-    // the coordinates' real timezone (e.g. running from a different region).
-    double off = parse_timezone_offset(override_tz, time(NULL));
-    if (off == 0.0 && !is_utc_zone(override_tz)) {
-      fprintf(stderr, "Error: Unknown timezone '%s' (no offset resolvable)\n", override_tz);
+    // Explicit override — reject a name that does not resolve on this system,
+    // so we never persist a nonexistent zone (which would silently compute as
+    // UTC). timezone_exists correctly accepts real UTC+0 zones (e.g.
+    // Africa/Abidjan) that the old offset==0 heuristic wrongly rejected.
+    if (!timezone_exists(override_tz)) {
+      fprintf(stderr, "Error: Unknown timezone '%s'\n", override_tz);
       return 1;
     }
+    double off = parse_timezone_offset(override_tz, time(NULL));
     size_t tz_len = strlen(override_tz);
     if (tz_len + 1 > sizeof(cfg.timezone)) {
       fprintf(stderr, "Error: Timezone name too long\n");

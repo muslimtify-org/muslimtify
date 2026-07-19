@@ -6,6 +6,7 @@
 #define _GNU_SOURCE
 
 #include "location.h"
+#include "util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,6 +41,42 @@ double parse_timezone_offset(const char *tz_name, time_t when) {
   tzset();
 
   return offset;
+}
+
+// True if <dir>/<tz_name> is a regular file (a real tz database entry). stat
+// follows symlinks; S_ISREG rejects namespace directories (e.g. "America").
+static bool zone_file_in(const char *dir, const char *tz_name) {
+  char path[512];
+  int n = snprintf(path, sizeof(path), "%s/%s", dir, tz_name);
+  if (n < 0 || (size_t)n >= sizeof(path))
+    return false;
+  struct stat st;
+  return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
+bool timezone_exists(const char *tz_name) {
+  if (!timezone_name_is_valid(tz_name))
+    return false;
+
+  // timezone_name_is_valid forbids '.', so tz_name cannot traverse out of the
+  // tz database directory. Honor TZDIR exclusively when set (matching libc);
+  // otherwise probe the standard zoneinfo locations so a nonstandard layout
+  // does not make every real zone read as missing.
+  const char *tzdir = getenv("TZDIR");
+  if (tzdir && tzdir[0] != '\0')
+    return zone_file_in(tzdir, tz_name);
+
+  static const char *const roots[] = {
+      "/usr/share/zoneinfo",
+      "/usr/lib/zoneinfo",
+      "/etc/zoneinfo",
+      "/usr/share/lib/zoneinfo",
+  };
+  for (size_t i = 0; i < ARRAY_LEN(roots); i++) {
+    if (zone_file_in(roots[i], tz_name))
+      return true;
+  }
+  return false;
 }
 
 static int copy_zone_tail(const char *path, char *buf, size_t cap) {

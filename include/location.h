@@ -28,6 +28,14 @@ double parse_timezone_offset(const char *tz_name, time_t when);
 bool timezone_name_is_valid(const char *tz_name);
 
 /**
+ * True if `tz_name` is a well-formed IANA name that actually resolves on this
+ * system (POSIX: present in the tz database; Windows: mappable to a Windows
+ * zone). False for malformed or unknown names, so callers can fall back to a
+ * stored offset instead of the silent UTC that parse_timezone_offset yields.
+ */
+bool timezone_exists(const char *tz_name);
+
+/**
  * Write the host system's IANA timezone name (e.g. "Asia/Jakarta") into
  * `buf` (capacity `cap`, NUL-terminated). Used by `location set` to refresh
  * the timezone after the user supplies coordinates without going through
