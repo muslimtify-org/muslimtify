@@ -216,6 +216,66 @@ static void test_windows_file_operations(void) {
   report_result("platform_file_delete()", platform_file_delete(renamed) == 0);
   report_result("deleted file missing", platform_file_exists(renamed) == 0);
 
+  // #56: platform_resolve_regular_file must validate via the wide API so it
+  // checks the same file _wfopen opens. Reuse the non-ASCII `dir`/`dir_w`.
+  {
+    char adhan_path[PLATFORM_PATH_MAX + 64];
+    char resolved[PLATFORM_PATH_MAX];
+    snprintf(adhan_path, sizeof(adhan_path), "%s\\adhan_\xC3\xA9.mp3", dir);
+
+    FILE *af = platform_file_open(adhan_path, "w");
+    report_result("resolve: create non-ASCII adhan file", af != NULL);
+    if (af) {
+      fputs("ok", af);
+      fclose(af);
+    }
+
+    // Core discriminator: a real non-ASCII file must validate as a regular file.
+    report_result("resolve: non-ASCII regular file -> OK",
+                  platform_resolve_regular_file(adhan_path, resolved, sizeof(resolved)) ==
+                          PATH_FILE_OK &&
+                      resolved[0] != '\0');
+
+    // A directory must be rejected as not-regular.
+    report_result("resolve: directory -> NOT_REGULAR",
+                  platform_resolve_regular_file(dir, resolved, sizeof(resolved)) ==
+                      PATH_FILE_NOT_REGULAR);
+
+    // A missing path must be reported as not-found.
+    char missing[PLATFORM_PATH_MAX + 64];
+    snprintf(missing, sizeof(missing), "%s\\nope_\xC3\xA9.mp3", dir);
+    report_result("resolve: missing path -> NOT_FOUND",
+                  platform_resolve_regular_file(missing, resolved, sizeof(resolved)) ==
+                      PATH_FILE_NOT_FOUND);
+
+    // Reparse-point rejection via a directory junction. Unlike a symlink, a
+    // junction needs no SeCreateSymbolicLinkPrivilege, so this runs on CI.
+    // mklink /J via _wsystem passes a wide command string, so the non-ASCII
+    // path is not mangled by the ANSI code page.
+    wchar_t jtarget_w[PLATFORM_PATH_MAX];
+    wchar_t junction_w[PLATFORM_PATH_MAX];
+    swprintf(jtarget_w, PLATFORM_PATH_MAX, L"%ls\\jtarget", dir_w);
+    swprintf(junction_w, PLATFORM_PATH_MAX, L"%ls\\jlink", dir_w);
+    CreateDirectoryW(jtarget_w, NULL);
+    wchar_t jcmd[2 * PLATFORM_PATH_MAX + 64];
+    swprintf(jcmd, 2 * PLATFORM_PATH_MAX + 64, L"cmd /c mklink /J \"%ls\" \"%ls\" >nul 2>&1",
+             junction_w, jtarget_w);
+    if (_wsystem(jcmd) == 0) {
+      char junction_utf8[PLATFORM_PATH_MAX];
+      if (wide_to_utf8(junction_w, junction_utf8, sizeof(junction_utf8))) {
+        report_result("resolve: junction (reparse) -> IS_SYMLINK",
+                      platform_resolve_regular_file(junction_utf8, resolved, sizeof(resolved)) ==
+                          PATH_FILE_IS_SYMLINK);
+      }
+      RemoveDirectoryW(junction_w);
+    } else {
+      printf("  SKIP: junction creation unavailable\n");
+    }
+    RemoveDirectoryW(jtarget_w);
+
+    platform_file_delete(adhan_path);
+  }
+
   RemoveDirectoryW(dir_w);
   RemoveDirectoryW(root_w);
 }
