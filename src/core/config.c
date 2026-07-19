@@ -775,7 +775,7 @@ static double offset_wrap_day(double hours) {
 }
 
 double effective_tz_offset(const Config *cfg, int year, int month, int day) {
-  if (!timezone_name_is_valid(cfg->timezone))
+  if (!timezone_exists(cfg->timezone))
     return cfg->timezone_offset;
   // Noon UTC of the target date sits safely inside the day's DST regime for
   // every zone (transitions occur ~01:00-03:00 local). mt_days_from_civil is the
