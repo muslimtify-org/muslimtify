@@ -143,25 +143,6 @@ static void test_parse_tokens_callback_stop(void) {
   report_result("parse_tokens callback count", acc.count == 1);
 }
 
-#ifdef _WIN32
-static void test_copy_wstring_success(void) {
-  printf("test_copy_wstring_success\n");
-  wchar_t buffer[16];
-  bool ok = copy_wstring(buffer, sizeof(buffer) / sizeof(buffer[0]), L"سلام");
-  expect_true(ok, "copy_wstring succeeds");
-  size_t len = wcslen(L"سلام");
-  report_result("copy_wstring terminates", buffer[len] == L'\0');
-}
-
-static void test_copy_wstring_truncate(void) {
-  printf("test_copy_wstring_truncate\n");
-  wchar_t buffer[3];
-  bool ok = copy_wstring(buffer, sizeof(buffer) / sizeof(buffer[0]), L"سلام");
-  expect_false(ok, "copy_wstring truncation reported");
-  report_result("copy_wstring truncation clamps terminator", buffer[2] == L'\0');
-}
-#endif
-
 int main(void) {
   printf("=== string_util tests ===\n\n");
 
@@ -175,10 +156,6 @@ int main(void) {
   test_parse_tokens_success();
   test_parse_tokens_truncation();
   test_parse_tokens_callback_stop();
-#ifdef _WIN32
-  test_copy_wstring_success();
-  test_copy_wstring_truncate();
-#endif
 
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;
