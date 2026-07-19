@@ -256,6 +256,11 @@ static void test_windows_zone_to_iana(void) {
   check_win2iana(L"Hawaiian Standard Time", "Pacific/Honolulu");
   check_win2iana(L"Line Islands Standard Time", "Pacific/Kiritimati");
 
+  // #53: expanded CLDR table — newly-covered zones and modern-canonical-first.
+  check_win2iana(L"China Standard Time", "Asia/Shanghai");
+  check_win2iana(L"Central Europe Standard Time", "Europe/Budapest");
+  check_win2iana(L"Morocco Standard Time", "Africa/Casablanca");
+
   // Negative cases
   check_win2iana(L"Bogus Standard Time", NULL);
   check_win2iana(NULL, NULL);
@@ -674,6 +679,22 @@ static void test_timezone_exists(void) {
   } else {
     printf("  FAIL: empty name should not exist\n");
     failures++;
+  }
+
+  // #53: common IANA zones from every region must resolve on Windows too
+  // (POSIX resolves them via the tz database regardless of the table).
+  const char *common_zones[] = {
+      "Europe/Madrid", "America/Mexico_City", "Asia/Shanghai",
+      "Africa/Lagos",  "Europe/Moscow",       "America/Toronto",
+  };
+  for (size_t i = 0; i < sizeof(common_zones) / sizeof(common_zones[0]); ++i) {
+    total++;
+    if (timezone_exists(common_zones[i])) {
+      printf("  PASS: %s exists\n", common_zones[i]);
+    } else {
+      printf("  FAIL: %s should exist\n", common_zones[i]);
+      failures++;
+    }
   }
 
 #ifndef _WIN32
