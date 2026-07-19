@@ -130,6 +130,12 @@ double parse_timezone_offset(const char *tz_name, time_t when) {
   return (double)diff / 36000000000.0;
 }
 
+bool timezone_exists(const char *tz_name) {
+  if (!timezone_name_is_valid(tz_name))
+    return false;
+  return iana_to_windows_zone(tz_name) != NULL;
+}
+
 // Exposed (non-static) so tests can pin specific Windows zone names and
 // assert the table-backed reverse mapping. Treat as internal to this TU
 // otherwise; callers should prefer `get_system_timezone`.

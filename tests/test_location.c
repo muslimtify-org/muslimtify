@@ -652,6 +652,31 @@ static void test_gpsd_scan_line(void) {
 }
 #endif /* _WIN32 */
 
+static void test_timezone_exists(void) {
+  printf("\n-- timezone_exists --\n");
+  total++;
+  if (timezone_exists("America/New_York")) {
+    printf("  PASS: America/New_York exists\n");
+  } else {
+    printf("  FAIL: America/New_York should exist\n");
+    failures++;
+  }
+  total++;
+  if (!timezone_exists("Asia/Nowhere")) {
+    printf("  PASS: Asia/Nowhere does not exist\n");
+  } else {
+    printf("  FAIL: Asia/Nowhere should not exist\n");
+    failures++;
+  }
+  total++;
+  if (!timezone_exists("")) {
+    printf("  PASS: empty name does not exist\n");
+  } else {
+    printf("  FAIL: empty name should not exist\n");
+    failures++;
+  }
+}
+
 int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
@@ -667,6 +692,7 @@ int main(void) {
 #endif
   test_get_system_timezone();
   test_timezone_name_is_valid();
+  test_timezone_exists();
   test_location_harden_curl();
   test_location_refresh();
   test_location_fetch_core();

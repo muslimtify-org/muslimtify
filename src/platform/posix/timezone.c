@@ -42,6 +42,25 @@ double parse_timezone_offset(const char *tz_name, time_t when) {
   return offset;
 }
 
+bool timezone_exists(const char *tz_name) {
+  if (!timezone_name_is_valid(tz_name))
+    return false;
+
+  // timezone_name_is_valid forbids '.', so tz_name cannot traverse out of the
+  // tz database directory below.
+  const char *dir = getenv("TZDIR");
+  if (!dir || dir[0] == '\0')
+    dir = "/usr/share/zoneinfo";
+
+  char path[512];
+  int n = snprintf(path, sizeof(path), "%s/%s", dir, tz_name);
+  if (n < 0 || (size_t)n >= sizeof(path))
+    return false;
+
+  struct stat st;
+  return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 static int copy_zone_tail(const char *path, char *buf, size_t cap) {
   // Find the substring "/zoneinfo/" and take everything after it.
   const char *needle = "/zoneinfo/";
