@@ -248,26 +248,30 @@ static void test_windows_file_operations(void) {
                   platform_resolve_regular_file(missing, resolved, sizeof(resolved)) ==
                       PATH_FILE_NOT_FOUND);
 
-    // Symlink rejection (best-effort: CreateSymbolicLinkW needs
-    // SeCreateSymbolicLinkPrivilege / Developer Mode, usually absent on CI).
-#ifndef SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
-#define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE 0x2
-#endif
-    wchar_t link_w[PLATFORM_PATH_MAX];
-    wchar_t target_w[PLATFORM_PATH_MAX];
-    swprintf(link_w, PLATFORM_PATH_MAX, L"%ls\\adhan_link_\x00E9.mp3", dir_w);
-    swprintf(target_w, PLATFORM_PATH_MAX, L"%ls\\adhan_\x00E9.mp3", dir_w);
-    if (CreateSymbolicLinkW(link_w, target_w, SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE)) {
-      char link_utf8[PLATFORM_PATH_MAX];
-      if (wide_to_utf8(link_w, link_utf8, sizeof(link_utf8))) {
-        report_result("resolve: symlink -> IS_SYMLINK",
-                      platform_resolve_regular_file(link_utf8, resolved, sizeof(resolved)) ==
+    // Reparse-point rejection via a directory junction. Unlike a symlink, a
+    // junction needs no SeCreateSymbolicLinkPrivilege, so this runs on CI.
+    // mklink /J via _wsystem passes a wide command string, so the non-ASCII
+    // path is not mangled by the ANSI code page.
+    wchar_t jtarget_w[PLATFORM_PATH_MAX];
+    wchar_t junction_w[PLATFORM_PATH_MAX];
+    swprintf(jtarget_w, PLATFORM_PATH_MAX, L"%ls\\jtarget", dir_w);
+    swprintf(junction_w, PLATFORM_PATH_MAX, L"%ls\\jlink", dir_w);
+    CreateDirectoryW(jtarget_w, NULL);
+    wchar_t jcmd[2 * PLATFORM_PATH_MAX + 64];
+    swprintf(jcmd, 2 * PLATFORM_PATH_MAX + 64, L"cmd /c mklink /J \"%ls\" \"%ls\" >nul 2>&1",
+             junction_w, jtarget_w);
+    if (_wsystem(jcmd) == 0) {
+      char junction_utf8[PLATFORM_PATH_MAX];
+      if (wide_to_utf8(junction_w, junction_utf8, sizeof(junction_utf8))) {
+        report_result("resolve: junction (reparse) -> IS_SYMLINK",
+                      platform_resolve_regular_file(junction_utf8, resolved, sizeof(resolved)) ==
                           PATH_FILE_IS_SYMLINK);
       }
-      DeleteFileW(link_w);
+      RemoveDirectoryW(junction_w);
     } else {
-      printf("  SKIP: symlink creation unavailable (no privilege)\n");
+      printf("  SKIP: junction creation unavailable\n");
     }
+    RemoveDirectoryW(jtarget_w);
 
     platform_file_delete(adhan_path);
   }

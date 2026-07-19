@@ -310,6 +310,18 @@ int platform_isatty(FILE *stream) {
   return _isatty(_fileno(stream));
 }
 
+// Map a GetFileAttributes* result to a validation verdict: PATH_FILE_OK for a
+// plain regular file, otherwise the specific rejection code.
+static PathFileResult classify_file_attrs(DWORD attr) {
+  if (attr == INVALID_FILE_ATTRIBUTES)
+    return PATH_FILE_NOT_FOUND;
+  if (attr & FILE_ATTRIBUTE_REPARSE_POINT) // symlink / junction
+    return PATH_FILE_IS_SYMLINK;
+  if (attr & FILE_ATTRIBUTE_DIRECTORY)
+    return PATH_FILE_NOT_REGULAR;
+  return PATH_FILE_OK;
+}
+
 PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t out_size) {
   // Validate and canonicalize via the wide API so this checks the same file
   // platform_file_open (_wfopen) later opens. GetFileAttributesA/_fullpath would
@@ -318,18 +330,10 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
   if (!win)
     return PATH_FILE_RESOLVE_FAILED;
 
-  DWORD attr = GetFileAttributesW(win);
-  if (attr == INVALID_FILE_ATTRIBUTES) {
+  PathFileResult rc = classify_file_attrs(GetFileAttributesW(win));
+  if (rc != PATH_FILE_OK) {
     free(win);
-    return PATH_FILE_NOT_FOUND;
-  }
-  if (attr & FILE_ATTRIBUTE_REPARSE_POINT) { // symlink / junction
-    free(win);
-    return PATH_FILE_IS_SYMLINK;
-  }
-  if (attr & FILE_ATTRIBUTE_DIRECTORY) {
-    free(win);
-    return PATH_FILE_NOT_REGULAR;
+    return rc;
   }
 
   wchar_t resolved[PLATFORM_PATH_MAX];
@@ -342,13 +346,9 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
   // Re-check the canonical target (mirrors the POSIX re-lstat at
   // platform_posix.c): narrows the TOCTOU window and re-rejects a reparse
   // point / directory.
-  DWORD rattr = GetFileAttributesW(resolved);
-  if (rattr == INVALID_FILE_ATTRIBUTES)
-    return PATH_FILE_NOT_FOUND;
-  if (rattr & FILE_ATTRIBUTE_REPARSE_POINT)
-    return PATH_FILE_IS_SYMLINK;
-  if (rattr & FILE_ATTRIBUTE_DIRECTORY)
-    return PATH_FILE_NOT_REGULAR;
+  rc = classify_file_attrs(GetFileAttributesW(resolved));
+  if (rc != PATH_FILE_OK)
+    return rc;
 
   if (!wide_to_utf8(resolved, out, out_size))
     return PATH_FILE_TOO_LONG;
