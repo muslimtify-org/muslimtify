@@ -216,6 +216,62 @@ static void test_windows_file_operations(void) {
   report_result("platform_file_delete()", platform_file_delete(renamed) == 0);
   report_result("deleted file missing", platform_file_exists(renamed) == 0);
 
+  // #56: platform_resolve_regular_file must validate via the wide API so it
+  // checks the same file _wfopen opens. Reuse the non-ASCII `dir`/`dir_w`.
+  {
+    char adhan_path[PLATFORM_PATH_MAX + 64];
+    char resolved[PLATFORM_PATH_MAX];
+    snprintf(adhan_path, sizeof(adhan_path), "%s\\adhan_\xC3\xA9.mp3", dir);
+
+    FILE *af = platform_file_open(adhan_path, "w");
+    report_result("resolve: create non-ASCII adhan file", af != NULL);
+    if (af) {
+      fputs("ok", af);
+      fclose(af);
+    }
+
+    // Core discriminator: a real non-ASCII file must validate as a regular file.
+    report_result("resolve: non-ASCII regular file -> OK",
+                  platform_resolve_regular_file(adhan_path, resolved, sizeof(resolved)) ==
+                          PATH_FILE_OK &&
+                      resolved[0] != '\0');
+
+    // A directory must be rejected as not-regular.
+    report_result("resolve: directory -> NOT_REGULAR",
+                  platform_resolve_regular_file(dir, resolved, sizeof(resolved)) ==
+                      PATH_FILE_NOT_REGULAR);
+
+    // A missing path must be reported as not-found.
+    char missing[PLATFORM_PATH_MAX + 64];
+    snprintf(missing, sizeof(missing), "%s\\nope_\xC3\xA9.mp3", dir);
+    report_result("resolve: missing path -> NOT_FOUND",
+                  platform_resolve_regular_file(missing, resolved, sizeof(resolved)) ==
+                      PATH_FILE_NOT_FOUND);
+
+    // Symlink rejection (best-effort: CreateSymbolicLinkW needs
+    // SeCreateSymbolicLinkPrivilege / Developer Mode, usually absent on CI).
+#ifndef SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
+#define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE 0x2
+#endif
+    wchar_t link_w[PLATFORM_PATH_MAX];
+    wchar_t target_w[PLATFORM_PATH_MAX];
+    swprintf(link_w, PLATFORM_PATH_MAX, L"%ls\\adhan_link_\x00E9.mp3", dir_w);
+    swprintf(target_w, PLATFORM_PATH_MAX, L"%ls\\adhan_\x00E9.mp3", dir_w);
+    if (CreateSymbolicLinkW(link_w, target_w, SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE)) {
+      char link_utf8[PLATFORM_PATH_MAX];
+      if (wide_to_utf8(link_w, link_utf8, sizeof(link_utf8))) {
+        report_result("resolve: symlink -> IS_SYMLINK",
+                      platform_resolve_regular_file(link_utf8, resolved, sizeof(resolved)) ==
+                          PATH_FILE_IS_SYMLINK);
+      }
+      DeleteFileW(link_w);
+    } else {
+      printf("  SKIP: symlink creation unavailable (no privilege)\n");
+    }
+
+    platform_file_delete(adhan_path);
+  }
+
   RemoveDirectoryW(dir_w);
   RemoveDirectoryW(root_w);
 }
