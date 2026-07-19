@@ -142,6 +142,13 @@ if(WIN32)
     # Static curl: prevent its headers from emitting __declspec(dllimport).
     target_compile_definitions(muslimtify_core PRIVATE CURL_STATICLIB)
     target_compile_definitions(muslimtify_cli  PRIVATE CURL_STATICLIB)
+    # windows_zones_generated.inc is #included by timezone.c, never compiled on
+    # its own. List it so IDEs surface it and CMake tracks it as a build input.
+    target_sources(muslimtify_core PRIVATE
+        src/platform/windows/windows_zones_generated.inc)
+    set_source_files_properties(
+        src/platform/windows/windows_zones_generated.inc
+        PROPERTIES HEADER_FILE_ONLY ON)
 else()
     target_include_directories(muslimtify_core PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
