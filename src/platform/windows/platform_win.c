@@ -311,20 +311,46 @@ int platform_isatty(FILE *stream) {
 }
 
 PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t out_size) {
-  DWORD attr = GetFileAttributesA(in);
-  if (attr == INVALID_FILE_ATTRIBUTES)
-    return PATH_FILE_NOT_FOUND;
-  if (attr & FILE_ATTRIBUTE_REPARSE_POINT) // symlink / junction
-    return PATH_FILE_IS_SYMLINK;
-  if (attr & FILE_ATTRIBUTE_DIRECTORY)
-    return PATH_FILE_NOT_REGULAR;
-
-  char resolved[PLATFORM_PATH_MAX];
-  if (!_fullpath(resolved, in, sizeof(resolved)))
+  // Validate and canonicalize via the wide API so this checks the same file
+  // platform_file_open (_wfopen) later opens. GetFileAttributesA/_fullpath would
+  // decode `in` with the ANSI code page, not UTF-8, mis-checking non-ASCII paths.
+  wchar_t *win = utf8_to_wide(in);
+  if (!win)
     return PATH_FILE_RESOLVE_FAILED;
 
-  int w = snprintf(out, out_size, "%s", resolved);
-  if (w < 0 || (size_t)w >= out_size)
+  DWORD attr = GetFileAttributesW(win);
+  if (attr == INVALID_FILE_ATTRIBUTES) {
+    free(win);
+    return PATH_FILE_NOT_FOUND;
+  }
+  if (attr & FILE_ATTRIBUTE_REPARSE_POINT) { // symlink / junction
+    free(win);
+    return PATH_FILE_IS_SYMLINK;
+  }
+  if (attr & FILE_ATTRIBUTE_DIRECTORY) {
+    free(win);
+    return PATH_FILE_NOT_REGULAR;
+  }
+
+  wchar_t resolved[PLATFORM_PATH_MAX];
+  if (!_wfullpath(resolved, win, PLATFORM_PATH_MAX)) {
+    free(win);
+    return PATH_FILE_RESOLVE_FAILED;
+  }
+  free(win);
+
+  // Re-check the canonical target (mirrors the POSIX re-lstat at
+  // platform_posix.c): narrows the TOCTOU window and re-rejects a reparse
+  // point / directory.
+  DWORD rattr = GetFileAttributesW(resolved);
+  if (rattr == INVALID_FILE_ATTRIBUTES)
+    return PATH_FILE_NOT_FOUND;
+  if (rattr & FILE_ATTRIBUTE_REPARSE_POINT)
+    return PATH_FILE_IS_SYMLINK;
+  if (rattr & FILE_ATTRIBUTE_DIRECTORY)
+    return PATH_FILE_NOT_REGULAR;
+
+  if (!wide_to_utf8(resolved, out, out_size))
     return PATH_FILE_TOO_LONG;
   return PATH_FILE_OK;
 }
