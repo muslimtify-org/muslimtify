@@ -500,6 +500,43 @@ static void test_show(void) {
   check_contains("show old format hint", "--json");
 }
 
+static void test_show_date_bounds(void) {
+  printf("  show --date bounds...\n");
+  reset_config();
+
+  // year 0 is not a valid ISO year
+  run(4, (char *[]){"m", "show", "--date", "0000-01-01", NULL});
+  check_ret("bounds year 0 ret", 1);
+  check_contains("bounds year 0 msg", "Invalid date");
+
+  // negative year: previously accepted and printed as "-005-01-01"
+  run(4, (char *[]){"m", "show", "--date", "-5-01-01", NULL});
+  check_ret("bounds year negative ret", 1);
+
+  // year that overflows int: previously undefined behavior via sscanf("%d")
+  run(4, (char *[]){"m", "show", "--date", "99999999999999999999-01-01", NULL});
+  check_ret("bounds year overflow ret", 1);
+
+  // year above the 4-digit ISO range
+  run(4, (char *[]){"m", "show", "--date", "10000-01-01", NULL});
+  check_ret("bounds year 10000 ret", 1);
+
+  // an explicit plus sign is not a date
+  run(4, (char *[]){"m", "show", "--date", "+2024-01-01", NULL});
+  check_ret("bounds year plus-sign ret", 1);
+
+  // leading whitespace is not a date
+  run(4, (char *[]){"m", "show", "--date", " 2024-01-01", NULL});
+  check_ret("bounds year leading-space ret", 1);
+
+  // lower and upper boundaries are accepted
+  run(4, (char *[]){"m", "show", "--date", "0001-01-01", NULL});
+  check_ret("bounds year min ret", 0);
+
+  run(4, (char *[]){"m", "show", "--date", "9999-12-31", NULL});
+  check_ret("bounds year max ret", 0);
+}
+
 static void test_show_range(void) {
   printf("  show --date range...\n");
   reset_config();
@@ -1121,6 +1158,7 @@ int main(void) {
   test_location();
   test_removed_top_level();
   test_show();
+  test_show_date_bounds();
   test_show_range();
   test_next();
   test_next_after_isha();
