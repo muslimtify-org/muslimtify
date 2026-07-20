@@ -272,6 +272,78 @@ static void test_build_triggers_carries_adhan(void) {
   check_bool("found dhuhr exact trigger", found);
 }
 
+// Round-trip strings that used to corrupt the cache file. Each case sets
+// trigger 0's adhan to a hostile value, saves, reloads, and requires both the
+// trigger count and the adhan itself to survive intact.
+static void test_cache_escaping_roundtrip(void) {
+  printf("  cache escaping roundtrip...\n");
+
+  static const struct {
+    const char *label;
+    const char *adhan;
+  } cases[] = {
+      {"quote", "/home/u/my \"best\" adhan.mp3"},
+      {"backslash", "C:\\adhan\\call.mp3"},
+      {"newline", "/home/u/a\nb.mp3"},
+      {"close-brace", "/home/u/a}] junk"},
+      {"open-brace", "/home/u/a{b.mp3"},
+      {"injection", "x\"}, {\"prayer\": \"FAKE\", \"minute\": 5, \"adhan\": \"z"},
+  };
+
+  for (size_t ci = 0; ci < sizeof(cases) / sizeof(cases[0]); ci++) {
+    char tmpdir[] = "/tmp/mt_cache_esc_XXXXXX";
+    if (!mkdtemp(tmpdir)) {
+      fprintf(stderr, "FAIL [mkdtemp esc]\n");
+      failed++;
+      return;
+    }
+    setenv("XDG_CACHE_HOME", tmpdir, 1);
+    cache_reset_path();
+
+    PrayerCache original = {0};
+    strcpy(original.date, "2026-03-22");
+    original.trigger_count = 3;
+    const char *names[3] = {"Fajr", "Dhuhr", "Isha"};
+    int minutes[3] = {266, 724, 1172};
+    for (int i = 0; i < 3; i++) {
+      strcpy(original.triggers[i].prayer, names[i]);
+      original.triggers[i].minute = minutes[i];
+      original.triggers[i].prayer_time = 1.0 + i;
+      original.triggers[i].adhan_enabled = true;
+      strcpy(original.triggers[i].adhan, "/tmp/plain.mp3");
+    }
+    strcpy(original.triggers[0].adhan, cases[ci].adhan);
+
+    char label[128];
+    snprintf(label, sizeof(label), "escape: %s save", cases[ci].label);
+    check_bool(label, cache_save(&original) == 0);
+
+    PrayerCache loaded = {0};
+    snprintf(label, sizeof(label), "escape: %s load", cases[ci].label);
+    check_bool(label, cache_load(&loaded) == 0);
+
+    snprintf(label, sizeof(label), "escape: %s count", cases[ci].label);
+    check_bool(label, loaded.trigger_count == 3);
+
+    snprintf(label, sizeof(label), "escape: %s adhan", cases[ci].label);
+    check_bool(label, strcmp(loaded.triggers[0].adhan, cases[ci].adhan) == 0);
+
+    // The injection payload previously produced a fabricated trigger.
+    bool saw_fake = false;
+    for (int i = 0; i < loaded.trigger_count; i++) {
+      if (strcmp(loaded.triggers[i].prayer, "FAKE") == 0)
+        saw_fake = true;
+    }
+    snprintf(label, sizeof(label), "escape: %s no FAKE trigger", cases[ci].label);
+    check_bool(label, !saw_fake);
+
+    cache_invalidate();
+  }
+
+  unsetenv("XDG_CACHE_HOME");
+  cache_reset_path();
+}
+
 int main(void) {
   printf("Running cache tests...\n");
 
@@ -282,6 +354,7 @@ int main(void) {
   test_remove_trigger();
   test_save_load_roundtrip();
   test_build_triggers_carries_adhan();
+  test_cache_escaping_roundtrip();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   return failed > 0 ? 1 : 0;

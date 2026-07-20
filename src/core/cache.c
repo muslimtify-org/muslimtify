@@ -125,14 +125,26 @@ int cache_load(PrayerCache *cache) {
     if (!*p)
       break;
 
-    // Find matching '}'
+    // Find the matching '}', ignoring braces that appear inside JSON strings.
+    // JSON has no escape for '{' or '}', so a legitimately escaped adhan path
+    // can contain either; counting raw bytes would end the object early.
     char *obj_start = p;
     int depth = 0;
     char *obj_end = NULL;
+    bool in_string = false;
     for (char *q = p; *q; q++) {
-      if (*q == '{')
+      if (in_string) {
+        if (*q == '\\' && *(q + 1) != '\0')
+          q++; // skip the escaped character, including a literal '\"'
+        else if (*q == '"')
+          in_string = false;
+        continue;
+      }
+      if (*q == '"') {
+        in_string = true;
+      } else if (*q == '{') {
         depth++;
-      else if (*q == '}') {
+      } else if (*q == '}') {
         depth--;
         if (depth == 0) {
           obj_end = q;
@@ -207,17 +219,21 @@ int cache_save(const PrayerCache *cache) {
   platform_restrict_to_owner(f);
 
   fprintf(f, "{\n");
-  fprintf(f, "  \"date\": \"%s\",\n", cache->date);
+  fprintf(f, "  \"date\": ");
+  json_write_escaped(f, cache->date);
+  fprintf(f, ",\n");
   fprintf(f, "  \"triggers\": [\n");
 
   for (int i = 0; i < cache->trigger_count; i++) {
     const CacheTrigger *t = &cache->triggers[i];
+    fprintf(f, "    {\"prayer\": ");
+    json_write_escaped(f, t->prayer);
     fprintf(f,
-            "    {\"prayer\": \"%s\", \"minute\": %d, "
-            "\"minutes_before\": %d, \"prayer_time\": %.4f, \"adhan_enabled\": %s, \"adhan\": "
-            "\"%s\"}%s\n",
-            t->prayer, t->minute, t->minutes_before, t->prayer_time,
-            t->adhan_enabled ? "true" : "false", t->adhan, i < cache->trigger_count - 1 ? "," : "");
+            ", \"minute\": %d, \"minutes_before\": %d, \"prayer_time\": %.4f, "
+            "\"adhan_enabled\": %s, \"adhan\": ",
+            t->minute, t->minutes_before, t->prayer_time, t->adhan_enabled ? "true" : "false");
+    json_write_escaped(f, t->adhan);
+    fprintf(f, "}%s\n", i < cache->trigger_count - 1 ? "," : "");
   }
 
   fprintf(f, "  ]\n");
