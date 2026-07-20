@@ -13,6 +13,12 @@
 // Refuse to load a cache file larger than this; a sane cache is a few KB.
 #define MAX_CACHE_FILE_BYTES (1024L * 1024L)
 
+// Bumped whenever the on-disk cache format changes in a way older readers would
+// misinterpret. Version 2 introduced JSON-escaped strings; a version-1 file could
+// contain an unescaped quote or brace and would be silently mis-parsed, so files
+// without a matching version are rejected and rebuilt from config.
+#define CACHE_FORMAT_VERSION 2
+
 static char cache_path_buf[PLATFORM_PATH_MAX] = {0};
 static bool cache_trunc_logged = false;
 
@@ -95,6 +101,15 @@ int cache_load(PrayerCache *cache) {
   }
 
   memset(cache, 0, sizeof(*cache));
+
+  // Reject any cache not written by this format version, including pre-versioning
+  // files, which may contain unescaped strings this reader would mis-parse.
+  char *version_str = get_value(ctx, "version", content);
+  if (!version_str || strtol(version_str, NULL, 10) != CACHE_FORMAT_VERSION) {
+    json_end(ctx);
+    free(content);
+    return -1;
+  }
 
   char *date_str = get_value(ctx, "date", content);
   if (!date_str) {
@@ -192,6 +207,20 @@ int cache_load(PrayerCache *cache) {
 
     *(obj_end + 1) = saved;
     p = obj_end + 1;
+
+    // Between trigger objects only whitespace and a single ',' may appear, and the
+    // array must end with ']'. Checking this makes the scan's safety explicit rather
+    // than incidental, and rejects a truncated file instead of silently accepting a
+    // partial trigger list.
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+      p++;
+    if (*p == ',') {
+      p++;
+    } else if (*p != ']') {
+      json_end(ctx);
+      free(content);
+      return -1;
+    }
   }
 
   json_end(ctx);
@@ -216,6 +245,7 @@ int cache_save(const PrayerCache *cache) {
   platform_restrict_to_owner(f);
 
   fprintf(f, "{\n");
+  fprintf(f, "  \"version\": %d,\n", CACHE_FORMAT_VERSION);
   fprintf(f, "  \"date\": ");
   json_write_escaped(f, cache->date);
   fprintf(f, ",\n");

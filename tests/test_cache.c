@@ -430,6 +430,98 @@ static void test_cache_reminder_roundtrip(void) {
   cache_reset_path();
 }
 
+// A cache written by an older muslimtify (before the format was versioned, and
+// before strings were escaped) must be rejected outright so check_cycle rebuilds
+// it, rather than being reused with a silently corrupted adhan.
+static void test_cache_rejects_legacy_and_malformed(void) {
+  printf("  cache version + separator validation...\n");
+
+  char tmpdir[] = "/tmp/mt_cache_ver_XXXXXX";
+  if (!mkdtemp(tmpdir)) {
+    fprintf(stderr, "FAIL [mkdtemp version]\n");
+    failed++;
+    return;
+  }
+  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  cache_reset_path();
+
+  // Seed a valid cache so the directory exists, and confirm the round trip works.
+  PrayerCache seed = {0};
+  strcpy(seed.date, "2026-03-22");
+  seed.trigger_count = 1;
+  strcpy(seed.triggers[0].prayer, "Fajr");
+  seed.triggers[0].minute = 266;
+  seed.triggers[0].prayer_time = 4.4333;
+  seed.triggers[0].adhan_enabled = true;
+  strcpy(seed.triggers[0].adhan, "/tmp/fajr.mp3");
+  check_bool("version: seed save", cache_save(&seed) == 0);
+
+  PrayerCache ok = {0};
+  check_bool("version: current format accepted", cache_load(&ok) == 0);
+  check_bool("version: current format count", ok.trigger_count == 1);
+
+  // A legacy (unversioned) file with an unescaped quote: exactly what the old
+  // writer produced. Must be rejected, not reused with a truncated adhan.
+  FILE *legacy = fopen(cache_get_path(), "w");
+  check_bool("version: open legacy write", legacy != NULL);
+  if (legacy) {
+    fputs("{\n  \"date\": \"2026-03-22\",\n  \"triggers\": [\n", legacy);
+    fputs("    {\"prayer\": \"Fajr\", \"minute\": 266, \"minutes_before\": 0, "
+          "\"prayer_time\": 4.4333, \"adhan_enabled\": true, "
+          "\"adhan\": \"/home/u/my \"best\" adhan.mp3\"}\n",
+          legacy);
+    fputs("  ]\n}\n", legacy);
+    fclose(legacy);
+  }
+  PrayerCache legacy_out = {0};
+  check_bool("version: legacy file rejected", cache_load(&legacy_out) == -1);
+
+  // A file with the wrong version number is also rejected.
+  FILE *wrongver = fopen(cache_get_path(), "w");
+  check_bool("version: open wrongver write", wrongver != NULL);
+  if (wrongver) {
+    fputs("{\n  \"version\": 99,\n  \"date\": \"2026-03-22\",\n  \"triggers\": [\n", wrongver);
+    fputs("    {\"prayer\": \"Fajr\", \"minute\": 266, \"minutes_before\": 0, "
+          "\"prayer_time\": 4.4333, \"adhan_enabled\": true, \"adhan\": \"/x.mp3\"}\n",
+          wrongver);
+    fputs("  ]\n}\n", wrongver);
+    fclose(wrongver);
+  }
+  PrayerCache wv = {0};
+  check_bool("version: wrong version rejected", cache_load(&wv) == -1);
+
+  // Junk between trigger objects is rejected rather than skipped.
+  FILE *junk = fopen(cache_get_path(), "w");
+  check_bool("version: open junk write", junk != NULL);
+  if (junk) {
+    fputs("{\n  \"version\": 2,\n  \"date\": \"2026-03-22\",\n  \"triggers\": [\n", junk);
+    fputs("    {\"prayer\": \"Fajr\", \"minute\": 266, \"minutes_before\": 0, "
+          "\"prayer_time\": 4.4333, \"adhan_enabled\": true, \"adhan\": \"/x.mp3\"} GARBAGE\n",
+          junk);
+    fputs("  ]\n}\n", junk);
+    fclose(junk);
+  }
+  PrayerCache jk = {0};
+  check_bool("version: junk separator rejected", cache_load(&jk) == -1);
+
+  // A truncated array (no closing ']') is rejected rather than partially accepted.
+  FILE *trunc = fopen(cache_get_path(), "w");
+  check_bool("version: open trunc write", trunc != NULL);
+  if (trunc) {
+    fputs("{\n  \"version\": 2,\n  \"date\": \"2026-03-22\",\n  \"triggers\": [\n", trunc);
+    fputs("    {\"prayer\": \"Fajr\", \"minute\": 266, \"minutes_before\": 0, "
+          "\"prayer_time\": 4.4333, \"adhan_enabled\": true, \"adhan\": \"/x.mp3\"}",
+          trunc);
+    fclose(trunc);
+  }
+  PrayerCache tr = {0};
+  check_bool("version: truncated array rejected", cache_load(&tr) == -1);
+
+  cache_invalidate();
+  unsetenv("XDG_CACHE_HOME");
+  cache_reset_path();
+}
+
 int main(void) {
   printf("Running cache tests...\n");
 
@@ -443,6 +535,7 @@ int main(void) {
   test_cache_escaping_roundtrip();
   test_cache_load_strict();
   test_cache_reminder_roundtrip();
+  test_cache_rejects_legacy_and_malformed();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   return failed > 0 ? 1 : 0;
