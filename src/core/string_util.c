@@ -94,35 +94,6 @@ bool errno_string(int err, char *buf, size_t buf_sz) {
   return false;
 }
 
-#ifdef _WIN32
-static size_t bounded_wcslen(const wchar_t *s, size_t maxlen) {
-  size_t len = 0;
-  if (!s) {
-    return 0;
-  }
-  while (len < maxlen && s[len] != L'\0') {
-    len++;
-  }
-  return len;
-}
-
-bool copy_wstring(wchar_t *dst, size_t dst_len, const wchar_t *src) {
-  static bool invalid_logged = false;
-  if (!dst || !src || dst_len == 0) {
-    return log_invalid_once("copy_wstring", &invalid_logged, "invalid arguments");
-  }
-
-  size_t limit = dst_len - 1;
-  size_t copy_len = bounded_wcslen(src, limit);
-  bool fits = src[copy_len] == L'\0';
-  if (copy_len > 0) {
-    wmemcpy(dst, src, copy_len);
-  }
-  dst[copy_len] = L'\0';
-  return fits;
-}
-#endif
-
 int parse_tokens(const char *input, char *scratch, size_t scratch_size, const char *delims,
                  token_cb cb, void *user) {
   static bool invalid_logged = false;

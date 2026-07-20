@@ -23,12 +23,6 @@ size_t bounded_strlen(const char *s, size_t maxlen);
 // Returns true on success; false when err cannot be represented or inputs invalid.
 bool errno_string(int err, char *buf, size_t buf_sz);
 
-#ifdef _WIN32
-// copy_wstring mirrors copy_string but operates on wchar_t buffers.
-// dst_len counts wchar_t slots, including room for the terminator.
-bool copy_wstring(wchar_t *dst, size_t dst_len, const wchar_t *src);
-#endif
-
 typedef bool (*token_cb)(const char *token, void *user);
 
 // parse_tokens tokenizes input using the provided delimiters, invoking cb for each token.
