@@ -344,6 +344,92 @@ static void test_cache_escaping_roundtrip(void) {
   cache_reset_path();
 }
 
+// A cache file whose trigger object is missing a required key must be rejected
+// outright, so check_cycle rebuilds from config instead of running with a
+// silently short trigger list.
+static void test_cache_load_strict(void) {
+  printf("  cache load strictness...\n");
+
+  char tmpdir[] = "/tmp/mt_cache_strict_XXXXXX";
+  if (!mkdtemp(tmpdir)) {
+    fprintf(stderr, "FAIL [mkdtemp strict]\n");
+    failed++;
+    return;
+  }
+  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  cache_reset_path();
+
+  // Seed a valid cache so the cache directory exists.
+  PrayerCache seed = {0};
+  strcpy(seed.date, "2026-03-22");
+  seed.trigger_count = 1;
+  strcpy(seed.triggers[0].prayer, "Fajr");
+  seed.triggers[0].minute = 266;
+  seed.triggers[0].prayer_time = 4.4333;
+  seed.triggers[0].adhan_enabled = true;
+  strcpy(seed.triggers[0].adhan, "/tmp/fajr.mp3");
+  check_bool("strict: seed save", cache_save(&seed) == 0);
+
+  // A well-formed file still loads. This guards against the strict check
+  // degenerating into "reject everything".
+  PrayerCache ok = {0};
+  check_bool("strict: well-formed accepted", cache_load(&ok) == 0);
+  check_bool("strict: well-formed count", ok.trigger_count == 1);
+
+  // Same file with "minute" removed from the trigger object.
+  FILE *bad = fopen(cache_get_path(), "w");
+  check_bool("strict: open for malformed write", bad != NULL);
+  if (bad) {
+    fputs("{\n  \"date\": \"2026-03-22\",\n  \"triggers\": [\n", bad);
+    fputs("    {\"prayer\": \"Fajr\", \"minutes_before\": 0, \"prayer_time\": 4.4333, "
+          "\"adhan_enabled\": true, \"adhan\": \"/tmp/fajr.mp3\"}\n",
+          bad);
+    fputs("  ]\n}\n", bad);
+    fclose(bad);
+  }
+  PrayerCache broken = {0};
+  check_bool("strict: missing minute rejected", cache_load(&broken) == -1);
+
+  cache_invalidate();
+  unsetenv("XDG_CACHE_HOME");
+  cache_reset_path();
+}
+
+// Reminder triggers never set `adhan`, so they serialize as "adhan": "".
+// The strict loader must treat an empty string as present, not missing.
+static void test_cache_reminder_roundtrip(void) {
+  printf("  cache reminder roundtrip...\n");
+
+  char tmpdir[] = "/tmp/mt_cache_rem_XXXXXX";
+  if (!mkdtemp(tmpdir)) {
+    fprintf(stderr, "FAIL [mkdtemp reminder]\n");
+    failed++;
+    return;
+  }
+  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  cache_reset_path();
+
+  PrayerCache original = {0};
+  strcpy(original.date, "2026-03-22");
+  original.trigger_count = 1;
+  strcpy(original.triggers[0].prayer, "Dhuhr");
+  original.triggers[0].minute = 700;
+  original.triggers[0].minutes_before = 15;
+  original.triggers[0].prayer_time = 12.0667;
+  // adhan deliberately left empty, exactly as cache_build_triggers leaves it
+  // for reminder triggers.
+
+  check_bool("strict: reminder save", cache_save(&original) == 0);
+  PrayerCache loaded = {0};
+  check_bool("strict: reminder roundtrip", cache_load(&loaded) == 0);
+  check_bool("strict: reminder count", loaded.trigger_count == 1);
+  check_bool("strict: reminder adhan empty", loaded.triggers[0].adhan[0] == '\0');
+
+  cache_invalidate();
+  unsetenv("XDG_CACHE_HOME");
+  cache_reset_path();
+}
+
 int main(void) {
   printf("Running cache tests...\n");
 
@@ -355,6 +441,8 @@ int main(void) {
   test_save_load_roundtrip();
   test_build_triggers_carries_adhan();
   test_cache_escaping_roundtrip();
+  test_cache_load_strict();
+  test_cache_reminder_roundtrip();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   return failed > 0 ? 1 : 0;

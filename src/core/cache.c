@@ -161,34 +161,31 @@ int cache_load(PrayerCache *cache) {
 
     CacheTrigger *t = &cache->triggers[cache->trigger_count];
 
+    // A trigger object missing any key means the file is corrupt. Reject the
+    // whole cache rather than continuing with a silently short trigger list:
+    // run_check_cycle treats a failed load as invalid and rebuilds from config.
     char *prayer = get_value(ctx, "prayer", obj_start);
-    if (prayer) {
-      if (!copy_string(t->prayer, sizeof(t->prayer), prayer)) {
-        cache_log_trunc("prayer");
-      }
+    char *minute_str = get_value(ctx, "minute", obj_start);
+    char *mb_str = get_value(ctx, "minutes_before", obj_start);
+    char *pt_str = get_value(ctx, "prayer_time", obj_start);
+    char *ae_str = get_value(ctx, "adhan_enabled", obj_start);
+    char *adhan_str = get_value(ctx, "adhan", obj_start);
+    if (!prayer || !minute_str || !mb_str || !pt_str || !ae_str || !adhan_str) {
+      *(obj_end + 1) = saved;
+      json_end(ctx);
+      free(content);
+      return -1;
     }
 
-    char *minute_str = get_value(ctx, "minute", obj_start);
-    if (minute_str)
-      t->minute = (int)strtol(minute_str, NULL, 10);
-
-    char *mb_str = get_value(ctx, "minutes_before", obj_start);
-    if (mb_str)
-      t->minutes_before = (int)strtol(mb_str, NULL, 10);
-
-    char *pt_str = get_value(ctx, "prayer_time", obj_start);
-    if (pt_str)
-      t->prayer_time = strtod(pt_str, NULL);
-
-    char *ae_str = get_value(ctx, "adhan_enabled", obj_start);
-    if (ae_str)
-      t->adhan_enabled = strcmp(ae_str, "true") == 0;
-
-    char *adhan_str = get_value(ctx, "adhan", obj_start);
-    if (adhan_str) {
-      if (!copy_string(t->adhan, sizeof(t->adhan), adhan_str)) {
-        cache_log_trunc("adhan");
-      }
+    if (!copy_string(t->prayer, sizeof(t->prayer), prayer)) {
+      cache_log_trunc("prayer");
+    }
+    t->minute = (int)strtol(minute_str, NULL, 10);
+    t->minutes_before = (int)strtol(mb_str, NULL, 10);
+    t->prayer_time = strtod(pt_str, NULL);
+    t->adhan_enabled = strcmp(ae_str, "true") == 0;
+    if (!copy_string(t->adhan, sizeof(t->adhan), adhan_str)) {
+      cache_log_trunc("adhan");
     }
 
     cache->trigger_count++;
