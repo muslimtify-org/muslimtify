@@ -24,6 +24,7 @@
 #define JSON_H
 
 #include <stdarg.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,6 +68,12 @@ void json_end(JsonContext *ctx);
  */
 char *get_value(JsonContext *JSON_RESTRICT ctx, const char *JSON_RESTRICT key,
                 char *JSON_RESTRICT raw_json);
+
+/**
+ * Write s to f as a quoted JSON string, including the surrounding quotes.
+ * Escapes `"`, `\`, and the C0 control characters (\b \f \n \r \t, else \uXXXX).
+ */
+void json_write_escaped(FILE *f, const char *s);
 
 #ifdef JSON_IMPLEMENTATION
 
@@ -704,6 +711,43 @@ char *get_value(JsonContext *JSON_RESTRICT ctx, const char *JSON_RESTRICT key,
     return NULL;
 
   return get_obj(ctx->arena, raw_json, key);
+}
+
+void json_write_escaped(FILE *f, const char *s) {
+  fputc('"', f);
+  for (; *s; s++) {
+    switch (*s) {
+    case '"':
+      fputs("\\\"", f);
+      break;
+    case '\\':
+      fputs("\\\\", f);
+      break;
+    case '\b':
+      fputs("\\b", f);
+      break;
+    case '\f':
+      fputs("\\f", f);
+      break;
+    case '\n':
+      fputs("\\n", f);
+      break;
+    case '\r':
+      fputs("\\r", f);
+      break;
+    case '\t':
+      fputs("\\t", f);
+      break;
+    default:
+      if ((unsigned char)*s < 0x20) {
+        fprintf(f, "\\u%04x", (unsigned char)*s);
+      } else {
+        fputc(*s, f);
+      }
+      break;
+    }
+  }
+  fputc('"', f);
 }
 
 #endif /* JSON_IMPLEMENTATION */

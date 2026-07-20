@@ -558,6 +558,32 @@ static void test_prayer_times_uses_dst_offset(void) {
   check_bool("fajr uses EDT, not the stored scalar", fabs(got.fajr - expected.fajr) < 1e-9);
 }
 
+// The JSON escaper moved from config.c into json.h. This pins that config
+// output is still escaped, so a future change to the shared escaper cannot
+// silently start emitting invalid config JSON.
+static void test_config_escapes_adhan(void) {
+  printf("  config adhan escaping...\n");
+
+  Config cfg = config_default();
+  cfg.latitude = -6.2088;
+  cfg.longitude = 106.8456;
+  strncpy(cfg.fajr.adhan, "/home/u/my \"best\" adhan.mp3", sizeof(cfg.fajr.adhan) - 1);
+  check_bool("config: escape save", config_save(&cfg) == 0);
+
+  FILE *f = fopen(config_get_path(), "r");
+  check_bool("config: escape reopen", f != NULL);
+  if (!f)
+    return;
+  char buf[8192];
+  size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+  buf[n] = '\0';
+  fclose(f);
+
+  check_bool("config: adhan quote escaped",
+             strstr(buf, "/home/u/my \\\"best\\\" adhan.mp3") != NULL);
+  check_bool("config: no raw quote in adhan", strstr(buf, "/home/u/my \"best\" adhan.mp3") == NULL);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -580,6 +606,7 @@ int main(void) {
   test_refresh_interval();
   test_effective_tz_offset();
   test_prayer_times_uses_dst_offset();
+  test_config_escapes_adhan();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

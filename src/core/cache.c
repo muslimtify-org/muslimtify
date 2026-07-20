@@ -13,6 +13,12 @@
 // Refuse to load a cache file larger than this; a sane cache is a few KB.
 #define MAX_CACHE_FILE_BYTES (1024L * 1024L)
 
+// Bumped whenever the on-disk cache format changes in a way older readers would
+// misinterpret. Version 2 introduced JSON-escaped strings; a version-1 file could
+// contain an unescaped quote or brace and would be silently mis-parsed, so files
+// without a matching version are rejected and rebuilt from config.
+#define CACHE_FORMAT_VERSION 2
+
 static char cache_path_buf[PLATFORM_PATH_MAX] = {0};
 static bool cache_trunc_logged = false;
 
@@ -96,6 +102,15 @@ int cache_load(PrayerCache *cache) {
 
   memset(cache, 0, sizeof(*cache));
 
+  // Reject any cache not written by this format version, including pre-versioning
+  // files, which may contain unescaped strings this reader would mis-parse.
+  char *version_str = get_value(ctx, "version", content);
+  if (!version_str || strtol(version_str, NULL, 10) != CACHE_FORMAT_VERSION) {
+    json_end(ctx);
+    free(content);
+    return -1;
+  }
+
   char *date_str = get_value(ctx, "date", content);
   if (!date_str) {
     json_end(ctx);
@@ -125,14 +140,26 @@ int cache_load(PrayerCache *cache) {
     if (!*p)
       break;
 
-    // Find matching '}'
+    // Find the matching '}', ignoring braces that appear inside JSON strings.
+    // JSON has no escape for '{' or '}', so a legitimately escaped adhan path
+    // can contain either; counting raw bytes would end the object early.
     char *obj_start = p;
     int depth = 0;
     char *obj_end = NULL;
+    bool in_string = false;
     for (char *q = p; *q; q++) {
-      if (*q == '{')
+      if (in_string) {
+        if (*q == '\\' && *(q + 1) != '\0')
+          q++; // skip the escaped character, including a literal '\"'
+        else if (*q == '"')
+          in_string = false;
+        continue;
+      }
+      if (*q == '"') {
+        in_string = true;
+      } else if (*q == '{') {
         depth++;
-      else if (*q == '}') {
+      } else if (*q == '}') {
         depth--;
         if (depth == 0) {
           obj_end = q;
@@ -149,40 +176,51 @@ int cache_load(PrayerCache *cache) {
 
     CacheTrigger *t = &cache->triggers[cache->trigger_count];
 
+    // A trigger object missing any key means the file is corrupt. Reject the
+    // whole cache rather than continuing with a silently short trigger list:
+    // run_check_cycle treats a failed load as invalid and rebuilds from config.
     char *prayer = get_value(ctx, "prayer", obj_start);
-    if (prayer) {
-      if (!copy_string(t->prayer, sizeof(t->prayer), prayer)) {
-        cache_log_trunc("prayer");
-      }
+    char *minute_str = get_value(ctx, "minute", obj_start);
+    char *mb_str = get_value(ctx, "minutes_before", obj_start);
+    char *pt_str = get_value(ctx, "prayer_time", obj_start);
+    char *ae_str = get_value(ctx, "adhan_enabled", obj_start);
+    char *adhan_str = get_value(ctx, "adhan", obj_start);
+    if (!prayer || !minute_str || !mb_str || !pt_str || !ae_str || !adhan_str) {
+      *(obj_end + 1) = saved;
+      json_end(ctx);
+      free(content);
+      return -1;
     }
 
-    char *minute_str = get_value(ctx, "minute", obj_start);
-    if (minute_str)
-      t->minute = (int)strtol(minute_str, NULL, 10);
-
-    char *mb_str = get_value(ctx, "minutes_before", obj_start);
-    if (mb_str)
-      t->minutes_before = (int)strtol(mb_str, NULL, 10);
-
-    char *pt_str = get_value(ctx, "prayer_time", obj_start);
-    if (pt_str)
-      t->prayer_time = strtod(pt_str, NULL);
-
-    char *ae_str = get_value(ctx, "adhan_enabled", obj_start);
-    if (ae_str)
-      t->adhan_enabled = strcmp(ae_str, "true") == 0;
-
-    char *adhan_str = get_value(ctx, "adhan", obj_start);
-    if (adhan_str) {
-      if (!copy_string(t->adhan, sizeof(t->adhan), adhan_str)) {
-        cache_log_trunc("adhan");
-      }
+    if (!copy_string(t->prayer, sizeof(t->prayer), prayer)) {
+      cache_log_trunc("prayer");
+    }
+    t->minute = (int)strtol(minute_str, NULL, 10);
+    t->minutes_before = (int)strtol(mb_str, NULL, 10);
+    t->prayer_time = strtod(pt_str, NULL);
+    t->adhan_enabled = strcmp(ae_str, "true") == 0;
+    if (!copy_string(t->adhan, sizeof(t->adhan), adhan_str)) {
+      cache_log_trunc("adhan");
     }
 
     cache->trigger_count++;
 
     *(obj_end + 1) = saved;
     p = obj_end + 1;
+
+    // Between trigger objects only whitespace and a single ',' may appear, and the
+    // array must end with ']'. Checking this makes the scan's safety explicit rather
+    // than incidental, and rejects a truncated file instead of silently accepting a
+    // partial trigger list.
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+      p++;
+    if (*p == ',') {
+      p++;
+    } else if (*p != ']') {
+      json_end(ctx);
+      free(content);
+      return -1;
+    }
   }
 
   json_end(ctx);
@@ -207,17 +245,22 @@ int cache_save(const PrayerCache *cache) {
   platform_restrict_to_owner(f);
 
   fprintf(f, "{\n");
-  fprintf(f, "  \"date\": \"%s\",\n", cache->date);
+  fprintf(f, "  \"version\": %d,\n", CACHE_FORMAT_VERSION);
+  fprintf(f, "  \"date\": ");
+  json_write_escaped(f, cache->date);
+  fprintf(f, ",\n");
   fprintf(f, "  \"triggers\": [\n");
 
   for (int i = 0; i < cache->trigger_count; i++) {
     const CacheTrigger *t = &cache->triggers[i];
+    fprintf(f, "    {\"prayer\": ");
+    json_write_escaped(f, t->prayer);
     fprintf(f,
-            "    {\"prayer\": \"%s\", \"minute\": %d, "
-            "\"minutes_before\": %d, \"prayer_time\": %.4f, \"adhan_enabled\": %s, \"adhan\": "
-            "\"%s\"}%s\n",
-            t->prayer, t->minute, t->minutes_before, t->prayer_time,
-            t->adhan_enabled ? "true" : "false", t->adhan, i < cache->trigger_count - 1 ? "," : "");
+            ", \"minute\": %d, \"minutes_before\": %d, \"prayer_time\": %.4f, "
+            "\"adhan_enabled\": %s, \"adhan\": ",
+            t->minute, t->minutes_before, t->prayer_time, t->adhan_enabled ? "true" : "false");
+    json_write_escaped(f, t->adhan);
+    fprintf(f, "}%s\n", i < cache->trigger_count - 1 ? "," : "");
   }
 
   fprintf(f, "  ]\n");
