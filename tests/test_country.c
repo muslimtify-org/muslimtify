@@ -1,6 +1,8 @@
 #include "country.h"
 #include "prayertimes.h"
 
+#include "core/country_internal.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -56,8 +58,8 @@ static void test_invalid_codes(void) {
 // the table is not sorted ascending by code. Guard that invariant directly.
 static void test_table_sorted(void) {
   printf("test_table_sorted\n");
-  size_t count = 0;
-  const Country *table = country_table(&count);
+  size_t count = ISO_3166_1_ALPHA2_COUNT;
+  const Country *table = ISO_3166_1_ALPHA2;
   report_result("table is non-empty", count > 0);
 
   bool sorted = true;
@@ -107,8 +109,8 @@ static void test_country_default_method(void) {
 static void test_country_default_method_all(void) {
   printf("test_country_default_method_all\n");
 
-  size_t count = 0;
-  const Country *table = country_table(&count);
+  size_t count = ISO_3166_1_ALPHA2_COUNT;
+  const Country *table = ISO_3166_1_ALPHA2;
   report_result("table has 249 entries", count == 249);
 
   // (1) Accessor agrees with the table for every code.
