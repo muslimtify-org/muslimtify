@@ -49,121 +49,6 @@ static Config test_config(void) {
   return cfg;
 }
 
-// -- prayer_check_current tests ----------------------------------------------
-
-static void test_exact_match(void) {
-  printf("  exact match...\n");
-  Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
-
-  // Current time = fajr time (04:26)
-  struct tm now = make_time(4, 26);
-  PrayerMatch m = prayer_check_current(&cfg, &now, &times);
-  check_bool("exact fajr type", m.type == PRAYER_FAJR);
-  check_bool("exact fajr min_before", m.minutes_before == 0);
-
-  // Current time = dhuhr time (12:04)
-  now = make_time(12, 4);
-  m = prayer_check_current(&cfg, &now, &times);
-  check_bool("exact dhuhr type", m.type == PRAYER_DHUHR);
-  check_bool("exact dhuhr min_before", m.minutes_before == 0);
-
-  // Current time = isha time (19:32)
-  now = make_time(19, 32);
-  m = prayer_check_current(&cfg, &now, &times);
-  check_bool("exact isha type", m.type == PRAYER_ISHA);
-  check_bool("exact isha min_before", m.minutes_before == 0);
-}
-
-static void test_reminder_match(void) {
-  printf("  reminder match...\n");
-  Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
-
-  // Default config has reminders [30, 15, 5] for fajr.
-  // Fajr is at minute 266 (04:26). 30 min before = minute 236 (03:56).
-  struct tm now = make_time(3, 56);
-  PrayerMatch m = prayer_check_current(&cfg, &now, &times);
-  check_bool("reminder 30 type", m.type == PRAYER_FAJR);
-  check_bool("reminder 30 offset", m.minutes_before == 30);
-
-  // 15 min before fajr = minute 251 (04:11)
-  now = make_time(4, 11);
-  m = prayer_check_current(&cfg, &now, &times);
-  check_bool("reminder 15 type", m.type == PRAYER_FAJR);
-  check_bool("reminder 15 offset", m.minutes_before == 15);
-
-  // 5 min before fajr = minute 261 (04:21)
-  now = make_time(4, 21);
-  m = prayer_check_current(&cfg, &now, &times);
-  check_bool("reminder 5 type", m.type == PRAYER_FAJR);
-  check_bool("reminder 5 offset", m.minutes_before == 5);
-}
-
-static void test_no_match(void) {
-  printf("  no match...\n");
-  Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
-
-  // 10:00 — not near any prayer or reminder
-  struct tm now = make_time(10, 0);
-  PrayerMatch m = prayer_check_current(&cfg, &now, &times);
-  check_bool("no match type", m.type == PRAYER_NONE);
-}
-
-static void test_disabled_skipped(void) {
-  printf("  disabled prayer skipped...\n");
-  Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
-
-  // Disable fajr, then check at fajr exact time
-  cfg.fajr.enabled = false;
-  struct tm now = make_time(4, 26);
-  PrayerMatch m = prayer_check_current(&cfg, &now, &times);
-  check_bool("disabled fajr skipped", m.type == PRAYER_NONE);
-
-  // Sunrise is disabled by default
-  now = make_time(5, 46);
-  m = prayer_check_current(&cfg, &now, &times);
-  check_bool("disabled sunrise skipped", m.type == PRAYER_NONE);
-}
-
-static void test_midnight_crossover(void) {
-  printf("  midnight crossover...\n");
-
-  // Construct a scenario where fajr is at 00:20 (0.333 hours)
-  // with a 30-min reminder → reminder at 23:50 (minute 1430)
-  Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
-  times.fajr = 20.0 / 60.0; // 00:20
-  cfg.fajr.reminders[0] = 30;
-  cfg.fajr.reminder_count = 1;
-
-  struct tm now = make_time(23, 50);
-  PrayerMatch m = prayer_check_current(&cfg, &now, &times);
-  check_bool("midnight cross type", m.type == PRAYER_FAJR);
-  check_bool("midnight cross offset", m.minutes_before == 30);
-}
-
-static void test_all_disabled(void) {
-  printf("  all disabled...\n");
-  Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
-
-  cfg.fajr.enabled = false;
-  cfg.sunrise.enabled = false;
-  cfg.dhuha.enabled = false;
-  cfg.dhuhr.enabled = false;
-  cfg.asr.enabled = false;
-  cfg.maghrib.enabled = false;
-  cfg.isha.enabled = false;
-
-  // Check at dhuhr exact time — should still be NONE
-  struct tm now = make_time(12, 4);
-  PrayerMatch m = prayer_check_current(&cfg, &now, &times);
-  check_bool("all disabled none", m.type == PRAYER_NONE);
-}
-
 // -- prayer_get_next tests ---------------------------------------------------
 
 static void test_next_upcoming(void) {
@@ -264,12 +149,6 @@ static void test_prayer_get_time(void) {
 int main(void) {
   printf("Running prayer checker tests...\n");
 
-  test_exact_match();
-  test_reminder_match();
-  test_no_match();
-  test_disabled_skipped();
-  test_midnight_crossover();
-  test_all_disabled();
   test_next_upcoming();
   test_next_wraps_to_tomorrow();
   test_next_all_disabled();

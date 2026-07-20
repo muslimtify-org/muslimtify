@@ -1,0 +1,4 @@
+# The generated Windows timezone table is emitted with LF endings by
+# scripts/gen-windows-zones.ps1. Pin it to LF so regeneration is byte-stable
+# regardless of a contributor's core.autocrlf setting.
+src/platform/windows/windows_zones_generated.inc text eol=lf

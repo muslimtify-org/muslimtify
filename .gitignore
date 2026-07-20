@@ -48,6 +48,7 @@ docs/reviews/
 docs/plans/
 docs/specs/
 docs/verifications/
+docs/security/
 CLAUDE.md
 /package-lock.json
 /package.json

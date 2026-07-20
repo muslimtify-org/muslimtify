@@ -20,19 +20,6 @@ typedef enum {
   PRAYER_NONE
 } PrayerType;
 
-typedef struct {
-  PrayerType type;
-  int minutes_before; // 0 = exact time, >0 = reminder
-  double prayer_time; // Actual prayer time (hours)
-} PrayerMatch;
-
-/**
- * Check if current time matches any prayer time or reminder
- * Returns: PrayerMatch with type and minutes_before
- */
-PrayerMatch prayer_check_current(const Config *cfg, struct tm *current_time,
-                                 struct PrayerTimes *times);
-
 /**
  * Get human-readable prayer name
  */
