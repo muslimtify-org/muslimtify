@@ -32,6 +32,22 @@ jobs:
             -not -name 'version.h.in' -print0 \
             | xargs -0 clang-format --dry-run --Werror
 
+      - name: Enforce country_internal.h stays test-only
+        run: |
+          # src/core/country_internal.h exposes the internal ISO 3166-1 table so
+          # the invariant tests can iterate it. Only its defining TU
+          # (src/core/country.c) and tests/ may include it — production code
+          # must go through include/country.h.
+          offenders=$(grep -rl 'country_internal\.h' src include \
+            | grep -vx 'src/core/country.c' \
+            | grep -vx 'src/core/country_internal.h' || true)
+          if [ -n "$offenders" ]; then
+            echo "ERROR: country_internal.h is a test-only seam, but production code includes it:"
+            echo "$offenders"
+            exit 1
+          fi
+          echo "OK: country_internal.h is not included by production code."
+
       - name: Configure (for clang-tidy compile commands)
         run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
