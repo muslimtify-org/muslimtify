@@ -550,6 +550,26 @@ static void test_show_date_bounds(void) {
   run(5, (char *[]){"m", "show", "--date", "2024-01-01", "2025-01-01", NULL});
   check_ret("bounds span 367 ret", 1);
   check_contains("bounds span 367 msg", "date range too long");
+
+  // over-wide fields are rejected: "00002024" is not a 4-digit ISO year
+  run(4, (char *[]){"m", "show", "--date", "00002024-01-01", NULL});
+  check_ret("bounds year overpadded ret", 1);
+
+  run(4, (char *[]){"m", "show", "--date", "2024-0001-01", NULL});
+  check_ret("bounds month overpadded ret", 1);
+
+  run(4, (char *[]){"m", "show", "--date", "2024-01-0001", NULL});
+  check_ret("bounds day overpadded ret", 1);
+
+  // ...but short (non-zero-padded) components remain valid, as before
+  run(4, (char *[]){"m", "show", "--date", "2024-1-1", NULL});
+  check_ret("bounds short form ret", 0);
+
+  // the help text documents both limits
+  run(4, (char *[]){"m", "show", "--date", "--help", NULL});
+  check_ret("bounds help ret", 0);
+  check_contains("bounds help span limit", "366 days");
+  check_contains("bounds help year range", "1-9999");
 }
 
 static void test_show_range(void) {

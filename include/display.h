@@ -29,6 +29,8 @@ void display_prayer_times_json(const struct PrayerTimes *times, const Config *cf
 /**
  * Display prayer times for an inclusive date range as a combined table
  * (columns: Date | Prayer | Time), all 7 prayers per day.
+ * Precondition: the caller must bound the range; this function loops one day at
+ * a time and does not cap the span itself (see MAX_RANGE_DAYS in cmd_show.c).
  */
 void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd, int ey, int em,
                                       int ed);
@@ -36,6 +38,8 @@ void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd,
 /**
  * Display prayer times for an inclusive date range as `date=` blocks of
  * lowercase key=value lines (enabled prayers only), blank-line separated.
+ * Precondition: the caller must bound the range; this function loops one day at
+ * a time and does not cap the span itself (see MAX_RANGE_DAYS in cmd_show.c).
  */
 void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd, int ey, int em,
                                       int ed);
@@ -43,6 +47,8 @@ void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd,
 /**
  * Display prayer times for an inclusive date range as a JSON array of
  * { "date": "YYYY-MM-DD", "prayers": { ... } } objects.
+ * Precondition: the caller must bound the range; this function loops one day at
+ * a time and does not cap the span itself (see MAX_RANGE_DAYS in cmd_show.c).
  */
 void display_prayer_times_range_json(const Config *cfg, int sy, int sm, int sd, int ey, int em,
                                      int ed);

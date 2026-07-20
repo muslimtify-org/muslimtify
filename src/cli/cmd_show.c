@@ -3,7 +3,6 @@
 #include "display.h"
 #include "location.h"
 #include "platform.h"
-#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,6 +74,7 @@ static void print_show_date_help(void) {
   printf("\n");
   printf("Notes:\n");
   printf("  %s\n", "Dates are yyyy-mm-dd. --json/--headless may appear before or after the dates.");
+  printf("  %s\n", "Years are 1-9999; a range may span at most 366 days.");
   printf("\n");
   printf("Examples:\n");
   printf("  %-40s %s\n", "muslimtify show --date 2022-01-01", "# One day");
@@ -97,18 +97,20 @@ static int mt_days_in_month(int y, int m) {
   return dm[m - 1];
 }
 
-// Parse one unsigned decimal field in [min,max], advancing *sp past its digits.
-// Rejects an empty field, a leading sign or whitespace (strtol would accept all
-// three and yield a number the user never typed), ERANGE overflow, and any
-// value outside the bounds. Returns 0 on success, -1 otherwise.
-static int parse_field(const char **sp, long min, long max, int *out) {
+// Parse one unsigned decimal field of at most `maxdigits` digits into [min,max],
+// advancing *sp past those digits. Rejects a leading sign or whitespace (strtol
+// would accept both and yield a number the user never typed), an over-wide field
+// such as "00002024", and any value outside the bounds. The width bound also caps
+// the value, so strtol cannot overflow here and errno needs no inspection.
+// Fewer digits than maxdigits are fine, so "2024-1-1" still parses.
+// Returns 0 on success, -1 otherwise.
+static int parse_field(const char **sp, int maxdigits, long min, long max, int *out) {
   const char *s = *sp;
   if (*s < '0' || *s > '9')
     return -1;
-  errno = 0;
   char *end;
   long v = strtol(s, &end, 10);
-  if (end == s || errno == ERANGE || v < min || v > max)
+  if (end - s > maxdigits || v < min || v > max)
     return -1;
   *sp = end;
   *out = (int)v;
@@ -123,13 +125,13 @@ static int parse_date(const char *s, int *y, int *m, int *d) {
   if (s == NULL)
     return -1;
   int yy, mm, dd;
-  if (parse_field(&s, 1, 9999, &yy) != 0 || *s != '-')
+  if (parse_field(&s, 4, 1, 9999, &yy) != 0 || *s != '-')
     return -1;
   s++;
-  if (parse_field(&s, 1, 12, &mm) != 0 || *s != '-')
+  if (parse_field(&s, 2, 1, 12, &mm) != 0 || *s != '-')
     return -1;
   s++;
-  if (parse_field(&s, 1, mt_days_in_month(yy, mm), &dd) != 0)
+  if (parse_field(&s, 2, 1, mt_days_in_month(yy, mm), &dd) != 0)
     return -1;
   if (*s != '\0')
     return -1;
