@@ -10,6 +10,11 @@
 #include <string.h>
 #include <time.h>
 
+// Longest span accepted by `show --date <start> <end>`, inclusive. 366 covers a
+// full leap year, the longest range with a real use case. Without this cap the
+// range loop is bounded only by the year range and can run for weeks.
+#define MAX_RANGE_DAYS 366
+
 static void print_show_help(void) {
   printf("\n");
   printf("Show today's prayer times as a table\n");
@@ -251,6 +256,12 @@ int handle_show(int argc, char **argv) {
       }
       if (sy > ey || (sy == ey && (sm > em || (sm == em && sd > ed)))) {
         fprintf(stderr, "Error: end date is before start date\n");
+        return 1;
+      }
+      long span = mt_days_from_civil(ey, em, ed) - mt_days_from_civil(sy, sm, sd) + 1;
+      if (span > MAX_RANGE_DAYS) {
+        fprintf(stderr, "Error: date range too long (%ld days, maximum %d)\n", span,
+                MAX_RANGE_DAYS);
         return 1;
       }
       switch (mode) {

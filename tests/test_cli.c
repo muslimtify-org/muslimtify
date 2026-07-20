@@ -535,6 +535,21 @@ static void test_show_date_bounds(void) {
 
   run(4, (char *[]){"m", "show", "--date", "9999-12-31", NULL});
   check_ret("bounds year max ret", 0);
+
+  // exactly 366 days (a full leap year) is the inclusive cap and is accepted.
+  // Only the exit code is asserted: a 366-day range overflows the 16384-byte
+  // `captured` buffer, so output assertions would be checking truncated text.
+  run(5, (char *[]){"m", "show", "--date", "2024-01-01", "2024-12-31", NULL});
+  check_ret("bounds span 366 ret", 0);
+
+  // a full non-leap year is 365 days and stays well inside the cap
+  run(5, (char *[]){"m", "show", "--date", "2023-01-01", "2023-12-31", NULL});
+  check_ret("bounds span 365 ret", 0);
+
+  // 367 days is one past the cap and is rejected
+  run(5, (char *[]){"m", "show", "--date", "2024-01-01", "2025-01-01", NULL});
+  check_ret("bounds span 367 ret", 1);
+  check_contains("bounds span 367 msg", "date range too long");
 }
 
 static void test_show_range(void) {
