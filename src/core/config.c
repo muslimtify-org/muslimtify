@@ -149,50 +149,13 @@ Config config_default(void) {
   return cfg;
 }
 
-static void json_escape_string(FILE *f, const char *s) {
-  fputc('"', f);
-  for (; *s; s++) {
-    switch (*s) {
-    case '"':
-      fputs("\\\"", f);
-      break;
-    case '\\':
-      fputs("\\\\", f);
-      break;
-    case '\b':
-      fputs("\\b", f);
-      break;
-    case '\f':
-      fputs("\\f", f);
-      break;
-    case '\n':
-      fputs("\\n", f);
-      break;
-    case '\r':
-      fputs("\\r", f);
-      break;
-    case '\t':
-      fputs("\\t", f);
-      break;
-    default:
-      if ((unsigned char)*s < 0x20) {
-        fprintf(f, "\\u%04x", (unsigned char)*s);
-      } else {
-        fputc(*s, f);
-      }
-      break;
-    }
-  }
-  fputc('"', f);
-}
-
 static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, "{\n");
   fprintf(f, "  \"location\": {\n");
   fprintf(f, "    \"latitude\": %.6f,\n", cfg->latitude);
   fprintf(f, "    \"longitude\": %.6f,\n", cfg->longitude);
   fprintf(f, "    \"timezone\": ");
-  json_escape_string(f, cfg->timezone);
+  json_write_escaped(f, cfg->timezone);
   fprintf(f, ",\n");
   fprintf(f, "    \"timezone_offset\": %.1f,\n", cfg->timezone_offset);
   fprintf(f, "    \"auto_detect\": %s,\n", cfg->auto_detect ? "true" : "false");
@@ -200,10 +163,10 @@ static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, "    \"updated_at\": %lld,\n", (long long)cfg->updated_at);
   fprintf(f, "    \"refresh_interval\": %lld,\n", (long long)cfg->refresh_interval);
   fprintf(f, "    \"city\": ");
-  json_escape_string(f, cfg->city);
+  json_write_escaped(f, cfg->city);
   fprintf(f, ",\n");
   fprintf(f, "    \"country\": ");
-  json_escape_string(f, cfg->country);
+  json_write_escaped(f, cfg->country);
   fprintf(f, "\n");
   fprintf(f, "  },\n");
 
@@ -217,7 +180,7 @@ static int write_json_file(FILE *f, const Config *cfg) {
     fprintf(f, "    \"%s\": {\n", prayer_names[i]);
     fprintf(f, "      \"enabled\": %s,\n", prayers[i]->enabled ? "true" : "false");
     fprintf(f, "      \"adhan\": ");
-    json_escape_string(f, prayers[i]->adhan);
+    json_write_escaped(f, prayers[i]->adhan);
     fprintf(f, ",\n");
     fprintf(f, "      \"adhan_enabled\": %s,\n", prayers[i]->adhan_enabled ? "true" : "false");
     fprintf(f, "      \"reminders\": [");
@@ -236,28 +199,28 @@ static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, "  \"notification\": {\n");
   fprintf(f, "    \"timeout\": %d,\n", cfg->notification_timeout);
   fprintf(f, "    \"urgency\": ");
-  json_escape_string(f, cfg->notification_urgency);
+  json_write_escaped(f, cfg->notification_urgency);
   fprintf(f, ",\n");
   fprintf(f, "    \"sound\": ");
-  json_escape_string(f, cfg->notification_sound);
+  json_write_escaped(f, cfg->notification_sound);
   fprintf(f, ",\n");
   fprintf(f, "    \"sound_alarm\": ");
-  json_escape_string(f, cfg->notification_sound_alarm);
+  json_write_escaped(f, cfg->notification_sound_alarm);
   fprintf(f, ",\n");
   fprintf(f, "    \"sound_reminder\": ");
-  json_escape_string(f, cfg->notification_sound_reminder);
+  json_write_escaped(f, cfg->notification_sound_reminder);
   fprintf(f, ",\n");
   fprintf(f, "    \"icon\": ");
-  json_escape_string(f, cfg->notification_icon);
+  json_write_escaped(f, cfg->notification_icon);
   fprintf(f, "\n");
   fprintf(f, "  },\n");
 
   fprintf(f, "  \"calculation\": {\n");
   fprintf(f, "    \"method\": ");
-  json_escape_string(f, cfg->calculation_method);
+  json_write_escaped(f, cfg->calculation_method);
   fprintf(f, ",\n");
   fprintf(f, "    \"madhab\": ");
-  json_escape_string(f, cfg->madhab);
+  json_write_escaped(f, cfg->madhab);
   if (strcmp(cfg->calculation_method, "custom") == 0) {
     fprintf(f, ",\n");
     fprintf(f, "    \"fajr_angle\": %.1f,\n", cfg->fajr_angle);
