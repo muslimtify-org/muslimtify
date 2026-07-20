@@ -5,8 +5,14 @@
 #include "platform.h"
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+// Longest span accepted by `show --date <start> <end>`, inclusive. 366 covers a
+// full leap year, the longest range with a real use case. Without this cap the
+// range loop is bounded only by the year range and can run for weeks.
+#define MAX_RANGE_DAYS 366
 
 static void print_show_help(void) {
   printf("\n");
@@ -68,6 +74,7 @@ static void print_show_date_help(void) {
   printf("\n");
   printf("Notes:\n");
   printf("  %s\n", "Dates are yyyy-mm-dd. --json/--headless may appear before or after the dates.");
+  printf("  %s\n", "Years are 1-9999; a range may span at most 366 days.");
   printf("\n");
   printf("Examples:\n");
   printf("  %-40s %s\n", "muslimtify show --date 2022-01-01", "# One day");
@@ -90,19 +97,43 @@ static int mt_days_in_month(int y, int m) {
   return dm[m - 1];
 }
 
-// Parse an ISO-ish "YYYY-MM-DD" date into y/m/d with range validation.
-// Returns 0 on success, -1 on malformed input, trailing junk, or an
-// out-of-range month/day (leap-aware). Components need not be zero-padded.
+// Parse one unsigned decimal field of at most `maxdigits` digits into [min,max],
+// advancing *sp past those digits. Rejects a leading sign or whitespace (strtol
+// would accept both and yield a number the user never typed), an over-wide field
+// such as "00002024", and any value outside the bounds. The width bound also caps
+// the value, so strtol cannot overflow here and errno needs no inspection.
+// Fewer digits than maxdigits are fine, so "2024-1-1" still parses.
+// Returns 0 on success, -1 otherwise.
+static int parse_field(const char **sp, int maxdigits, long min, long max, int *out) {
+  const char *s = *sp;
+  if (*s < '0' || *s > '9')
+    return -1;
+  char *end;
+  long v = strtol(s, &end, 10);
+  if (end - s > maxdigits || v < min || v > max)
+    return -1;
+  *sp = end;
+  *out = (int)v;
+  return 0;
+}
+
+// Parse an ISO "YYYY-MM-DD" date into y/m/d with full range validation.
+// Returns 0 on success, -1 on malformed input, trailing junk, a year outside
+// 1..9999, or an out-of-range month/day (leap-aware). Components need not be
+// zero-padded.
 static int parse_date(const char *s, int *y, int *m, int *d) {
   if (s == NULL)
     return -1;
   int yy, mm, dd;
-  char extra;
-  if (sscanf(s, "%d-%d-%d%c", &yy, &mm, &dd, &extra) != 3)
+  if (parse_field(&s, 4, 1, 9999, &yy) != 0 || *s != '-')
     return -1;
-  if (mm < 1 || mm > 12)
+  s++;
+  if (parse_field(&s, 2, 1, 12, &mm) != 0 || *s != '-')
     return -1;
-  if (dd < 1 || dd > mt_days_in_month(yy, mm))
+  s++;
+  if (parse_field(&s, 2, 1, mt_days_in_month(yy, mm), &dd) != 0)
+    return -1;
+  if (*s != '\0')
     return -1;
   *y = yy;
   *m = mm;
@@ -227,6 +258,12 @@ int handle_show(int argc, char **argv) {
       }
       if (sy > ey || (sy == ey && (sm > em || (sm == em && sd > ed)))) {
         fprintf(stderr, "Error: end date is before start date\n");
+        return 1;
+      }
+      long span = mt_days_from_civil(ey, em, ed) - mt_days_from_civil(sy, sm, sd) + 1;
+      if (span > MAX_RANGE_DAYS) {
+        fprintf(stderr, "Error: date range too long (%ld days, maximum %d)\n", span,
+                MAX_RANGE_DAYS);
         return 1;
       }
       switch (mode) {

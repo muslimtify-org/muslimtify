@@ -500,6 +500,78 @@ static void test_show(void) {
   check_contains("show old format hint", "--json");
 }
 
+static void test_show_date_bounds(void) {
+  printf("  show --date bounds...\n");
+  reset_config();
+
+  // year 0 is not a valid ISO year
+  run(4, (char *[]){"m", "show", "--date", "0000-01-01", NULL});
+  check_ret("bounds year 0 ret", 1);
+  check_contains("bounds year 0 msg", "Invalid date");
+
+  // negative year: previously accepted and printed as "-005-01-01"
+  run(4, (char *[]){"m", "show", "--date", "-5-01-01", NULL});
+  check_ret("bounds year negative ret", 1);
+
+  // year that overflows int: previously undefined behavior via sscanf("%d")
+  run(4, (char *[]){"m", "show", "--date", "99999999999999999999-01-01", NULL});
+  check_ret("bounds year overflow ret", 1);
+
+  // year above the 4-digit ISO range
+  run(4, (char *[]){"m", "show", "--date", "10000-01-01", NULL});
+  check_ret("bounds year 10000 ret", 1);
+
+  // an explicit plus sign is not a date
+  run(4, (char *[]){"m", "show", "--date", "+2024-01-01", NULL});
+  check_ret("bounds year plus-sign ret", 1);
+
+  // leading whitespace is not a date
+  run(4, (char *[]){"m", "show", "--date", " 2024-01-01", NULL});
+  check_ret("bounds year leading-space ret", 1);
+
+  // lower and upper boundaries are accepted
+  run(4, (char *[]){"m", "show", "--date", "0001-01-01", NULL});
+  check_ret("bounds year min ret", 0);
+
+  run(4, (char *[]){"m", "show", "--date", "9999-12-31", NULL});
+  check_ret("bounds year max ret", 0);
+
+  // exactly 366 days (a full leap year) is the inclusive cap and is accepted.
+  // Only the exit code is asserted: a 366-day range overflows the 16384-byte
+  // `captured` buffer, so output assertions would be checking truncated text.
+  run(5, (char *[]){"m", "show", "--date", "2024-01-01", "2024-12-31", NULL});
+  check_ret("bounds span 366 ret", 0);
+
+  // a full non-leap year is 365 days and stays well inside the cap
+  run(5, (char *[]){"m", "show", "--date", "2023-01-01", "2023-12-31", NULL});
+  check_ret("bounds span 365 ret", 0);
+
+  // 367 days is one past the cap and is rejected
+  run(5, (char *[]){"m", "show", "--date", "2024-01-01", "2025-01-01", NULL});
+  check_ret("bounds span 367 ret", 1);
+  check_contains("bounds span 367 msg", "date range too long");
+
+  // over-wide fields are rejected: "00002024" is not a 4-digit ISO year
+  run(4, (char *[]){"m", "show", "--date", "00002024-01-01", NULL});
+  check_ret("bounds year overpadded ret", 1);
+
+  run(4, (char *[]){"m", "show", "--date", "2024-0001-01", NULL});
+  check_ret("bounds month overpadded ret", 1);
+
+  run(4, (char *[]){"m", "show", "--date", "2024-01-0001", NULL});
+  check_ret("bounds day overpadded ret", 1);
+
+  // ...but short (non-zero-padded) components remain valid, as before
+  run(4, (char *[]){"m", "show", "--date", "2024-1-1", NULL});
+  check_ret("bounds short form ret", 0);
+
+  // the help text documents both limits
+  run(4, (char *[]){"m", "show", "--date", "--help", NULL});
+  check_ret("bounds help ret", 0);
+  check_contains("bounds help span limit", "366 days");
+  check_contains("bounds help year range", "1-9999");
+}
+
 static void test_show_range(void) {
   printf("  show --date range...\n");
   reset_config();
@@ -1121,6 +1193,7 @@ int main(void) {
   test_location();
   test_removed_top_level();
   test_show();
+  test_show_date_bounds();
   test_show_range();
   test_next();
   test_next_after_isha();
