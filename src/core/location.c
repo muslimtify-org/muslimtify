@@ -274,14 +274,21 @@ int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(C
     GpsStatus st = gps(cfg);
     if (st == GPS_OK)
       return 0; // GPS fix wins
-    // Structural failure: hardware/daemon is genuinely gone. Warn once and
-    // auto-disable so we stop trying; whoever saves *cfg persists use_gps.
+
+    // Structural failure: the daemon or hardware is genuinely gone and will not
+    // come back on its own. Warn once and auto-disable so we stop paying the
+    // probe cost every cycle; whoever saves *cfg persists use_gps.
     if (st == GPS_NO_DAEMON || st == GPS_NO_DEVICE || st == GPS_UNAVAILABLE) {
       fprintf(stderr, "%s\n", gps_status_message(st));
       cfg->use_gps = false;
+    } else if (st == GPS_NO_PERMISSION) {
+      // Fixable by the user in OS settings, so warn but stay enabled: the next
+      // fetch after they grant access succeeds with no further action. Cheap to
+      // retry — a denied Windows lookup fails in roughly 50ms.
+      fprintf(stderr, "%s\n", gps_status_message(st));
     }
-    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled and fall through to
-    // ipinfo for this cycle; GPS is retried on the next fetch.
+    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled and silent, and fall
+    // through to ipinfo for this cycle; GPS is retried on the next fetch.
   }
 
   return ipinfo(cfg);

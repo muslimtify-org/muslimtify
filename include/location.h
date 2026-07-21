@@ -78,12 +78,16 @@ const char *gps_status_message(GpsStatus st);
 
 /**
  * Orchestrator core with injected sources (test seam, mirrors
- * location_refresh_with). When cfg->use_gps is set it calls gps() first: a
- * GPS_OK returns immediately; a structural failure (GPS_NO_DAEMON /
- * GPS_NO_DEVICE / GPS_UNAVAILABLE) warns once on stderr and sets use_gps=false
- * so the next fetch stops trying; a GPS_NO_FIX is silent and keeps use_gps on.
- * Any non-OK GPS outcome falls through to ipinfo(). Returns the 0/-1 of the
- * source that produced the result.
+ * location_refresh_with). When cfg->use_gps is set it calls gps() first, and
+ * the returned status selects one of four behaviors:
+ *   - GPS_OK: return immediately; ipinfo is not called.
+ *   - GPS_NO_DAEMON / GPS_NO_DEVICE / GPS_UNAVAILABLE: structural failure.
+ *     Warn on stderr and set use_gps=false so the next fetch stops trying.
+ *   - GPS_NO_PERMISSION: warn on stderr but leave use_gps set, since the user
+ *     can grant access in OS settings and have the next fetch succeed.
+ *   - GPS_NO_FIX: transient. Silent, and use_gps stays set.
+ * Any non-OK outcome falls through to ipinfo(). Returns the 0/-1 of the source
+ * that produced the result.
  */
 int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *));
 
