@@ -22,6 +22,7 @@ die()  { echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
 
 run_as_user() {
     sudo -u "$REAL_USER" \
+        HOME="$REAL_HOME" \
         XDG_RUNTIME_DIR="$XDG_RT" \
         DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RT/bus" \
         "$@"
@@ -65,6 +66,15 @@ INSTALL_PREFIX="/usr/local"
 BUILD_DIR="$SCRIPT_DIR/build-release"
 TOTAL_STEPS=4
 
+# An older version of this installer built as root, leaving a root-owned
+# build-release/ that an unprivileged cmake cannot write. Discard it: a stale
+# CMakeCache.txt from a root-context configure is not something to reuse anyway.
+# This runs before validate_tree so a doomed directory cannot fail the check.
+if [ -d "$BUILD_DIR" ] && [ "$(stat -c %u "$BUILD_DIR")" != "$REAL_UID" ]; then
+    warn "Removing $BUILD_DIR left by a previous root build"
+    rm -rf "$BUILD_DIR"
+fi
+
 validate_tree
 
 echo -e "${BOLD}=== Muslimtify Installer ===${NC}"
@@ -75,14 +85,15 @@ echo "Install prefix:      $INSTALL_PREFIX"
 
 step 1 "Building in release mode..."
 
-cmake -S "$SCRIPT_DIR" -B "$BUILD_DIR" \
+# Configure and build unprivileged. Only the install step below needs root.
+run_as_user cmake -S "$SCRIPT_DIR" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF \
     --log-level=WARNING
 
-cmake --build "$BUILD_DIR" --parallel "$(nproc)"
+run_as_user cmake --build "$BUILD_DIR" --parallel "$(nproc)"
 ok "Build complete → $BUILD_DIR/bin/muslimtify"
 
 # -- step 2: install binary and icons -----------------------------------------
