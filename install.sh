@@ -49,7 +49,11 @@ validate_tree() {
         \( \( ! -type l -a -perm /022 \) -o \( ! -user root -a ! -user "$REAL_USER" \) \) \
         -print)
     if [ -n "$offenders" ]; then
-        echo "$offenders" >&2
+        # cat -v: these names come from the tree under review, which this very
+        # check assumes is attacker-writable, and they print to a root terminal.
+        # Render control bytes visibly so a planted name cannot repaint or erase
+        # the operator's screen. Also keeps an embedded newline on one line.
+        echo "$offenders" | cat -v >&2
         die "Unsafe permissions in $SCRIPT_DIR (paths listed above).
        Every file must be owned by root or $REAL_USER, and must not be
        group- or world-writable. Fix them and re-run."
