@@ -65,6 +65,18 @@ int location_fetch(Config *cfg);
 GpsStatus location_fetch_gps(Config *cfg);
 
 /**
+ * Human-readable explanation for a non-OK GpsStatus, or NULL for GPS_OK and
+ * GPS_NO_FIX, which are not conditions the user needs told about. The returned
+ * string is a static literal; do not free it.
+ *
+ * Exposed (rather than kept static in location.c) so the message contract is
+ * directly testable: the GPS_NO_PERMISSION text must name the OS setting the
+ * user has to change, and must not mention gpsd, which does not exist on the
+ * only platform that produces that status.
+ */
+const char *gps_status_message(GpsStatus st);
+
+/**
  * Orchestrator core with injected sources (test seam, mirrors
  * location_refresh_with). When cfg->use_gps is set it calls gps() first: a
  * GPS_OK returns immediately; a structural failure (GPS_NO_DAEMON /

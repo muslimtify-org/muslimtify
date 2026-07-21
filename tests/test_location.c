@@ -520,6 +520,26 @@ static void expect(bool cond, const char *label) {
   }
 }
 
+static void test_gps_status_message(void) {
+  printf("\n-- gps_status_message --\n");
+
+  const char *denied = gps_status_message(GPS_NO_PERMISSION);
+  expect(denied != NULL, "no-permission has a message");
+  expect(denied && strstr(denied, "Settings") != NULL,
+         "no-permission message points at Settings");
+  expect(denied && strstr(denied, "gpsd") == NULL,
+         "no-permission message omits gpsd");
+
+  // Non-failure states have nothing to report; callers rely on NULL here.
+  expect(gps_status_message(GPS_OK) == NULL, "GPS_OK has no message");
+  expect(gps_status_message(GPS_NO_FIX) == NULL, "GPS_NO_FIX has no message");
+
+  // The pre-existing structural failures keep their messages.
+  expect(gps_status_message(GPS_NO_DAEMON) != NULL, "no-daemon still has a message");
+  expect(gps_status_message(GPS_NO_DEVICE) != NULL, "no-device still has a message");
+  expect(gps_status_message(GPS_UNAVAILABLE) != NULL, "unavailable still has a message");
+}
+
 static void test_location_fetch_core(void) {
   printf("\n-- location_fetch_core --\n");
 
@@ -737,6 +757,7 @@ int main(void) {
   test_timezone_exists();
   test_location_harden_curl();
   test_location_refresh();
+  test_gps_status_message();
   test_location_fetch_core();
 #ifndef _WIN32
   test_gpsd_scan_line();
