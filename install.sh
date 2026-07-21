@@ -31,10 +31,17 @@ run_as_user() {
 # Refuse to build from a tree an unprivileged third party can write. CMake reads
 # CMakeLists.txt and every source file, and `cmake --install` later executes
 # build-release/cmake_install.cmake as root -- so a planted file anywhere in here
-# is root code execution. .git is never read by the build; `build` is the developer
-# debug dir the installer does not touch. build-release is deliberately NOT pruned:
-# `cmake --install` reads from it as root. Symlink modes are excluded because they
-# are conventionally lrwxrwxrwx; the target is walked separately if it is in-tree.
+# is root code execution. build-release is deliberately NOT pruned: `cmake --install`
+# reads from it as root. Symlink modes are excluded because they are conventionally
+# lrwxrwxrwx; the target is walked separately if it is in-tree.
+#
+# The two prunes below are conditional invariants, not standing facts. Re-check them
+# if the build definition changes:
+#   .git  -- safe only while nothing in the build invokes git. Add an
+#            execute_process(COMMAND git ...) to CMakeLists.txt and this prune must
+#            go, or a planted .git/config (core.fsmonitor, core.hooksPath) becomes
+#            unreviewed code execution.
+#   build -- safe only while the installer builds in build-release, never build.
 validate_tree() {
     local offenders
     offenders=$(find "$SCRIPT_DIR" \
