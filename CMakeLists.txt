@@ -25,6 +25,27 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 include(GNUInstallDirs)
 include(FetchContent)
 
+# -- Windows toolchain requirement ---------------------------------------------
+# Windows builds require MSVC. src/platform/windows/geolocation_win.c includes
+# <windows.devices.geolocation.h>, a WinRT header that ships with the Windows SDK
+# and is reachable via MSVC's INCLUDE path. MinGW-w64 generates its own WinRT
+# headers from IDL but does not provide that one (it has roapi.h,
+# windows.devices.enumeration.h, windows.devices.haptics.h, and others), so the
+# build otherwise fails with a bare "No such file or directory" that gives no
+# hint about the cause. CI (ci.yml) and the release installers (release.yml) both
+# build with MSVC. Checked before FetchContent so this fails fast rather than
+# after downloading curl.
+if(WIN32 AND NOT MSVC)
+    message(FATAL_ERROR
+        "Windows builds require MSVC (cl.exe), but CMake selected "
+        "'${CMAKE_C_COMPILER_ID}' at '${CMAKE_C_COMPILER}'.\n"
+        "src/platform/windows/geolocation_win.c needs the Windows SDK WinRT header "
+        "<windows.devices.geolocation.h>, which MinGW does not ship.\n"
+        "Fix: configure from a Developer Command Prompt for VS, or pass "
+        "-DCMAKE_C_COMPILER=cl.exe (delete CMakeCache.txt first if the build "
+        "directory was already configured for another compiler).")
+endif()
+
 # -- MSVC runtime --------------------------------------------------------------
 # Statically link the MSVC C runtime so the binaries are self-contained and run
 # on a clean Windows install WITHOUT the VC++ Redistributable. With the default
