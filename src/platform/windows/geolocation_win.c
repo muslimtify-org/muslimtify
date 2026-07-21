@@ -86,8 +86,7 @@ GpsStatus platform_get_location(PlatformLatLng *latlong) {
 
   if (FAILED(WindowsCreateStringReference(
           RuntimeClass_Windows_Devices_Geolocation_Geolocator,
-          (UINT32)wcslen(RuntimeClass_Windows_Devices_Geolocation_Geolocator), &cls_hdr,
-          &cls)))
+          (UINT32)wcslen(RuntimeClass_Windows_Devices_Geolocation_Geolocator), &cls_hdr, &cls)))
     goto done;
 
   if (FAILED(RoActivateInstance(cls, &inst)))

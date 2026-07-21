@@ -529,10 +529,8 @@ static void test_gps_status_message(void) {
 
   const char *denied = gps_status_message(GPS_NO_PERMISSION);
   expect(denied != NULL, "no-permission has a message");
-  expect(denied && strstr(denied, "Settings") != NULL,
-         "no-permission message points at Settings");
-  expect(denied && strstr(denied, "gpsd") == NULL,
-         "no-permission message omits gpsd");
+  expect(denied && strstr(denied, "Settings") != NULL, "no-permission message points at Settings");
+  expect(denied && strstr(denied, "gpsd") == NULL, "no-permission message omits gpsd");
 
   // Non-failure states have nothing to report; callers rely on NULL here.
   expect(gps_status_message(GPS_OK) == NULL, "GPS_OK has no message");
@@ -602,11 +600,9 @@ static void test_location_fetch_core(void) {
   Config g = config_default();
   g.use_gps = true;
   location_fetch_core(&g, stub_gps_nopermission, stub_ipinfo);
-  expect(core_ipinfo_calls == 1 && g.use_gps &&
-             gps_status_message(GPS_NO_PERMISSION) != NULL,
+  expect(core_ipinfo_calls == 1 && g.use_gps && gps_status_message(GPS_NO_PERMISSION) != NULL,
          "no-permission warns but keeps use_gps on");
-  expect(gps_status_message(GPS_NO_FIX) == NULL,
-         "no-fix stays silent, unlike no-permission");
+  expect(gps_status_message(GPS_NO_FIX) == NULL, "no-fix stays silent, unlike no-permission");
 }
 
 static void test_location_is_stale(void) {

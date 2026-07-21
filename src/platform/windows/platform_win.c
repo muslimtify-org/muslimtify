@@ -359,4 +359,3 @@ void platform_restrict_to_owner(FILE *f) {
   // %APPDATA% / %LOCALAPPDATA% are user-scoped by their default ACL; no action.
   (void)f;
 }
-
