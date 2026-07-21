@@ -27,6 +27,27 @@ run_as_user() {
         "$@"
 }
 
+# Refuse to build from a tree an unprivileged third party can write. CMake reads
+# CMakeLists.txt and every source file, and `cmake --install` later executes
+# build-release/cmake_install.cmake as root -- so a planted file anywhere in here
+# is root code execution. .git is never read by the build; `build` is the developer
+# debug dir the installer does not touch. build-release is deliberately NOT pruned:
+# `cmake --install` reads from it as root. Symlink modes are excluded because they
+# are conventionally lrwxrwxrwx; the target is walked separately if it is in-tree.
+validate_tree() {
+    local offenders
+    offenders=$(find "$SCRIPT_DIR" \
+        \( -name .git -o -name build \) -prune -o \
+        \( \( ! -type l -a -perm /022 \) -o \( ! -user root -a ! -user "$REAL_USER" \) \) \
+        -print)
+    if [ -n "$offenders" ]; then
+        echo "$offenders" >&2
+        die "Unsafe permissions in $SCRIPT_DIR (paths listed above).
+       Every file must be owned by root or $REAL_USER, and must not be
+       group- or world-writable. Fix them and re-run."
+    fi
+}
+
 # -- pre-flight checks ---------------------------------------------------------
 
 [ "$EUID" -eq 0 ] || die "Run with sudo: sudo ./install.sh"
@@ -43,6 +64,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_PREFIX="/usr/local"
 BUILD_DIR="$SCRIPT_DIR/build-release"
 TOTAL_STEPS=4
+
+validate_tree
 
 echo -e "${BOLD}=== Muslimtify Installer ===${NC}"
 echo "Installing for user: $REAL_USER"
