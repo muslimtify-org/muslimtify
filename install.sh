@@ -22,9 +22,42 @@ die()  { echo -e "${RED}Error: $1${NC}" >&2; exit 1; }
 
 run_as_user() {
     sudo -u "$REAL_USER" \
+        HOME="$REAL_HOME" \
         XDG_RUNTIME_DIR="$XDG_RT" \
         DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RT/bus" \
         "$@"
+}
+
+# Refuse to build from a tree an unprivileged third party can write. CMake reads
+# CMakeLists.txt and every source file, and `cmake --install` later executes
+# build-release/cmake_install.cmake as root -- so a planted file anywhere in here
+# is root code execution. build-release is deliberately NOT pruned: `cmake --install`
+# reads from it as root. Symlink modes are excluded because they are conventionally
+# lrwxrwxrwx; the target is walked separately if it is in-tree.
+#
+# The two prunes below are conditional invariants, not standing facts. Re-check them
+# if the build definition changes:
+#   .git  -- safe only while nothing in the build invokes git. Add an
+#            execute_process(COMMAND git ...) to CMakeLists.txt and this prune must
+#            go, or a planted .git/config (core.fsmonitor, core.hooksPath) becomes
+#            unreviewed code execution.
+#   build -- safe only while the installer builds in build-release, never build.
+validate_tree() {
+    local offenders
+    offenders=$(find "$SCRIPT_DIR" \
+        \( -name .git -o -name build \) -prune -o \
+        \( \( ! -type l -a -perm /022 \) -o \( ! -user root -a ! -user "$REAL_USER" \) \) \
+        -print)
+    if [ -n "$offenders" ]; then
+        # cat -v: these names come from the tree under review, which this very
+        # check assumes is attacker-writable, and they print to a root terminal.
+        # Render control bytes visibly so a planted name cannot repaint or erase
+        # the operator's screen. Also keeps an embedded newline on one line.
+        echo "$offenders" | cat -v >&2
+        die "Unsafe permissions in $SCRIPT_DIR (paths listed above).
+       Every file must be owned by root or $REAL_USER, and must not be
+       group- or world-writable. Fix them and re-run."
+    fi
 }
 
 # -- pre-flight checks ---------------------------------------------------------
@@ -44,6 +77,17 @@ INSTALL_PREFIX="/usr/local"
 BUILD_DIR="$SCRIPT_DIR/build-release"
 TOTAL_STEPS=4
 
+# An older version of this installer built as root, leaving a root-owned
+# build-release/ that an unprivileged cmake cannot write. Discard it: a stale
+# CMakeCache.txt from a root-context configure is not something to reuse anyway.
+# This runs before validate_tree so a doomed directory cannot fail the check.
+if [ -d "$BUILD_DIR" ] && [ "$(stat -c %u "$BUILD_DIR")" != "$REAL_UID" ]; then
+    warn "Removing $BUILD_DIR left by a previous root build"
+    rm -rf "$BUILD_DIR"
+fi
+
+validate_tree
+
 echo -e "${BOLD}=== Muslimtify Installer ===${NC}"
 echo "Installing for user: $REAL_USER"
 echo "Install prefix:      $INSTALL_PREFIX"
@@ -52,14 +96,15 @@ echo "Install prefix:      $INSTALL_PREFIX"
 
 step 1 "Building in release mode..."
 
-cmake -S "$SCRIPT_DIR" -B "$BUILD_DIR" \
+# Configure and build unprivileged. Only the install step below needs root.
+run_as_user cmake -S "$SCRIPT_DIR" -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF \
     --log-level=WARNING
 
-cmake --build "$BUILD_DIR" --parallel "$(nproc)"
+run_as_user cmake --build "$BUILD_DIR" --parallel "$(nproc)"
 ok "Build complete → $BUILD_DIR/bin/muslimtify"
 
 # -- step 2: install binary and icons -----------------------------------------
