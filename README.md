@@ -1,11 +1,11 @@
 # Muslimtify
 
-Muslimtify keeps you consistent with your daily prayers by delivering accurate prayer times and timely desktop notifications. Designed for Linux and Windows, it automatically calculates prayer schedules and reminds you 30, 15, and 5 minutes before the Adhan — or at your own custom intervals — and when it's time to pray. All calculations run locally, requiring no internet connection or external services.
+Muslimtify keeps you consistent with your daily prayers by delivering accurate prayer times and timely desktop notifications. Designed for Linux and Windows, it automatically calculates prayer schedules and reminds you 30, 15, and 5 minutes before the Adhan, or at your own custom intervals, and when it's time to pray. Every prayer time is calculated locally on your machine, with no accounts and no tracking. The only thing that touches the network is location detection via `ipinfo.io`, and even that is optional: set your coordinates manually, or read them from a GPS receiver with `location gps on`, and Muslimtify makes no network request at all.
 
 Muslimtify supports **21 international calculation methods** including MWL, ISNA, Umm al-Qura (Makkah), Egyptian General Authority, Kemenag (Indonesia), JAKIM (Malaysia), Diyanet (Turkey), and more. The default method is Kemenag. With persistent configuration and minimal setup, Muslimtify integrates seamlessly into your daily routine without interrupting your workflow.
 
 > [!Note]
-> Prayer time calculations are powered by [libmuslim](https://github.com/rizukirr/libmuslim), a portable library extracted from this project to enable a more flexible and reusable ecosystem for Muslim developers.
+> Prayer time calculations are powered by [libmuslim](https://github.com/muslimtify-org/libmuslim), a portable library extracted from this project to enable a more flexible and reusable ecosystem for Muslim developers.
 
 | Linux | Windows |
 | --- | --- |
@@ -17,7 +17,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 > - ~Refactor from timer-driven into a portable long-running loop~
 > - ~Add custom adzan sound notifications~
 > - ~Re-design command-line (BREAKING CHANGES)~
-> - Add read lat/long from user GPS
+> - ~Add read lat/long from user GPS~
 > - Add GUI (see branch gui to see a progress)
 > - Distribute to Flatpak
 > - MacOS support (if devices is available)
@@ -34,7 +34,7 @@ Muslimtify supports **21 international calculation methods** including MWL, ISNA
 Every release ships ready-to-run binaries for Linux and Windows on the
 [Releases page](https://github.com/rizukirr/muslimtify/releases/latest).
 
-**Linux** (`x86_64` or `aarch64`) — the binaries are dynamically linked, so
+**Linux** (`x86_64` or `aarch64`): the binaries are dynamically linked, so
 install the runtime libraries first, then extract and install:
 
 ```bash
@@ -50,7 +50,7 @@ sudo cp -r muslimtify-<version>-linux-<arch>/{bin,lib,share} /usr/local/
 muslimtify daemon install
 ```
 
-**Windows** (`x64` or `arm64`) — download and run the matching installer:
+**Windows** (`x64` or `arm64`): download and run the matching installer:
 
 ```
 muslimtify-<version>-setup-x64.exe      # Intel/AMD
@@ -99,6 +99,18 @@ sudo dnf install git gcc cmake pkgconfig libnotify-devel libcurl-devel
 sudo pacman -S git base-devel cmake pkgconfig libnotify curl
 ```
 
+GPS is optional and needs nothing at build time. Install `gpsd` only if you want
+Muslimtify to read coordinates from a local receiver:
+
+```bash
+# Ubuntu/Debian
+sudo apt install gpsd
+# Fedora/RHEL
+sudo dnf install gpsd
+# Arch Linux
+sudo pacman -S gpsd
+```
+
 Clone, install, and enable background checks:
 
 ```bash
@@ -108,6 +120,12 @@ sudo ./install.sh
 muslimtify daemon install
 ```
 
+`install.sh` compiles as the user who invoked `sudo` rather than as root, and
+refuses to build from a source tree that is group- or world-writable, since
+anything planted there would otherwise run with root privileges. If it reports
+unsafe permissions, fix the listed paths so each is owned by root or by you and
+is not writable by others, then re-run.
+
 ### Windows (winget)
 
 ```powershell
@@ -115,6 +133,9 @@ winget install muslimtify
 ```
 
 ### Windows Source Install
+
+Building on Windows requires MSVC. The build stops with an explicit message if
+another compiler is used.
 
 ```powershell
 git clone https://github.com/rizukirr/muslimtify.git
@@ -160,6 +181,9 @@ muslimtify location set --lat=-6.175 --long=106.82  # set location manually (use
 muslimtify location set --timezone=Asia/Jakarta     # override timezone
 muslimtify location set --city=Jakarta              # add a city label
 muslimtify location set --refresh-interval=21600    # re-check location every 6h (0=off, min 3600)
+muslimtify location gps on        # read coordinates from a local GPS receiver
+muslimtify location gps off       # go back to ipinfo network geolocation
+muslimtify location gps           # show whether GPS is enabled
 muslimtify method --list          # list all available calculation methods
 muslimtify method mwl             # set calculation method
 muslimtify madzhab hanafi         # set madzhab (shafi/hanafi)
@@ -168,6 +192,20 @@ muslimtify notification --reminder fajr 30 15 5     # set reminders for a single
 muslimtify notification           # show current notification settings
 muslimtify location               # show current location
 ```
+
+GPS is off by default and maps to a single `use_gps` key in the `location` block
+of `config.json`. On Linux the coordinates come from a running `gpsd`, read over
+a local socket on `127.0.0.1:2947`, with no `libgps` build dependency. On Windows
+they come from the WinRT Geolocator, which needs location access enabled in
+Settings. `location gps on` probes the receiver first and refuses to enable if
+none is reachable, so a missing daemon fails immediately rather than degrading
+silently later. Whenever GPS has no fix, `ipinfo.io` is used instead. GPS
+supplies coordinates only, so the timezone is still taken from the host system.
+
+The timezone itself is validated when you set it. A name the system cannot
+resolve is rejected outright rather than saved and silently treated as UTC, and
+the offset used to compute prayer times is derived from the IANA name for the
+date being calculated, so daylight saving is handled automatically.
 
 Resetting the configuration is done by deleting `config.json`. Muslimtify falls
 back to built-in defaults when the file is missing, and rewrites it the next
@@ -307,6 +345,45 @@ prayers, reminder offsets, notification settings, or location data.
   the timezone with `--timezone=<iana>`, e.g.
   `muslimtify location set --lat=-6.21 --long=106.84 --timezone=Asia/Jakarta`.
 - Check network access to `ipinfo.io` if auto detection keeps failing.
+
+### GPS will not turn on
+
+`muslimtify location gps on` probes the receiver before saving, so it refuses
+rather than enabling something that cannot work. The message names the missing
+piece:
+
+- `cannot reach gpsd`: install and start `gpsd`. Muslimtify reads it over a local
+  socket on `127.0.0.1:2947`.
+- `no GPS device detected`: `gpsd` is running but sees no hardware. Connect the
+  receiver and confirm `gpsd` picked it up.
+- `location access is turned off`: on Windows, enable Settings > Privacy &
+  security > Location, then try again.
+
+Being told GPS is enabled with no fix yet is not an error. The setting is saved
+and `ipinfo.io` is used until the receiver locks on. If the daemon or device
+later disappears, Muslimtify warns once and turns GPS off so it stops retrying
+on every cycle. A denied permission does not turn it off, because granting
+access in Settings is enough for the next attempt to succeed.
+
+### Muslimtify rejects my timezone
+
+The name must resolve on this system, so check the spelling against the IANA
+database, for example `Asia/Jakarta` or `Europe/London`. Zones that legitimately
+sit at UTC+0, such as `Africa/Abidjan`, are accepted.
+
+### Prayer times are off by an hour
+
+This is almost always daylight saving, which is handled automatically only when
+a valid IANA zone is saved. Run `muslimtify location` and check the `timezone`
+field. The `gmt` field shows the offset in effect today rather than the one
+recorded when you last set your location. If the zone is wrong or empty, set it
+with `muslimtify location set --timezone=<iana>`.
+
+### A notification did not fire while the machine was asleep
+
+Triggers missed within the previous 15 minutes still fire when the daemon
+catches up. Anything older is dropped without firing, so resuming from a long
+suspend does not replay a stack of stale Adhans.
 
 ## Contributing
 
