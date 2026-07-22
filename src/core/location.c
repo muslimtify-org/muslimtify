@@ -217,7 +217,7 @@ static int location_fetch_ipinfo(Config *cfg) {
   return 0;
 }
 
-static const char *gps_disable_message(GpsStatus st) {
+const char *gps_status_message(GpsStatus st) {
   switch (st) {
   case GPS_NO_DAEMON:
     return "GPS: gpsd is no longer reachable; disabling GPS and using ipinfo. "
@@ -226,9 +226,22 @@ static const char *gps_disable_message(GpsStatus st) {
     return "GPS: no GPS device detected; disabling GPS and using ipinfo. "
            "Re-enable with 'muslimtify location gps on'.";
   case GPS_UNAVAILABLE:
-  default:
     return "GPS: this build has no GPS support; disabling GPS and using ipinfo.";
+  case GPS_NO_PERMISSION:
+    // Deliberately does not say "disabling": location_fetch_core keeps GPS on
+    // for this status, because the user can grant access and have the next
+    // fetch succeed with no further action.
+    return "GPS: location access is turned off; using ipinfo for now. Turn on "
+           "Settings > Privacy & security > Location, and GPS resumes "
+           "automatically.";
+  case GPS_OK:
+  case GPS_NO_FIX:
+    return NULL; // not failures the user needs told about
   }
+  // No default: label above, so -Wswitch (via -Wall) fails the build if a new
+  // GpsStatus variant is added without deciding what to say about it. This
+  // return exists only to satisfy the compiler's flow analysis.
+  return NULL;
 }
 
 GpsStatus location_fetch_gps(Config *cfg) {
@@ -261,14 +274,21 @@ int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(C
     GpsStatus st = gps(cfg);
     if (st == GPS_OK)
       return 0; // GPS fix wins
-    // Structural failure: hardware/daemon is genuinely gone. Warn once and
-    // auto-disable so we stop trying; whoever saves *cfg persists use_gps.
+
+    // Structural failure: the daemon or hardware is genuinely gone and will not
+    // come back on its own. Warn once and auto-disable so we stop paying the
+    // probe cost every cycle; whoever saves *cfg persists use_gps.
     if (st == GPS_NO_DAEMON || st == GPS_NO_DEVICE || st == GPS_UNAVAILABLE) {
-      fprintf(stderr, "%s\n", gps_disable_message(st));
+      fprintf(stderr, "%s\n", gps_status_message(st));
       cfg->use_gps = false;
+    } else if (st == GPS_NO_PERMISSION) {
+      // Fixable by the user in OS settings, so warn but stay enabled: the next
+      // fetch after they grant access succeeds with no further action. Cheap to
+      // retry — a denied Windows lookup fails in roughly 50ms.
+      fprintf(stderr, "%s\n", gps_status_message(st));
     }
-    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled and fall through to
-    // ipinfo for this cycle; GPS is retried on the next fetch.
+    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled and silent, and fall
+    // through to ipinfo for this cycle; GPS is retried on the next fetch.
   }
 
   return ipinfo(cfg);

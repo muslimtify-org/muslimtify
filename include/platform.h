@@ -134,18 +134,21 @@ typedef struct {
  * distinguish failure modes so callers can warn, auto-disable, or silently retry.
  */
 typedef enum {
-  GPS_OK = 0,           /* got a valid fix; *latlong written */
-  GPS_UNAVAILABLE = -1, /* no GPS client on this platform (not yet implemented) */
-  GPS_NO_DAEMON = -2,   /* could not connect to the GPS service (e.g. gpsd) */
-  GPS_NO_DEVICE = -3,   /* GPS service reachable but reports no device */
-  GPS_NO_FIX = -4,      /* device present, but no fix before the timeout */
+  GPS_OK = 0,             /* got a valid fix; *latlong written */
+  GPS_UNAVAILABLE = -1,   /* no GPS client on this platform (not yet implemented) */
+  GPS_NO_DAEMON = -2,     /* could not connect to the GPS service (e.g. gpsd) */
+  GPS_NO_DEVICE = -3,     /* GPS service reachable but reports no device */
+  GPS_NO_FIX = -4,        /* device present, but no fix before the timeout */
+  GPS_NO_PERMISSION = -5, /* service present but access is denied by the OS.
+                           * Windows-only in practice: gpsd has no permission
+                           * gate. Unlike the other failures this is fixable by
+                           * the user, so callers warn without auto-disabling. */
 } GpsStatus;
 
 /**
  * Read the device's current location (lat/lng). Each platform supplies its own
- * source: Linux reads a running gpsd over a socket; other platforms provide their
- * native equivalent (or GPS_UNAVAILABLE until implemented). Returns GPS_OK with
- * *latlong written, or a GpsStatus failure code.
+ * source: Linux reads a running gpsd over a socket; Windows reads the WinRT
+ * Geolocator. Returns GPS_OK with *latlong written, or a GpsStatus failure code.
  */
 GpsStatus platform_get_location(PlatformLatLng *latlong);
 

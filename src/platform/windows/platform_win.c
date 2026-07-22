@@ -359,10 +359,3 @@ void platform_restrict_to_owner(FILE *f) {
   // %APPDATA% / %LOCALAPPDATA% are user-scoped by their default ACL; no action.
   (void)f;
 }
-
-/* Windows has no gpsd integration; report "no GPS support" so location
-   resolution falls back to ipinfo. */
-GpsStatus platform_get_location(PlatformLatLng *latlong) {
-  (void)latlong;
-  return GPS_UNAVAILABLE;
-}

@@ -509,6 +509,10 @@ static GpsStatus stub_gps_unavailable(Config *cfg) {
   (void)cfg;
   return GPS_UNAVAILABLE;
 }
+static GpsStatus stub_gps_nopermission(Config *cfg) {
+  (void)cfg;
+  return GPS_NO_PERMISSION;
+}
 
 static void expect(bool cond, const char *label) {
   total++;
@@ -518,6 +522,24 @@ static void expect(bool cond, const char *label) {
     printf("  FAIL: %s\n", label);
     failures++;
   }
+}
+
+static void test_gps_status_message(void) {
+  printf("\n-- gps_status_message --\n");
+
+  const char *denied = gps_status_message(GPS_NO_PERMISSION);
+  expect(denied != NULL, "no-permission has a message");
+  expect(denied && strstr(denied, "Settings") != NULL, "no-permission message points at Settings");
+  expect(denied && strstr(denied, "gpsd") == NULL, "no-permission message omits gpsd");
+
+  // Non-failure states have nothing to report; callers rely on NULL here.
+  expect(gps_status_message(GPS_OK) == NULL, "GPS_OK has no message");
+  expect(gps_status_message(GPS_NO_FIX) == NULL, "GPS_NO_FIX has no message");
+
+  // The pre-existing structural failures keep their messages.
+  expect(gps_status_message(GPS_NO_DAEMON) != NULL, "no-daemon still has a message");
+  expect(gps_status_message(GPS_NO_DEVICE) != NULL, "no-device still has a message");
+  expect(gps_status_message(GPS_UNAVAILABLE) != NULL, "unavailable still has a message");
 }
 
 static void test_location_fetch_core(void) {
@@ -565,6 +587,22 @@ static void test_location_fetch_core(void) {
   f.use_gps = true;
   location_fetch_core(&f, stub_gps_unavailable, stub_ipinfo);
   expect(core_ipinfo_calls == 1 && !f.use_gps, "unavailable auto-disables use_gps");
+
+  // use_gps on + permission denied: fall back to ipinfo for this cycle but
+  // STAY enabled, unlike every other structural failure. The user can grant
+  // access in OS settings and have the next fetch succeed untouched.
+  //
+  // Asserting use_gps alone would be a vacuous test — an unrecognised status
+  // already skips the disable branch — so also assert that a message exists
+  // for this status, which is the part that distinguishes warn-and-retry from
+  // the pre-existing silent-and-retry path used by GPS_NO_FIX.
+  core_ipinfo_calls = 0;
+  Config g = config_default();
+  g.use_gps = true;
+  location_fetch_core(&g, stub_gps_nopermission, stub_ipinfo);
+  expect(core_ipinfo_calls == 1 && g.use_gps && gps_status_message(GPS_NO_PERMISSION) != NULL,
+         "no-permission warns but keeps use_gps on");
+  expect(gps_status_message(GPS_NO_FIX) == NULL, "no-fix stays silent, unlike no-permission");
 }
 
 static void test_location_is_stale(void) {
@@ -737,6 +775,7 @@ int main(void) {
   test_timezone_exists();
   test_location_harden_curl();
   test_location_refresh();
+  test_gps_status_message();
   test_location_fetch_core();
 #ifndef _WIN32
   test_gpsd_scan_line();

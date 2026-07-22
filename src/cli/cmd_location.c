@@ -416,11 +416,18 @@ static int location_gps_handler(int argc, char **argv) {
     case GPS_NO_DEVICE:
       fprintf(stderr, "GPS: no GPS device detected. Connect one, then try again.\n");
       return 1;
+    case GPS_NO_PERMISSION:
+      fprintf(stderr, "GPS: location access is turned off. Turn on Settings > "
+                      "Privacy & security > Location, then try again.\n");
+      return 1;
     case GPS_UNAVAILABLE:
-    default:
       fprintf(stderr, "GPS not available in this build.\n");
       return 1;
     }
+    // No default: label above, so -Wswitch (via -Wall) fails the build if a new
+    // GpsStatus variant is added without deciding whether it should enable GPS.
+    // This return exists only to satisfy the compiler's flow analysis.
+    return 1;
   }
 
   fprintf(stderr, "Error: unknown 'location gps' argument '%s' (expected on|off)\n", argv[0]);

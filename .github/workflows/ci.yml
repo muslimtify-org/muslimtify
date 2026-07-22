@@ -55,11 +55,24 @@ jobs:
         run: find src -type f -name '*.c' -print0 | xargs -0 clang-tidy -p build || true
 
   build-and-test:
-    runs-on: ubuntu-latest
+    name: build-and-test (${{ matrix.compiler }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
 
     strategy:
+      # Report each combination independently; an aarch64-only break should not
+      # hide the x86_64 results (matches release.yml).
+      fail-fast: false
       matrix:
-        compiler: [gcc, clang]
+        include:
+          - { runner: ubuntu-latest, compiler: gcc, arch: x86_64 }
+          - { runner: ubuntu-latest, compiler: clang, arch: x86_64 }
+          # release.yml ships an aarch64 tarball, so build it here too rather
+          # than discovering an ARM-only break mid-release. ubuntu-24.04-arm is
+          # a native ARM runner, so this executes the suite rather than only
+          # compiling it. One arch job is enough -- the compiler axis catches
+          # compiler bugs, the arch axis catches arch bugs, and the full
+          # cross-product mostly buys redundancy.
+          - { runner: ubuntu-24.04-arm, compiler: gcc, arch: aarch64 }
 
     steps:
       - uses: actions/checkout@v5
@@ -82,16 +95,29 @@ jobs:
         run: ctest --output-on-failure --no-tests=error
 
   build-and-test-msvc:
-    name: build-and-test (msvc)
+    name: build-and-test (msvc ${{ matrix.arch }})
     runs-on: windows-latest
+    strategy:
+      # Report both architectures independently; an ARM64 break should not hide
+      # the x64 result (matches release.yml).
+      fail-fast: false
+      matrix:
+        arch: [x64, ARM64]
     steps:
       - uses: actions/checkout@v5
 
+      # -A selects the target architecture for the Visual Studio generator.
+      # Without it the build silently follows the runner's host arch (x64),
+      # which is why ARM64 used to be built only by release.yml -- so an
+      # ARM64-only break surfaced mid-release rather than on the PR causing it.
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+        run: cmake -B build -A ${{ matrix.arch }} -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 
       - name: Build
         run: cmake --build build --config Release
 
+      # The runner is x64 and cannot execute ARM64 binaries, so ARM64 gets
+      # compile-and-link coverage only; x64 additionally runs the suite.
       - name: Test
+        if: matrix.arch == 'x64'
         run: ctest --test-dir build --output-on-failure -C Release --no-tests=error
