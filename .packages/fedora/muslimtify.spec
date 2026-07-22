@@ -1,5 +1,5 @@
 Name:           muslimtify
-Version:        0.3.2
+Version:        0.4.0
 Release:        1%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
 License:        MIT
@@ -48,6 +48,24 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
+* Wed Jul 22 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.0-1
+- Add a runtime GPS location toggle, 'location gps on|off', with an automatic ipinfo fallback when no fix is available
+- Read GPS on Linux from gpsd over a bounded loopback socket, dropping the libgps build dependency so one binary uses GPS whenever gpsd runs
+- Read GPS on Windows via the WinRT Geolocator
+- Report OS-denied location access as a warning instead of silently auto-disabling GPS
+- Show the GPS source state in the location views
+- Back the Windows timezone table with the full CLDR release-46 windowsZones mapping (449 entries)
+- Fix prayer times being computed and displayed with a non-DST offset; the effective offset is now resolved for the target date
+- Reject nonexistent IANA timezones at set-time and from ipinfo, falling back to the stored offset instead of a wrong one
+- Fix prayer and reminder triggers being lost when a daemon cycle overruns; missed triggers now fire on catch-up
+- Fix an out-of-bounds read in the JSON parser on a value ending in a trailing backslash
+- Escape user-controlled strings written to the prayer cache, version the cache, and reject a malformed trigger object
+- Bound 'show --date' to years 1..9999 and cap a range at 366 days, removing sscanf overflow undefined behaviour
+- Validate Windows paths with wide APIs so validation matches the UTF-8 open path, and reject reparse points
+- install.sh now builds as the invoking user instead of root and refuses a world-writable source tree
+- Remove production-dead code (prayer_check_current, copy_wstring, country_table)
+- Build and test Linux aarch64 and Windows ARM64 on every push, not only at release
+
 * Fri Jul 17 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.3.2-1
 - add ARRAY_LEN helper and replace harcoded array lengths
 - add cross-platform location auto-refresh with configurable interval
