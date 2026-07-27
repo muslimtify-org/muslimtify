@@ -61,6 +61,7 @@ endif()
 
 # -- Dependencies --------------------------------------------------------------
 
+
 if(WIN32)
     set(CURL_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
     set(CURL_ENABLE_EXPORT_TARGET OFF CACHE BOOL "" FORCE)
@@ -87,6 +88,21 @@ else()
     find_package(Threads REQUIRED)
     pkg_check_modules(LIBNOTIFY REQUIRED libnotify)
     pkg_check_modules(LIBCURL REQUIRED libcurl)
+endif()
+
+# -- ccompose (GUI dependency) ------------------------------------------------
+
+option(BUILD_GUI "Build muslimtify-gui target" ON)
+
+if(BUILD_GUI)
+    set(CCOMPOSE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(CCOMPOSE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(CCOMPOSE_INSTALL OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(ccompose
+        GIT_REPOSITORY https://github.com/rizukirr/ccompose.git
+        GIT_TAG v0.0.1-alpha03
+        GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(ccompose)
 endif()
 
 # -- Generated version header -------------------------------------------------
@@ -197,6 +213,13 @@ else()
     target_link_libraries(muslimtify
         muslimtify_cli muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
 endif()
+
+# -- GUI ----------------------------------------------------------------------
+
+if(BUILD_GUI)
+    add_subdirectory(gui)
+endif()
+
 
 # -- Testing ------------------------------------------------------------------
 
