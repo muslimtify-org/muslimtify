@@ -1,7 +1,10 @@
 # muslimtify_gui_lib OBJECT library, the executable links it plus muslimtify_core.
 
 add_library(muslimtify_gui_lib OBJECT
-    ${CMAKE_SOURCE_DIR}/gui/themes/components.c)
+    ${CMAKE_SOURCE_DIR}/gui/src/fonts.c
+    ${CMAKE_SOURCE_DIR}/gui/src/themes.c
+    ${CMAKE_SOURCE_DIR}/gui/src/widgets.c
+)
 muslimtify_set_target_defaults(muslimtify_gui_lib)
 target_include_directories(muslimtify_gui_lib PUBLIC ${CMAKE_SOURCE_DIR}/gui)
 # muslimtify_set_target_defaults resolves CMAKE_CURRENT_SOURCE_DIR to gui here,
@@ -58,3 +61,8 @@ else()
 endif()
 
 install(TARGETS muslimtify-gui DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# fonts.c looks these up under <prefix>/share/muslimtify/fonts.
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/gui/fonts/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/muslimtify/fonts
+    FILES_MATCHING PATTERN "*.ttf")

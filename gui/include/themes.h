@@ -13,6 +13,8 @@ typedef struct {
   CC_Color on_surface;
   CC_Color error;
   CC_Color on_error;
+  CC_Color border;
+  CC_Color outline;
 } MuslimtifyThemes;
 
 MuslimtifyThemes get_themes(bool isDark);

@@ -100,7 +100,7 @@ if(BUILD_GUI)
     set(CCOMPOSE_INSTALL OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(ccompose
         GIT_REPOSITORY https://github.com/rizukirr/ccompose.git
-        GIT_TAG v0.0.1-alpha03
+        GIT_TAG v0.1.0
         GIT_SHALLOW TRUE)
     FetchContent_MakeAvailable(ccompose)
 endif()

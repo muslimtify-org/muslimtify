@@ -1,0 +1,3 @@
+BasedOnStyle: InheritParentConfig
+AlignAfterOpenBracket: BlockIndent
+BinPackArguments: false
