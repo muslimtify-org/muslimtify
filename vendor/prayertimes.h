@@ -73,9 +73,13 @@
  * during this work and made results worse, so it was deliberately left
  * alone.
  *
- * The published-table suite tests/test_prayertimes.c reports 903 checks
- * at a uniform tolerance of 2 minutes, with a residual distribution of
- * 442 checks at 0 minutes, 435 at 1 and 11 at 2.
+ * The published-table suite tests/test_prayertimes.c reports 925 checks.
+ * 895 of those compare a computed time against a published table at a
+ * uniform tolerance of 2 minutes, with a residual distribution of 449
+ * checks at 0 minutes, 435 at 1 and 11 at 2, which sums to the 895. The
+ * remaining 30 carry no residual because they are not time comparisons:
+ * 7 assert the test's own clock_diff_minutes helper, 8 assert the
+ * civil-day converters and 15 assert the time formatters.
  *
  * Computed times changed on 2026-08-17 by up to 2 minutes at high
  * latitudes. Before this change the Sun was evaluated once at 0h UT and
@@ -521,9 +525,36 @@ static double refine_event(double jd, double latitude, double longitude,
   return n2 + sign * ha;
 }
 
+/* Reduce an hour value onto the 24-hour clock face before it is decomposed
+   into fields. A clock time is modular, so a value that has run past midnight
+   or fallen before it still names an hour of some day, and rendering it must
+   not produce a negative field. Casting to int truncates toward zero, so
+   without this a value such as -0.104 decomposes to hours 0 and minutes -6
+   and prints as "00:-6".
+
+   This deliberately does not tell the caller that the day rolled over. The
+   raw double in struct PrayerTimes still carries that, and a caller building
+   a date-time must read it there. See issue #56. */
+static double normalize_clock_hours(double t) {
+  t = fmod(t, 24.0);
+  if (t < 0.0) t += 24.0;
+  return t;
+}
+
+/* Rendered in place of a time that does not exist, so that a non-finite input
+   cannot reach the int casts below, where it would be undefined behaviour.
+   Before this guard, format_time_hm(NAN) printed "-8:-2147483648". */
+#define TIME_UNAVAILABLE_HM "--:--"
+#define TIME_UNAVAILABLE_HMS "--:--:--"
+
 // Format time (double hours) into "HH:MM"
 PRAYERTIMESDEF void format_time_hm(double timeHours, char *outBuffer,
                                    size_t bufSize) {
+  if (!isfinite(timeHours)) {
+    snprintf(outBuffer, bufSize, TIME_UNAVAILABLE_HM);
+    return;
+  }
+  timeHours = normalize_clock_hours(timeHours);
   int hours = (int)timeHours;
   double fraction = timeHours - hours;
   int minutes = (int)ceil(fraction * 60.0); // Always round up (Kemenag method)
@@ -541,6 +572,11 @@ PRAYERTIMESDEF void format_time_hm(double timeHours, char *outBuffer,
 // Format time into "HH:MM:SS"
 PRAYERTIMESDEF void format_time_hms(double timeHours, char *outBuffer,
                                     size_t bufSize) {
+  if (!isfinite(timeHours)) {
+    snprintf(outBuffer, bufSize, TIME_UNAVAILABLE_HMS);
+    return;
+  }
+  timeHours = normalize_clock_hours(timeHours);
   int hours = (int)timeHours;
   double fraction = timeHours - hours;
   int totalSeconds = (int)(fraction * 3600.0 + 0.5);
