@@ -1,8 +1,109 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2025-2026 muslimtify-org
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/* prayertimes.h -- v0.1.0 -- single-header C/C++ prayer-time calculation library
+ *
+ * This library calculates daily prayer times for a date and location using a
+ * selection of established calculation methods. It has no dependencies beyond
+ * the C standard library and libm.
+ *
+ * In exactly one C or C++ source file, define PRAYERTIMES_IMPLEMENTATION before
+ * including this header to create the implementation:
+ *
+ *     #define PRAYERTIMES_IMPLEMENTATION
+ *     #include "prayertimes.h"
+ *
+ * In every other source file that uses the API, include the header normally:
+ *
+ *     #include "prayertimes.h"
+ *
+ * -----------------------------------------------------------------------
+ * ACCURACY
+ *
+ * Maghrib is checked against hijri_find_sunset from hijri.h, which is
+ * itself validated against JPL DE440, in tests/test_prayertimes_oracle.c.
+ * That check covers a grid of latitudes -60 to +60 in steps of 10,
+ * longitudes -120, 0 and +120, every day of 2025, 14235 points, all of
+ * them usable, with the ihtiyat subtracted before comparing and the
+ * refraction conventions paired as REFRACTION_CORRECTION 0.833 against
+ * HIJRI_SUNSET_CONVENTION_ASTRONOMICAL, whose fields give
+ * 0.5667 + 959.63/3600 = 0.83326. The measured maximum absolute
+ * difference across that grid is 6.5966 seconds, at latitude -60,
+ * longitude -120, on 2025-12-17, against a pinned bound of 15.0 seconds
+ * at tests/test_prayertimes_oracle.c:195.
+ *
+ * That 6.5966 second figure is not a global accuracy claim. The oracle
+ * covers |latitude| <= 60 only. Beyond that the two solvers diverge
+ * sharply, because near the polar circle the Sun crosses the horizon at
+ * grazing incidence and a small altitude difference becomes a large time
+ * difference. Measured with the current code, maximum absolute
+ * difference by latitude:
+ *
+ *   lat +60   2.39 s     lat -60    6.60 s
+ *   lat +66   9.58 s     lat -66  123.65 s
+ *   lat +68  29.55 s     lat -68  104.44 s
+ *   lat +70  33.37 s     lat -70   77.99 s
+ *
+ * Sunrise is not asserted against an oracle, because hijri.h exposes no
+ * sunrise finder. It is covered only indirectly, by sharing a code path
+ * and a declination with sunset. Fajr and Isha are not asserted against
+ * any oracle either, only by the published-table fixtures. Asr is also
+ * covered only by the published-table fixtures, refining it was measured
+ * during this work and made results worse, so it was deliberately left
+ * alone.
+ *
+ * The published-table suite tests/test_prayertimes.c reports 903 checks
+ * at a uniform tolerance of 2 minutes, with a residual distribution of
+ * 442 checks at 0 minutes, 435 at 1 and 11 at 2.
+ *
+ * Computed times changed on 2026-08-17 by up to 2 minutes at high
+ * latitudes. Before this change the Sun was evaluated once at 0h UT and
+ * reused for events up to 20 hours later, producing a seasonal error that
+ * was negative in spring and positive in autumn. Anyone comparing against
+ * previously generated output should read this as a correction, not
+ * drift. Equatorial results barely moved, measured at a mean absolute
+ * difference of 0.616 before and 0.622 after over 357 Indonesian checks.
+ *
+ * prayertimes.h has no dependency on hijri.h. The coupling described
+ * above exists only in tests/test_prayertimes_oracle.c, not in this
+ * file, so it should not be read as the two headers being entangled.
+ * -----------------------------------------------------------------------
+ */
+
 #ifndef PRAYERTIMES_H
 #define PRAYERTIMES_H
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifndef PRAYERTIMESDEF
+#ifdef PRAYERTIMES_STATIC
+#define PRAYERTIMESDEF static
+#else
+#define PRAYERTIMESDEF extern
+#endif
 #endif
 
 #define _USE_MATH_DEFINES
@@ -35,7 +136,7 @@ extern "C" {
 // (irtifa' syams / setinggi tombak — standard in Indonesian falak)
 #define DHUHA_ALTITUDE 4.3
 
-/* -- Calculation-method catalogue -------------------------------------- */
+/* ── Calculation-method catalogue ────────────────────────────────────── */
 
 typedef enum {
   CALC_MWL,
@@ -104,38 +205,49 @@ struct PrayerTimes {
  * Format a decimal-hours time (e.g. 5.5) into "HH:MM" in outBuffer.
  * Minutes are rounded up (Kemenag convention).
  */
-void format_time_hm(double timeHours, char *outBuffer, size_t bufSize);
+PRAYERTIMESDEF void format_time_hm(double timeHours, char *outBuffer,
+                                   size_t bufSize);
+
+/**
+ * Format a decimal-hours time (e.g. 5.5) into "HH:MM:SS" in outBuffer.
+ * Seconds are rounded to nearest; use format_time_hm for the Kemenag
+ * round-up-to-the-minute convention.
+ */
+PRAYERTIMESDEF void format_time_hms(double timeHours, char *outBuffer,
+                                    size_t bufSize);
 
 /**
  * Look up the parameter set for a calculation method.
  * Returns: pointer to a static MethodParams, or NULL if method is out of range.
  */
-const MethodParams *method_params_get(CalcMethod method);
+PRAYERTIMESDEF const MethodParams *method_params_get(CalcMethod method);
 
 /**
  * Map a method key string (e.g. "kemenag") to its CalcMethod.
  * Returns: the matching method, or CALC_CUSTOM if name is NULL or unknown.
  */
-CalcMethod method_from_string(const char *name);
+PRAYERTIMESDEF CalcMethod method_from_string(const char *name);
 
 /**
  * Map a CalcMethod back to its key string (e.g. "kemenag").
  * Returns: the key, or "custom" if the method has no key.
  */
-const char *method_to_string(CalcMethod method);
+PRAYERTIMESDEF const char *method_to_string(CalcMethod method);
 
 /**
  * Compute all prayer times for a date and location using the given method.
  * Returns times as decimal hours in local time; high-latitude fallbacks apply.
  */
-struct PrayerTimes calculate_prayer_times(int year, int month, int day, double latitude,
-                                          double longitude, double timezone,
-                                          const MethodParams *params);
+PRAYERTIMESDEF struct PrayerTimes
+calculate_prayer_times(int year, int month, int day, double latitude,
+                       double longitude, double timezone,
+                       const MethodParams *params);
 
 /**
- * Days since 1970-01-01 for a civil (proleptic Gregorian) date, and its inverse.
- * Howard Hinnant's public-domain algorithm. Lets callers iterate a date range or
- * build a UTC instant without touching struct tm / mktime (no DST hazards).
+ * Days since 1970-01-01 for a civil (proleptic Gregorian) date, and its
+ * inverse. Howard Hinnant's public-domain algorithm. Lets callers iterate a
+ * date range or build a UTC instant without touching struct tm / mktime (no DST
+ * hazards).
  */
 static inline long mt_days_from_civil(int y, int m, int d) {
   y -= m <= 2;
@@ -161,6 +273,12 @@ static inline void mt_civil_from_days(long z, int *y, int *m, int *d) {
   *d = (int)dd;
 }
 
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+
 #ifdef PRAYERTIMES_IMPLEMENTATION
 
 #include <math.h>
@@ -175,42 +293,56 @@ static double normalize_deg(double angle) {
   return a;
 }
 
-/* -- Method parameter table ------------------------------------------- */
+/* ── Method parameter table ─────────────────────────────────────────── */
 
 static const MethodParams METHOD_TABLE[CALC_COUNT] = {
-    [CALC_MWL] = {"Muslim World League", 18.0, 17.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_MAKKAH] = {"Umm al-Qura, Makkah", 18.5, 0, 90, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_ISNA] = {"ISNA", 15.0, 15.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_EGYPT] = {"Egyptian General Authority", 19.5, 17.5, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD,
-                    0},
-    [CALC_KARACHI] = {"Univ. Islamic Sciences, Karachi", 18.0, 18.0, 0, 0, ASR_STANDARD,
+    [CALC_MWL] = {"Muslim World League", 18.0, 17.0, 0, 0, ASR_STANDARD,
+                  MIDNIGHT_STANDARD, 0},
+    [CALC_MAKKAH] = {"Umm al-Qura, Makkah", 18.5, 0, 90, 0, ASR_STANDARD,
+                     MIDNIGHT_STANDARD, 0},
+    [CALC_ISNA] = {"ISNA", 15.0, 15.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD,
+                   0},
+    [CALC_EGYPT] = {"Egyptian General Authority", 19.5, 17.5, 0, 0,
+                    ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+    [CALC_KARACHI] = {"Univ. Islamic Sciences, Karachi", 18.0, 18.0, 0, 0,
+                      ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+    [CALC_TURKEY] = {"Diyanet, Turkey", 18.0, 17.0, 0, 0, ASR_STANDARD,
+                     MIDNIGHT_STANDARD, 0},
+    [CALC_SINGAPORE] = {"MUIS, Singapore", 20.0, 18.0, 0, 0, ASR_STANDARD,
+                        MIDNIGHT_STANDARD, 0},
+    [CALC_JAKIM] = {"JAKIM, Malaysia", 20.0, 18.0, 0, 0, ASR_STANDARD,
+                    MIDNIGHT_STANDARD, 0},
+    [CALC_KEMENAG] = {"KEMENAG, Indonesia", 20.0, 18.0, 0, 0, ASR_STANDARD,
+                      MIDNIGHT_STANDARD, 2},
+    [CALC_FRANCE] = {"UOIF, France", 12.0, 12.0, 0, 0, ASR_STANDARD,
+                     MIDNIGHT_STANDARD, 0},
+    [CALC_RUSSIA] = {"Spiritual Admin., Russia", 16.0, 15.0, 0, 0, ASR_STANDARD,
+                     MIDNIGHT_STANDARD, 0},
+    [CALC_DUBAI] = {"GAIAE, Dubai", 18.2, 18.2, 0, 0, ASR_STANDARD,
+                    MIDNIGHT_STANDARD, 0},
+    [CALC_QATAR] = {"Min. of Awqaf, Qatar", 18.0, 0, 90, 0, ASR_STANDARD,
+                    MIDNIGHT_STANDARD, 0},
+    [CALC_KUWAIT] = {"Min. of Awqaf, Kuwait", 18.0, 17.5, 0, 0, ASR_STANDARD,
+                     MIDNIGHT_STANDARD, 0},
+    [CALC_JORDAN] = {"Min. of Awqaf, Jordan", 18.0, 18.0, 0, 0, ASR_STANDARD,
+                     MIDNIGHT_STANDARD, 5},
+    [CALC_GULF] = {"Gulf Region", 19.5, 0, 90, 0, ASR_STANDARD,
+                   MIDNIGHT_STANDARD, 0},
+    [CALC_TUNISIA] = {"Min. of Religious Affairs, Tunisia", 18.0, 18.0, 0, 0,
+                      ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+    [CALC_ALGERIA] = {"Min. of Religious Affairs, Algeria", 18.0, 17.0, 0, 0,
+                      ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+    [CALC_MOROCCO] = {"Min. of Habous, Morocco", 19.0, 17.0, 0, 0, ASR_STANDARD,
                       MIDNIGHT_STANDARD, 0},
-    [CALC_TURKEY] = {"Diyanet, Turkey", 18.0, 17.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_SINGAPORE] = {"MUIS, Singapore", 20.0, 18.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_JAKIM] = {"JAKIM, Malaysia", 20.0, 18.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_KEMENAG] = {"KEMENAG, Indonesia", 20.0, 18.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 2},
-    [CALC_FRANCE] = {"UOIF, France", 12.0, 12.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_RUSSIA] = {"Spiritual Admin., Russia", 16.0, 15.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD,
-                     0},
-    [CALC_DUBAI] = {"GAIAE, Dubai", 18.2, 18.2, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_QATAR] = {"Min. of Awqaf, Qatar", 18.0, 0, 90, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_KUWAIT] = {"Min. of Awqaf, Kuwait", 18.0, 17.5, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_JORDAN] = {"Min. of Awqaf, Jordan", 18.0, 18.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 5},
-    [CALC_GULF] = {"Gulf Region", 19.5, 0, 90, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
-    [CALC_TUNISIA] = {"Min. of Religious Affairs, Tunisia", 18.0, 18.0, 0, 0, ASR_STANDARD,
-                      MIDNIGHT_STANDARD, 0},
-    [CALC_ALGERIA] = {"Min. of Religious Affairs, Algeria", 18.0, 17.0, 0, 0, ASR_STANDARD,
-                      MIDNIGHT_STANDARD, 0},
-    [CALC_MOROCCO] = {"Min. of Habous, Morocco", 19.0, 17.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD,
-                      0},
-    [CALC_PORTUGAL] = {"Comunidade Islamica de Lisboa", 18.0, 0, 77, 3, ASR_STANDARD,
-                       MIDNIGHT_STANDARD, 0},
-    [CALC_MOONSIGHTING] = {"Moonsighting Committee", 18.0, 18.0, 0, 3, ASR_STANDARD,
-                           MIDNIGHT_STANDARD, 0},
-    [CALC_CUSTOM] = {"Custom", 18.0, 17.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+    [CALC_PORTUGAL] = {"Comunidade Islamica de Lisboa", 18.0, 0, 77, 3,
+                       ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+    [CALC_MOONSIGHTING] = {"Moonsighting Committee", 18.0, 18.0, 0, 3,
+                           ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+    [CALC_CUSTOM] = {"Custom", 18.0, 17.0, 0, 0, ASR_STANDARD,
+                     MIDNIGHT_STANDARD, 0},
 };
 
-const MethodParams *method_params_get(CalcMethod method) {
+PRAYERTIMESDEF const MethodParams *method_params_get(CalcMethod method) {
   if (method < 0 || method >= CALC_COUNT)
     return NULL;
   return &METHOD_TABLE[method];
@@ -248,18 +380,43 @@ static const MethodKeyEntry METHOD_KEYS[] = {
     {"custom", CALC_CUSTOM},
 };
 
-CalcMethod method_from_string(const char *name) {
+/* ASCII-only, locale-independent case-insensitive compare.
+ *
+ * strcasecmp() is POSIX, not C, so it is absent under a strict -std=c11 build
+ * and spelled _stricmp() on MSVC. tolower() from <ctype.h> is the usual
+ * workaround but carries two traps: it is undefined for negative char values,
+ * and it is locale-dependent -- in a Turkish locale 'I' does not fold to 'i',
+ * so "ISNA" would stop matching "isna".
+ *
+ * METHOD_KEYS are fixed ASCII identifiers, so folding the ASCII range
+ * explicitly is both correct and portable, and needs no extra header. */
+static int pt__ascii_casecmp(const char *a, const char *b) {
+  for (;; a++, b++) {
+    unsigned char ca = (unsigned char)*a;
+    unsigned char cb = (unsigned char)*b;
+    if (ca >= 'A' && ca <= 'Z')
+      ca = (unsigned char)(ca - 'A' + 'a');
+    if (cb >= 'A' && cb <= 'Z')
+      cb = (unsigned char)(cb - 'A' + 'a');
+    if (ca != cb)
+      return (int)ca - (int)cb;
+    if (ca == '\0')
+      return 0;
+  }
+}
+
+PRAYERTIMESDEF CalcMethod method_from_string(const char *name) {
   if (!name)
     return CALC_CUSTOM;
   size_t count = sizeof(METHOD_KEYS) / sizeof(METHOD_KEYS[0]);
   for (size_t i = 0; i < count; i++) {
-    if (strcmp(name, METHOD_KEYS[i].key) == 0)
+    if (pt__ascii_casecmp(name, METHOD_KEYS[i].key) == 0)
       return METHOD_KEYS[i].method;
   }
   return CALC_CUSTOM;
 }
 
-const char *method_to_string(CalcMethod method) {
+PRAYERTIMESDEF const char *method_to_string(CalcMethod method) {
   for (size_t i = 0; i < sizeof(METHOD_KEYS) / sizeof(METHOD_KEYS[0]); i++) {
     if (METHOD_KEYS[i].method == method)
       return METHOD_KEYS[i].key;
@@ -275,7 +432,8 @@ static double julian_day(int year, int month, int day) {
   }
   int A = year / 100;
   int B = 2 - A + (A / 4);
-  double jd = floor(365.25 * (year + 4716)) + floor(30.6001 * (month + 1)) + day + B - 1524.5;
+  double jd = floor(365.25 * (year + 4716)) + floor(30.6001 * (month + 1)) +
+              day + B - 1524.5;
   return jd;
 }
 
@@ -284,17 +442,22 @@ static void sun_position(double jd, double *decl, double *eqt) {
   double D = jd - JULIAN_EPOCH;
 
   double g = normalize_deg(SUN_MEAN_ANOMALY_OFFSET + SUN_MEAN_ANOMALY_RATE * D);
-  double q = normalize_deg(SUN_MEAN_LONGITUDE_OFFSET + SUN_MEAN_LONGITUDE_RATE * D);
+  double q =
+      normalize_deg(SUN_MEAN_LONGITUDE_OFFSET + SUN_MEAN_LONGITUDE_RATE * D);
 
-  double L = normalize_deg(q + SUN_ECCENTRICITY_AMPLITUDE1 * sin(g * DEG_TO_RAD) +
-                           SUN_ECCENTRICITY_AMPLITUDE2 * sin(2 * g * DEG_TO_RAD));
+  double L =
+      normalize_deg(q + SUN_ECCENTRICITY_AMPLITUDE1 * sin(g * DEG_TO_RAD) +
+                    SUN_ECCENTRICITY_AMPLITUDE2 * sin(2 * g * DEG_TO_RAD));
 
   double e = OBLIQUITY_COEFF - OBLIQUITY_RATE * D;
 
-  double RA = atan2(cos(e * DEG_TO_RAD) * sin(L * DEG_TO_RAD), cos(L * DEG_TO_RAD)) * RAD_TO_DEG;
+  double RA =
+      atan2(cos(e * DEG_TO_RAD) * sin(L * DEG_TO_RAD), cos(L * DEG_TO_RAD)) *
+      RAD_TO_DEG;
   RA = normalize_deg(RA);
 
-  // Normalize difference to [-180, 180] to handle wrap-around near 0/360 boundary
+  // Normalize difference to [-180, 180] to handle wrap-around near 0/360
+  // boundary
   double diff = fmod(q - RA + 180.0, 360.0);
   if (diff < 0)
     diff += 360.0;
@@ -323,7 +486,8 @@ static double hour_angle(double lat, double decl, double angle) {
 }
 
 // Safe version that checks cos_ha bounds for high-latitude locations
-static double hour_angle_safe(double lat, double decl, double angle, bool *failed) {
+static double hour_angle_safe(double lat, double decl, double angle,
+                              bool *failed) {
   double lat_rad = lat * DEG_TO_RAD;
   double decl_rad = decl * DEG_TO_RAD;
   double angle_rad = angle * DEG_TO_RAD;
@@ -342,8 +506,24 @@ static double hour_angle_safe(double lat, double decl, double angle, bool *faile
   return ha * RAD_TO_DEG / 15.0;
 }
 
+/* Solve one hour-angle event with the Sun evaluated at the event's own
+   instant, one iteration from an initial guess. sign is -1 before local
+   noon and +1 after. Returns the refined local time in hours, or the guess
+   unchanged when the event does not occur at the refined instant. */
+static double refine_event(double jd, double latitude, double longitude,
+                           double timezone, double altitude, double sign,
+                           double guess) {
+  double d2, e2, n2, ha;
+  sun_position(jd + (guess - timezone) / 24.0, &d2, &e2);
+  n2 = 12.0 + timezone - (longitude / 15.0) - e2;
+  ha = hour_angle(latitude, d2, altitude);
+  if (isnan(ha)) return guess;
+  return n2 + sign * ha;
+}
+
 // Format time (double hours) into "HH:MM"
-void format_time_hm(double timeHours, char *outBuffer, size_t bufSize) {
+PRAYERTIMESDEF void format_time_hm(double timeHours, char *outBuffer,
+                                   size_t bufSize) {
   int hours = (int)timeHours;
   double fraction = timeHours - hours;
   int minutes = (int)ceil(fraction * 60.0); // Always round up (Kemenag method)
@@ -358,9 +538,30 @@ void format_time_hm(double timeHours, char *outBuffer, size_t bufSize) {
   snprintf(outBuffer, bufSize, "%02d:%02d", hours, minutes);
 }
 
-struct PrayerTimes calculate_prayer_times(int year, int month, int day, double latitude,
-                                          double longitude, double timezone,
-                                          const MethodParams *params) {
+// Format time into "HH:MM:SS"
+PRAYERTIMESDEF void format_time_hms(double timeHours, char *outBuffer,
+                                    size_t bufSize) {
+  int hours = (int)timeHours;
+  double fraction = timeHours - hours;
+  int totalSeconds = (int)(fraction * 3600.0 + 0.5);
+
+  int minutes = totalSeconds / 60;
+  int seconds = totalSeconds % 60;
+
+  if (minutes >= 60) {
+    hours += minutes / 60;
+    minutes %= 60;
+  }
+
+  hours %= 24;
+
+  snprintf(outBuffer, bufSize, "%02d:%02d:%02d", hours, minutes, seconds);
+}
+
+PRAYERTIMESDEF struct PrayerTimes
+calculate_prayer_times(int year, int month, int day, double latitude,
+                       double longitude, double timezone,
+                       const MethodParams *params) {
   double jd = julian_day(year, month, day);
   double decl, eqt;
   sun_position(jd, &decl, &eqt);
@@ -372,17 +573,26 @@ struct PrayerTimes calculate_prayer_times(int year, int month, int day, double l
   double sunrise = noon - ha_sunrise;
   double sunset = noon + ha_sunrise;
 
+  sunrise = refine_event(jd, latitude, longitude, timezone,
+                         REFRACTION_CORRECTION, -1.0, sunrise);
+  sunset = refine_event(jd, latitude, longitude, timezone,
+                        REFRACTION_CORRECTION, +1.0, sunset);
+
   /* Night duration for high-latitude fallback */
   double night = (24.0 - sunset) + sunrise;
 
   /* Fajr */
   bool fajr_failed = false;
-  double ha_fajr = hour_angle_safe(latitude, decl, params->fajr_angle, &fajr_failed);
+  double ha_fajr =
+      hour_angle_safe(latitude, decl, params->fajr_angle, &fajr_failed);
   double fajr = noon - ha_fajr;
   if (fajr_failed) {
     /* Angle-based high-latitude fallback */
     fajr = sunrise - (params->fajr_angle / 60.0) * night;
   }
+  if (!fajr_failed)
+    fajr = refine_event(jd, latitude, longitude, timezone, params->fajr_angle,
+                        -1.0, fajr);
 
   /* Maghrib */
   double maghrib = sunset;
@@ -394,20 +604,24 @@ struct PrayerTimes calculate_prayer_times(int year, int month, int day, double l
   double isha;
   if (params->isha_angle > 0.0) {
     bool isha_failed = false;
-    double ha_isha = hour_angle_safe(latitude, decl, params->isha_angle, &isha_failed);
+    double ha_isha =
+        hour_angle_safe(latitude, decl, params->isha_angle, &isha_failed);
     isha = noon + ha_isha;
     if (isha_failed) {
       isha = sunset + (params->isha_angle / 60.0) * night;
     }
+    if (!isha_failed)
+      isha = refine_event(jd, latitude, longitude, timezone,
+                          params->isha_angle, +1.0, isha);
   } else {
     /* Interval-based (e.g. Makkah 90 min after maghrib) */
     isha = maghrib + (double)params->isha_interval / 60.0;
   }
 
   /* Asr */
-  double asr_angle =
-      atan(1.0 / ((double)params->asr_shadow + tan(fabs(latitude - decl) * DEG_TO_RAD))) *
-      RAD_TO_DEG;
+  double asr_angle = atan(1.0 / ((double)params->asr_shadow +
+                                 tan(fabs(latitude - decl) * DEG_TO_RAD))) *
+                     RAD_TO_DEG;
   double ha_asr = hour_angle(latitude, decl, -asr_angle);
   double asr = noon + ha_asr;
 
@@ -438,9 +652,3 @@ struct PrayerTimes calculate_prayer_times(int year, int month, int day, double l
   return times;
 }
 #endif // PRAYERTIMES_IMPLEMENTATION
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
