@@ -59,7 +59,8 @@ src/
   platform/               # OS-specific implementations
     linux/                #   notification (libnotify), platform, timezone
     windows/              #   notification (WinRT), platform, timezone
-include/                  # Public headers (prayertimes.h, config.h, etc.)
+include/                  # Public headers (config.h, display.h, etc.)
+vendor/                   # Vendored upstream sources (prayertimes.h, miniaudio.h)
 tests/                    # Test suites
 docs/                     # Calculation method documentation
 ```

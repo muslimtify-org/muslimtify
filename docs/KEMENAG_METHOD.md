@@ -877,7 +877,10 @@ Namun untuk tujuan ibadah, metode Jean Meeus yang disederhanakan ini **sudah san
 ## Lampiran: Kode Lengkap
 
 Lihat implementasi lengkap di:
-- `src/prayertimes.h` - Header-only library (konstanta + implementasi, diaktifkan dengan `#define PRAYERTIMES_IMPLEMENTATION`)
+- `vendor/prayertimes.h` - Header-only library (konstanta + implementasi). Disinkronkan dari
+  muslimtify-org/libmuslim, jangan diubah di repo ini.
+- `src/core/prayertimes.c` - Satu translation unit yang mengaktifkan implementasi dengan
+  `#define PRAYERTIMES_IMPLEMENTATION`
 - `src/muslimtify.c` - Entry point aplikasi
 
 ### Kompilasi
