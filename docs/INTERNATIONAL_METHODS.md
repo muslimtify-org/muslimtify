@@ -6,10 +6,16 @@ Research notes for adding multi-method support to muslimtify.
 
 ## 1. Current State
 
-Muslimtify currently supports **only the Kemenag method** with hardcoded constants in
-`include/prayertimes.h`. The config fields `calculation.method` and `calculation.madhab` are
-stored but **not used** in any calculation logic. The astronomical algorithm is the USNO
-simplified model (~1 arcminute accuracy), which is sufficient for prayer times.
+> Updated 2026-08-18. This section described the state when these notes were written. Multi
+> method support has since landed: 22 methods are implemented and `calculation.method` is
+> resolved through `method_from_string()` at `src/core/config.c:711`. The rest of this
+> document is the research that informed that work.
+
+At the time of writing, Muslimtify supported **only the Kemenag method** with hardcoded
+constants in `vendor/prayertimes.h`. The config fields `calculation.method` and
+`calculation.madhab` were stored but **not used** in any calculation logic. The astronomical
+algorithm is the USNO simplified model (~1 arcminute accuracy), which is sufficient for
+prayer times.
 
 ---
 
