@@ -22,7 +22,13 @@
  * SOFTWARE.
  */
 
-/* prayertimes.h -- v0.1.0 -- single-header C/C++ prayer-time calculation library
+/* prayertimes.h -- v0.2.0 -- single-header C/C++ prayer-time calculation library
+ *
+ * The version above is this file's own. It is not the libmuslim release
+ * tag, which is a calendar date such as 2026.08.18 and covers a snapshot
+ * of several independently versioned headers. A difference between the
+ * two is expected. Use this number for compatibility, the release tag to
+ * pin a download.
  *
  * This library calculates daily prayer times for a date and location using a
  * selection of established calculation methods. It has no dependencies beyond
@@ -73,13 +79,15 @@
  * during this work and made results worse, so it was deliberately left
  * alone.
  *
- * The published-table suite tests/test_prayertimes.c reports 925 checks.
+ * The published-table suite tests/test_prayertimes.c reports 940 checks.
  * 895 of those compare a computed time against a published table at a
  * uniform tolerance of 2 minutes, with a residual distribution of 449
  * checks at 0 minutes, 435 at 1 and 11 at 2, which sums to the 895. The
- * remaining 30 carry no residual because they are not time comparisons:
+ * remaining 45 carry no residual because they are not time comparisons:
  * 7 assert the test's own clock_diff_minutes helper, 8 assert the
- * civil-day converters and 15 assert the time formatters.
+ * civil-day converters, 15 assert the time formatters and 15 pin the
+ * struct PrayerTimes field contract, including the per-method
+ * high-latitude behaviour.
  *
  * Computed times changed on 2026-08-17 by up to 2 minutes at high
  * latitudes. Before this change the Sun was evaluated once at 0h UT and
@@ -173,11 +181,27 @@ typedef enum {
   ASR_HANAFI = 2,
 } AsrSchool;
 
+/**
+ * What to do for fajr and isha when the Sun never reaches the required
+ * depression angle, which happens every summer above roughly 48 degrees.
+ *
+ * This is a property of the calculation authority, not of the library. Most
+ * authorities serve jurisdictions where the case never arises and publish no
+ * rule at all, so most entries in the method table are HIGHLAT_ANGLE_BASED,
+ * which is a computational convention rather than anyone's ruling. See
+ * docs/research/2026-08-18-high-latitude-conventions.md.
+ *
+ * Every value except HIGHLAT_NEAREST_LATITUDE is defined in terms of the
+ * interval between sunset and sunrise, so none of them can answer inside the
+ * polar circle where that interval does not exist. MethodParams.high_lat_ref
+ * covers that case separately.
+ */
 typedef enum {
-  HIGHLAT_NONE,
-  HIGHLAT_MIDDLE_OF_NIGHT,
-  HIGHLAT_ONE_SEVENTH,
-  HIGHLAT_ANGLE_BASED,
+  HIGHLAT_NONE,            /* no substitution, the time is NaN */
+  HIGHLAT_MIDDLE_OF_NIGHT, /* half the night before sunrise, after sunset */
+  HIGHLAT_ONE_SEVENTH,     /* one seventh of the night */
+  HIGHLAT_ANGLE_BASED,     /* angle/60 of the night, praytimes.org */
+  HIGHLAT_NEAREST_LATITUDE /* same fraction of the night as at high_lat_ref */
 } HighLatMethod;
 
 typedef enum {
@@ -193,8 +217,46 @@ typedef struct {
   int asr_shadow;       /* shadow factor: 1 = standard, 2 = Hanafi */
   MidnightMode midnight_mode;
   int ihtiyat; /* precautionary minutes added to each time */
+
+  /* Fajr and isha substitution when the depression angle is not reached but
+     a real night still exists. */
+  HighLatMethod high_lat_method;
+
+  /* Reference latitude used when there is no sunset or sunrise at all, which
+     is the case inside the polar circle. Every rule above is measured in
+     units of the night, so without a reference there is nothing to measure
+     and the affected times are NaN. Set to 0 when the authority publishes no
+     rule for this case, which is most of them. */
+  double high_lat_ref;
 } MethodParams;
 
+/**
+ * The seven computed times, each as decimal hours in local time, so 17.75
+ * means 17:45.
+ *
+ * A field is normally in [0, 24), but it is not guaranteed to be, and callers
+ * that do anything other than print it must handle two cases.
+ *
+ * Non-finite. Above roughly 66 degrees the Sun can fail to reach the altitude
+ * an event is defined by, and the field is then NaN. Test with isfinite()
+ * before use. dhuha reaches this first, from about 62.5 degrees.
+ *
+ * Outside [0, 24). The high-latitude fallback for fajr and isha can return a
+ * value below 0 or at or above 24, meaning the event falls on the previous or
+ * the next calendar day. This happens on 107 days a year at Reykjavik and 23
+ * at Anchorage, and Anchorage never produces a NaN at all, so the two cases
+ * are independent.
+ *
+ * The double is the only thing that carries the day offset. Reducing a field
+ * into [0, 24) before building a date or a timestamp therefore moves the event
+ * silently onto the wrong day. Keep the whole value. format_time_hm() and
+ * format_time_hms() handle both cases, but a clock string cannot express a
+ * date, so they do not preserve the offset either.
+ *
+ * Whether this struct should carry the offset explicitly is open, see issue
+ * #56. Until it is settled the raw value is the contract, and
+ * tests/test_prayertimes.c pins it.
+ */
 struct PrayerTimes {
   double fajr;
   double sunrise;
@@ -208,6 +270,12 @@ struct PrayerTimes {
 /**
  * Format a decimal-hours time (e.g. 5.5) into "HH:MM" in outBuffer.
  * Minutes are rounded up (Kemenag convention).
+ *
+ * A value outside [0, 24) is reduced onto the clock face first, so 25.075
+ * renders as "01:05" and -0.104 as "23:54". The result names an hour of the
+ * day and cannot say which day, so read the raw double if you need that.
+ *
+ * A non-finite value renders as "--:--". Six bytes are enough for either.
  */
 PRAYERTIMESDEF void format_time_hm(double timeHours, char *outBuffer,
                                    size_t bufSize);
@@ -216,6 +284,9 @@ PRAYERTIMESDEF void format_time_hm(double timeHours, char *outBuffer,
  * Format a decimal-hours time (e.g. 5.5) into "HH:MM:SS" in outBuffer.
  * Seconds are rounded to nearest; use format_time_hm for the Kemenag
  * round-up-to-the-minute convention.
+ *
+ * The same reduction applies, so -0.104 renders as "23:53:46". A non-finite
+ * value renders as "--:--:--". Nine bytes are enough for either.
  */
 PRAYERTIMESDEF void format_time_hms(double timeHours, char *outBuffer,
                                     size_t bufSize);
@@ -300,50 +371,71 @@ static double normalize_deg(double angle) {
 /* ── Method parameter table ─────────────────────────────────────────── */
 
 static const MethodParams METHOD_TABLE[CALC_COUNT] = {
+    /* Angle-based, not the Fiqh Council rule, and the tables decided this
+       rather than the decree. Switching the night-exists case to the Council's
+       proportional measurement moved London 2026-06-15 and 2026-07-15 by 3, 15
+       and 17 minutes against the published MWL table, which the angle-based
+       rule reproduces to within 1 minute. Whoever publishes those tables
+       computes them the angle-based way, so that is what "the MWL method"
+       means in practice for latitudes that have a night at all.
+
+       The decree still answers the case the published tables do not cover.
+       Inside the polar circle there is no night to take a fraction of, so
+       high_lat_ref carries the 45 degrees the Council proposes and is used
+       only there. */
     [CALC_MWL] = {"Muslim World League", 18.0, 17.0, 0, 0, ASR_STANDARD,
-                  MIDNIGHT_STANDARD, 0},
+                  MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 45.0},
     [CALC_MAKKAH] = {"Umm al-Qura, Makkah", 18.5, 0, 90, 0, ASR_STANDARD,
-                     MIDNIGHT_STANDARD, 0},
-    [CALC_ISNA] = {"ISNA", 15.0, 15.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD,
-                   0},
+                     MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
+    [CALC_ISNA] = {"ISNA", 15.0, 15.0, 0, 0, ASR_STANDARD, MIDNIGHT_STANDARD, 0,
+                   HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_EGYPT] = {"Egyptian General Authority", 19.5, 17.5, 0, 0,
-                    ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+                    ASR_STANDARD, MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED,
+                    0.0},
     [CALC_KARACHI] = {"Univ. Islamic Sciences, Karachi", 18.0, 18.0, 0, 0,
-                      ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+                      ASR_STANDARD, MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED,
+                      0.0},
     [CALC_TURKEY] = {"Diyanet, Turkey", 18.0, 17.0, 0, 0, ASR_STANDARD,
-                     MIDNIGHT_STANDARD, 0},
+                     MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_SINGAPORE] = {"MUIS, Singapore", 20.0, 18.0, 0, 0, ASR_STANDARD,
-                        MIDNIGHT_STANDARD, 0},
+                        MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_JAKIM] = {"JAKIM, Malaysia", 20.0, 18.0, 0, 0, ASR_STANDARD,
-                    MIDNIGHT_STANDARD, 0},
+                    MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_KEMENAG] = {"KEMENAG, Indonesia", 20.0, 18.0, 0, 0, ASR_STANDARD,
-                      MIDNIGHT_STANDARD, 2},
+                      MIDNIGHT_STANDARD, 2, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_FRANCE] = {"UOIF, France", 12.0, 12.0, 0, 0, ASR_STANDARD,
-                     MIDNIGHT_STANDARD, 0},
+                     MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_RUSSIA] = {"Spiritual Admin., Russia", 16.0, 15.0, 0, 0, ASR_STANDARD,
-                     MIDNIGHT_STANDARD, 0},
+                     MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_DUBAI] = {"GAIAE, Dubai", 18.2, 18.2, 0, 0, ASR_STANDARD,
-                    MIDNIGHT_STANDARD, 0},
+                    MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_QATAR] = {"Min. of Awqaf, Qatar", 18.0, 0, 90, 0, ASR_STANDARD,
-                    MIDNIGHT_STANDARD, 0},
+                    MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_KUWAIT] = {"Min. of Awqaf, Kuwait", 18.0, 17.5, 0, 0, ASR_STANDARD,
-                     MIDNIGHT_STANDARD, 0},
+                     MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_JORDAN] = {"Min. of Awqaf, Jordan", 18.0, 18.0, 0, 0, ASR_STANDARD,
-                     MIDNIGHT_STANDARD, 5},
+                     MIDNIGHT_STANDARD, 5, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_GULF] = {"Gulf Region", 19.5, 0, 90, 0, ASR_STANDARD,
-                   MIDNIGHT_STANDARD, 0},
+                   MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_TUNISIA] = {"Min. of Religious Affairs, Tunisia", 18.0, 18.0, 0, 0,
-                      ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+                      ASR_STANDARD, MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED,
+                      0.0},
     [CALC_ALGERIA] = {"Min. of Religious Affairs, Algeria", 18.0, 17.0, 0, 0,
-                      ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+                      ASR_STANDARD, MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED,
+                      0.0},
     [CALC_MOROCCO] = {"Min. of Habous, Morocco", 19.0, 17.0, 0, 0, ASR_STANDARD,
-                      MIDNIGHT_STANDARD, 0},
+                      MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
     [CALC_PORTUGAL] = {"Comunidade Islamica de Lisboa", 18.0, 0, 77, 3,
-                       ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+                       ASR_STANDARD, MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED,
+                       0.0},
+    /* moonsighting.com states its formulae are good to 55 degrees, applies the
+       one-seventh rule between 55 and 60, and above 60 slides the calculation
+       down to 60, which is the reference latitude here. */
     [CALC_MOONSIGHTING] = {"Moonsighting Committee", 18.0, 18.0, 0, 3,
-                           ASR_STANDARD, MIDNIGHT_STANDARD, 0},
+                           ASR_STANDARD, MIDNIGHT_STANDARD, 0,
+                           HIGHLAT_ONE_SEVENTH, 60.0},
     [CALC_CUSTOM] = {"Custom", 18.0, 17.0, 0, 0, ASR_STANDARD,
-                     MIDNIGHT_STANDARD, 0},
+                     MIDNIGHT_STANDARD, 0, HIGHLAT_ANGLE_BASED, 0.0},
 };
 
 PRAYERTIMESDEF const MethodParams *method_params_get(CalcMethod method) {
@@ -521,7 +613,8 @@ static double refine_event(double jd, double latitude, double longitude,
   sun_position(jd + (guess - timezone) / 24.0, &d2, &e2);
   n2 = 12.0 + timezone - (longitude / 15.0) - e2;
   ha = hour_angle(latitude, d2, altitude);
-  if (isnan(ha)) return guess;
+  if (isnan(ha))
+    return guess;
   return n2 + sign * ha;
 }
 
@@ -537,7 +630,8 @@ static double refine_event(double jd, double latitude, double longitude,
    a date-time must read it there. See issue #56. */
 static double normalize_clock_hours(double t) {
   t = fmod(t, 24.0);
-  if (t < 0.0) t += 24.0;
+  if (t < 0.0)
+    t += 24.0;
   return t;
 }
 
@@ -594,6 +688,68 @@ PRAYERTIMESDEF void format_time_hms(double timeHours, char *outBuffer,
   snprintf(outBuffer, bufSize, "%02d:%02d:%02d", hours, minutes, seconds);
 }
 
+/* Solve an event at a reference latitude on the same meridian and day.
+
+   Declination and the equation of time do not depend on latitude, so the
+   reference shares this location's solar noon exactly. That is what makes the
+   substitution cheap and also what makes it faithful: transplanting the
+   reference schedule about a shared noon is the decree's "divide the 24 hours
+   the same way" without any further arithmetic.
+
+   Returns NaN when even the reference cannot solve the event. */
+static double reference_event(double ref_lat, double decl, double noon,
+                              double angle, double sign) {
+  return noon + sign * hour_angle(ref_lat, decl, angle);
+}
+
+/* Substitute a fajr or isha time that the depression angle could not reach.
+   sign is -1 for fajr, which precedes sunrise, and +1 for isha, which follows
+   sunset.
+
+   Two cases, and they are not the same question. When a real night exists the
+   method's own rule applies, measured in units of that night. When there is no
+   sunset or sunrise at all, every such rule is undefined, because the unit it
+   measures in does not exist, and only a reference latitude can answer. */
+static double high_lat_substitute(const MethodParams *params, double decl,
+                                  double noon, double sunrise, double sunset,
+                                  double night, double angle, double sign) {
+  if (isnan(night)) {
+    if (params->high_lat_ref <= 0.0)
+      return NAN;
+    return reference_event(params->high_lat_ref, decl, noon, angle, sign);
+  }
+
+  switch (params->high_lat_method) {
+  case HIGHLAT_MIDDLE_OF_NIGHT:
+    return sign < 0 ? sunrise - night / 2.0 : sunset + night / 2.0;
+  case HIGHLAT_ONE_SEVENTH:
+    return sign < 0 ? sunrise - night / 7.0 : sunset + night / 7.0;
+  case HIGHLAT_ANGLE_BASED:
+    return sign < 0 ? sunrise - (angle / 60.0) * night
+                    : sunset + (angle / 60.0) * night;
+  case HIGHLAT_NEAREST_LATITUDE: {
+    /* Proportional measurement: the event takes the same share of this night
+       that it takes of the night at the reference latitude. */
+    double ref = params->high_lat_ref;
+    if (ref <= 0.0)
+      return NAN;
+    double r_rise =
+        reference_event(ref, decl, noon, REFRACTION_CORRECTION, -1.0);
+    double r_set = reference_event(ref, decl, noon, REFRACTION_CORRECTION, 1.0);
+    double r_event = reference_event(ref, decl, noon, angle, sign);
+    double r_night = (24.0 - r_set) + r_rise;
+    if (isnan(r_night) || isnan(r_event) || r_night <= 0.0)
+      return NAN;
+    double frac = sign < 0 ? ((r_event + 24.0) - r_set) / r_night
+                           : (r_event - r_set) / r_night;
+    return fmod(sunset + frac * night + 48.0, 24.0);
+  }
+  case HIGHLAT_NONE:
+  default:
+    return NAN;
+  }
+}
+
 PRAYERTIMESDEF struct PrayerTimes
 calculate_prayer_times(int year, int month, int day, double latitude,
                        double longitude, double timezone,
@@ -609,10 +765,24 @@ calculate_prayer_times(int year, int month, int day, double latitude,
   double sunrise = noon - ha_sunrise;
   double sunset = noon + ha_sunrise;
 
-  sunrise = refine_event(jd, latitude, longitude, timezone,
-                         REFRACTION_CORRECTION, -1.0, sunrise);
-  sunset = refine_event(jd, latitude, longitude, timezone,
-                        REFRACTION_CORRECTION, +1.0, sunset);
+  /* Inside the polar circle the Sun does not cross the horizon, so there is no
+     sunrise or sunset to refine and no night to measure a substitution
+     against. A method whose authority names a reference latitude borrows that
+     latitude's day. One that does not leaves these NaN, which is the honest
+     answer when nothing has been published for the case. */
+  if (isnan(ha_sunrise)) {
+    if (params->high_lat_ref > 0.0) {
+      sunrise = reference_event(params->high_lat_ref, decl, noon,
+                                REFRACTION_CORRECTION, -1.0);
+      sunset = reference_event(params->high_lat_ref, decl, noon,
+                               REFRACTION_CORRECTION, 1.0);
+    }
+  } else {
+    sunrise = refine_event(jd, latitude, longitude, timezone,
+                           REFRACTION_CORRECTION, -1.0, sunrise);
+    sunset = refine_event(jd, latitude, longitude, timezone,
+                          REFRACTION_CORRECTION, +1.0, sunset);
+  }
 
   /* Night duration for high-latitude fallback */
   double night = (24.0 - sunset) + sunrise;
@@ -623,12 +793,12 @@ calculate_prayer_times(int year, int month, int day, double latitude,
       hour_angle_safe(latitude, decl, params->fajr_angle, &fajr_failed);
   double fajr = noon - ha_fajr;
   if (fajr_failed) {
-    /* Angle-based high-latitude fallback */
-    fajr = sunrise - (params->fajr_angle / 60.0) * night;
-  }
-  if (!fajr_failed)
+    fajr = high_lat_substitute(params, decl, noon, sunrise, sunset, night,
+                               params->fajr_angle, -1.0);
+  } else {
     fajr = refine_event(jd, latitude, longitude, timezone, params->fajr_angle,
                         -1.0, fajr);
+  }
 
   /* Maghrib */
   double maghrib = sunset;
@@ -644,11 +814,12 @@ calculate_prayer_times(int year, int month, int day, double latitude,
         hour_angle_safe(latitude, decl, params->isha_angle, &isha_failed);
     isha = noon + ha_isha;
     if (isha_failed) {
-      isha = sunset + (params->isha_angle / 60.0) * night;
+      isha = high_lat_substitute(params, decl, noon, sunrise, sunset, night,
+                                 params->isha_angle, 1.0);
+    } else {
+      isha = refine_event(jd, latitude, longitude, timezone, params->isha_angle,
+                          +1.0, isha);
     }
-    if (!isha_failed)
-      isha = refine_event(jd, latitude, longitude, timezone,
-                          params->isha_angle, +1.0, isha);
   } else {
     /* Interval-based (e.g. Makkah 90 min after maghrib) */
     isha = maghrib + (double)params->isha_interval / 60.0;
