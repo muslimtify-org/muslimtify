@@ -19,8 +19,6 @@
 # AI_POLICY.md. vendor/prayertimes.h is synced from muslimtify-org/libmuslim
 # rather than edited here, so fixes belong upstream.
 /vendor/prayertimes.h   @rizukirr
-# Pre-#69 location. Delete this line once that PR has merged.
-/include/prayertimes.h  @rizukirr
 /docs/KEMENAG_METHOD.md @rizukirr
 /docs/INTERNATIONAL_METHODS.md @rizukirr
 /docs/METHOD_TOLERANCES.md @rizukirr
