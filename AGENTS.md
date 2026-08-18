@@ -21,7 +21,8 @@ Many tests are Linux-only (guarded by `if(NOT WIN32)`). Add new tests with `add_
 - `src/core/` — platform-agnostic logic: config, cache, location (ipinfo.io via libcurl), country, prayer_checker, check_cycle, daemon_loop, display.
 - `src/cli/` — dispatch (`cli.c`) + one `cmd_*.c` per command. Daemon is `cmd_daemon.c` (Linux) / `cmd_daemon_win.c` (Windows).
 - `src/platform/{linux,windows}/` — notification, platform paths, timezone.
-- `include/` — public headers; header-only astronomical formulas in `prayertimes.h` (see `docs/KEMENAG_METHOD.md`). `src/json.h` is a bespoke JSON parser used by config + `tests/test_json.c`.
+- `include/` — public headers. `src/json.h` is a bespoke JSON parser used by config + `tests/test_json.c`.
+- `vendor/` — vendored upstream sources, already on every target's include path. `prayertimes.h` is the header-only astronomical formulas (see `docs/KEMENAG_METHOD.md`), synced from muslimtify-org/libmuslim, not edited here. `miniaudio.h` likewise. Each is emitted by a dedicated one-line TU under `src/core/`.
 - `.packages/{aur,fedora,debian,winget}` — distro packaging. `systemd/muslimtify.service.in` is a `configure_file` template.
 
 ## Style
