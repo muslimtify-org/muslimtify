@@ -1,0 +1,30 @@
+# Maintainer whitelist.
+#
+# This file is the enforcing copy of the Maintainers table in AI_POLICY.md.
+# GitHub requires a review from a listed owner before a pull request touching a
+# matched path can merge, provided branch protection on `main` has "Require
+# review from Code Owners" enabled. Without that setting this file is advisory
+# only, exactly like the prose in AI_POLICY.md.
+#
+# Entries are GitHub usernames, not email addresses. GitHub does not resolve
+# emails here. Contact addresses live in the AI_POLICY.md table.
+#
+# Adding or removing a maintainer is itself a maintainer-only change.
+
+# Everything, so no path is left without an owner.
+*                       @rizukirr
+
+# Prayer time calculation and its method documentation. A wrong value here can
+# make someone pray at the wrong time, so these carry the strictest rule in
+# AI_POLICY.md. vendor/prayertimes.h is synced from muslimtify-org/libmuslim
+# rather than edited here, so fixes belong upstream.
+/vendor/prayertimes.h   @rizukirr
+# Pre-#69 location. Delete this line once that PR has merged.
+/include/prayertimes.h  @rizukirr
+/docs/KEMENAG_METHOD.md @rizukirr
+/docs/INTERNATIONAL_METHODS.md @rizukirr
+/docs/METHOD_TOLERANCES.md @rizukirr
+
+# The policy and the whitelist itself.
+/AI_POLICY.md           @rizukirr
+/.github/CODEOWNERS     @rizukirr
