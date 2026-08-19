@@ -2,6 +2,10 @@
 
 Dokumen ini menjelaskan metode perhitungan waktu shalat yang digunakan oleh Kementerian Agama Republik Indonesia (Kemenag RI) secara lengkap dan detail.
 
+> **Catatan, prayertimes.h v0.2.0.** Sejak v0.2.0 `struct PrayerTimes` hanya mengembalikan lima waktu shalat wajib: Subuh, Dzuhur, Ashar, Maghrib, Isya. Terbit dan Dhuha dihapus dari API, dan muslimtify juga tidak lagi menampilkan atau memberi notifikasi untuk keduanya. Terbit bukan waktu shalat melainkan batas akhir waktu Subuh, dan Dhuha adalah shalat sunnah yang hanya dicantumkan pada jadwal terbitan Indonesia. Keduanya masih dihitung di dalam library, karena Maghrib adalah saat terbenam dan setiap substitusi lintang tinggi mengukur panjang malam antara terbenam dan terbit, tetapi tidak lagi menjadi bagian dari kontrak API.
+>
+> Bagian di bawah yang menjelaskan Terbit dan Dhuha tetap dipertahankan sebagai catatan metode Kemenag itu sendiri, yang memang menerbitkan keduanya. Bagian tersebut bukan lagi deskripsi API.
+
 
 ## Daftar Isi
 
@@ -447,8 +451,6 @@ H = acos(cos(H)) × RAD_TO_DEG / 15.0  // Konversi ke jam
 ```c
 struct PrayerTimes {
     double fajr;     // Subuh
-    double sunrise;  // Terbit
-    double dhuha;    // Dhuha (matahari setinggi tombak, +4.3°)
     double dhuhr;    // Dzuhur
     double asr;      // Ashar
     double maghrib;  // Maghrib
@@ -914,12 +916,6 @@ int main() {
     format_time_hm(pt.fajr, buf, sizeof(buf));
     printf("Subuh:   %s\n", buf);
 
-    format_time_hm(pt.sunrise, buf, sizeof(buf));
-    printf("Terbit:  %s\n", buf);
-
-    format_time_hm(pt.dhuha, buf, sizeof(buf));
-    printf("Dhuha:   %s\n", buf);
-
     format_time_hm(pt.dhuhr, buf, sizeof(buf));
     printf("Dzuhur:  %s\n", buf);
 
@@ -940,8 +936,6 @@ int main() {
 
 ```
 Subuh:   04:05
-Terbit:  05:22
-Dhuha:   05:48
 Dzuhur:  11:41
 Ashar:   15:04
 Maghrib: 17:54

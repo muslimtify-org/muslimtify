@@ -26,7 +26,7 @@ int cli_parse_output_mode(int argc, char **argv, OutputMode *out) {
 
 int cli_unknown_prayer(const char *name) {
   fprintf(stderr, "Error: Unknown prayer '%s'\n", name);
-  fprintf(stderr, "  Available: fajr, sunrise, dhuha, dhuhr, asr, maghrib, isha\n");
+  fprintf(stderr, "  Available: fajr, dhuhr, asr, maghrib, isha\n");
   return 1;
 }
 

@@ -71,23 +71,27 @@
  *   lat +68  29.55 s     lat -68  104.44 s
  *   lat +70  33.37 s     lat -70   77.99 s
  *
- * Sunrise is not asserted against an oracle, because hijri.h exposes no
- * sunrise finder. It is covered only indirectly, by sharing a code path
- * and a declination with sunset. Fajr and Isha are not asserted against
- * any oracle either, only by the published-table fixtures. Asr is also
+ * Fajr and Isha are not asserted against any oracle, only by the
+ * published-table fixtures. Asr is also
  * covered only by the published-table fixtures, refining it was measured
  * during this work and made results worse, so it was deliberately left
  * alone.
  *
- * The published-table suite tests/test_prayertimes.c reports 940 checks.
- * 895 of those compare a computed time against a published table at a
- * uniform tolerance of 2 minutes, with a residual distribution of 449
- * checks at 0 minutes, 435 at 1 and 11 at 2, which sums to the 895. The
- * remaining 45 carry no residual because they are not time comparisons:
+ * The published-table suite tests/test_prayertimes.c reports 745 checks.
+ * 702 of those compare a computed time against a published table at a
+ * uniform tolerance of 2 minutes, with a residual distribution of 369
+ * checks at 0 minutes, 326 at 1 and 7 at 2, which sums to the 702. The
+ * remaining 43 carry no residual because they are not time comparisons:
  * 7 assert the test's own clock_diff_minutes helper, 8 assert the
- * civil-day converters, 15 assert the time formatters and 15 pin the
+ * civil-day converters, 15 assert the time formatters and 13 pin the
  * struct PrayerTimes field contract, including the per-method
  * high-latitude behaviour.
+ *
+ * These counts fell from 940 and 895 when sunrise and dhuha were removed
+ * from the struct in v0.2.0. The fixtures behind them were the sunrise
+ * and dhuha columns of the same published tables, so the loss is of
+ * coverage for two fields the library no longer returns, not of coverage
+ * for the five it does.
  *
  * Computed times changed on 2026-08-17 by up to 2 minutes at high
  * latitudes. Before this change the Sun was evaluated once at 0h UT and
@@ -142,11 +146,7 @@ extern "C" {
 #define OBLIQUITY_COEFF 23.439
 #define OBLIQUITY_RATE 0.00000036
 
-#define REFRACTION_CORRECTION 0.833 // for dhuha/maghrib (deg)
-
-// Dhuha prayer time: sun altitude of 4°30' above eastern horizon
-// (irtifa' syams / setinggi tombak — standard in Indonesian falak)
-#define DHUHA_ALTITUDE 4.3
+#define REFRACTION_CORRECTION 0.833 // for sunrise/sunset (deg)
 
 /* ── Calculation-method catalogue ────────────────────────────────────── */
 
@@ -231,20 +231,29 @@ typedef struct {
 } MethodParams;
 
 /**
- * The seven computed times, each as decimal hours in local time, so 17.75
- * means 17:45.
+ * The five prescribed prayer times, each as decimal hours in local time,
+ * so 17.75 means 17:45.
+ *
+ * Sunrise and dhuha were removed in v0.2.0. Sunrise is not a prayer, it
+ * is the end of the fajr window, and dhuha is a voluntary prayer carried
+ * only by Indonesian timetables. Both are still computed internally,
+ * because maghrib is sunset and every high-latitude substitution measures
+ * the night between sunset and sunrise, but neither is part of the
+ * contract.
  *
  * A field is normally in [0, 24), but it is not guaranteed to be, and callers
  * that do anything other than print it must handle two cases.
  *
  * Non-finite. Above roughly 66 degrees the Sun can fail to reach the altitude
  * an event is defined by, and the field is then NaN. Test with isfinite()
- * before use. dhuha reaches this first, from about 62.5 degrees.
+ * before use. This depends on the method: those carrying a high_lat_ref,
+ * currently MWL and Moonsighting, resolve every field at every latitude,
+ * and the other 20 do not.
  *
  * Outside [0, 24). The high-latitude fallback for fajr and isha can return a
  * value below 0 or at or above 24, meaning the event falls on the previous or
  * the next calendar day. This happens on 107 days a year at Reykjavik and 23
- * at Anchorage, and Anchorage never produces a NaN at all, so the two cases
+ * at Anchorage under MWL, neither of which produces a NaN, so the two cases
  * are independent.
  *
  * The double is the only thing that carries the day offset. Reducing a field
@@ -259,8 +268,6 @@ typedef struct {
  */
 struct PrayerTimes {
   double fajr;
-  double sunrise;
-  double dhuha; // Dhuha prayer time (Kemenag: ~28-30 min after sunrise)
   double dhuhr;
   double asr;
   double maghrib;
@@ -832,24 +839,16 @@ calculate_prayer_times(int year, int month, int day, double latitude,
   double ha_asr = hour_angle(latitude, decl, -asr_angle);
   double asr = noon + ha_asr;
 
-  /* Dhuha */
-  double ha_dhuha = hour_angle(latitude, decl, -DHUHA_ALTITUDE);
-  double dhuha = noon - ha_dhuha;
-
   /* Apply ihtiyat (precautionary) adjustments */
   double iht = (double)params->ihtiyat / 60.0;
   fajr += iht;
-  sunrise -= iht; /* sunrise ihtiyat is inverted */
   noon += iht;
   asr += iht;
   maghrib += iht;
   isha += iht;
-  /* Dhuha does not get ihtiyat */
 
   struct PrayerTimes times = {
       .fajr = fajr,
-      .sunrise = sunrise,
-      .dhuha = dhuha,
       .dhuhr = noon,
       .asr = asr,
       .maghrib = maghrib,

@@ -25,13 +25,11 @@ static struct tm make_time(int hour, int min) {
 }
 
 // Known prayer times for Jakarta, used across all tests.
-// Values in decimal hours: fajr=04:26, sunrise=05:46, dhuha=06:14,
+// Values in decimal hours: fajr=04:26,
 // dhuhr=12:04, asr=15:29, maghrib=18:17, isha=19:32
 static struct PrayerTimes jakarta_times(void) {
   return (struct PrayerTimes){
       .fajr = 4.0 + 26.0 / 60.0,     // 4.4333
-      .sunrise = 5.0 + 46.0 / 60.0,  // 5.7667
-      .dhuha = 6.0 + 14.0 / 60.0,    // 6.2333
       .dhuhr = 12.0 + 4.0 / 60.0,    // 12.0667
       .asr = 15.0 + 29.0 / 60.0,     // 15.4833
       .maghrib = 18.0 + 17.0 / 60.0, // 18.2833
@@ -92,8 +90,6 @@ static void test_next_all_disabled(void) {
   struct PrayerTimes times = jakarta_times();
 
   cfg.fajr.enabled = false;
-  cfg.sunrise.enabled = false;
-  cfg.dhuha.enabled = false;
   cfg.dhuhr.enabled = false;
   cfg.asr.enabled = false;
   cfg.maghrib.enabled = false;
@@ -131,8 +127,6 @@ static void test_prayer_is_enabled(void) {
   printf("  prayer_is_enabled...\n");
   Config cfg = test_config();
   check_bool("fajr enabled", prayer_is_enabled(&cfg, PRAYER_FAJR));
-  check_bool("sunrise disabled", !prayer_is_enabled(&cfg, PRAYER_SUNRISE));
-  check_bool("dhuha disabled", !prayer_is_enabled(&cfg, PRAYER_DHUHA));
   check_bool("dhuhr enabled", prayer_is_enabled(&cfg, PRAYER_DHUHR));
 }
 

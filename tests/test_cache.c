@@ -28,8 +28,6 @@ static void check_bool(const char *test, bool cond) {
 static struct PrayerTimes jakarta_times(void) {
   return (struct PrayerTimes){
       .fajr = 4.0 + 26.0 / 60.0,
-      .sunrise = 5.0 + 46.0 / 60.0,
-      .dhuha = 6.0 + 14.0 / 60.0,
       .dhuhr = 12.0 + 4.0 / 60.0,
       .asr = 15.0 + 29.0 / 60.0,
       .maghrib = 18.0 + 17.0 / 60.0,
@@ -53,7 +51,7 @@ static void test_build_triggers_includes_future(void) {
   PrayerCache cache = {0};
 
   // At 12:00 (minute 720), should include dhuhr (12:04=724) and later,
-  // plus their reminders. Should NOT include fajr, sunrise, dhuha.
+  // plus their reminders. Should NOT include fajr.
   int count = cache_build_triggers(&cache, &cfg, &times, 720, "2026-03-22");
 
   check_bool("has triggers", count > 0);

@@ -267,20 +267,6 @@ prayers, reminder offsets, notification settings, or location data.
       "reminders": [30, 15, 5],
       "offset": 0
     },
-    "sunrise": {
-      "enabled": false,
-      "adhan": "",
-      "adhan_enabled": false,
-      "reminders": [],
-      "offset": 0
-    },
-    "dhuha": {
-      "enabled": false,
-      "adhan": "",
-      "adhan_enabled": false,
-      "reminders": [],
-      "offset": 0
-    },
     "dhuhr": {
       "enabled": true,
       "adhan": "",

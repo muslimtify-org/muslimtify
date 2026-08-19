@@ -22,7 +22,7 @@ Islamic jurisprudence.
 
 | Parameter | Value |
 |-----------|-------|
-| Ihtiyat | +2 min all prayers, -2 min sunrise |
+| Ihtiyat | +2 min all prayers |
 | Rounding | Ceiling (always rounds up) |
 | Stated accuracy | +/- 1 min against official schedules |
 | Transition | Moving to 16-second ihtiyat (VSOP/ELP/DE/INPOP ephemeris) |
