@@ -306,10 +306,9 @@ int cache_build_triggers(PrayerCache *cache, const Config *cfg, const struct Pra
     cache_log_trunc("date");
   }
 
-  PrayerType prayer_types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                               PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+  PrayerType prayer_types[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
 
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     PrayerType type = prayer_types[i];
     if (!prayer_is_enabled(cfg, type))
       continue;

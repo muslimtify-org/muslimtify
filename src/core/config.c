@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #define JSON_IMPLEMENTATION
 #include "config.h"
+#include "prayer_checker.h"
 #include "json.h"
 #include "location.h"
 #include "platform.h"
@@ -70,20 +71,6 @@ Config config_default(void) {
     log_truncation("fajr.adhan");
   }
   cfg.fajr.adhan_enabled = true;
-
-  cfg.sunrise.enabled = false; // DISABLED BY DEFAULT
-  cfg.sunrise.reminder_count = 0;
-  if (!copy_string(cfg.sunrise.adhan, sizeof(cfg.sunrise.adhan), DEFAULT_ADHAN)) {
-    log_truncation("sunrise.adhan");
-  }
-  cfg.sunrise.adhan_enabled = false;
-
-  cfg.dhuha.enabled = false; // DISABLED BY DEFAULT
-  cfg.dhuha.reminder_count = 0;
-  if (!copy_string(cfg.dhuha.adhan, sizeof(cfg.dhuha.adhan), DEFAULT_ADHAN)) {
-    log_truncation("dhuha.adhan");
-  }
-  cfg.dhuha.adhan_enabled = false;
 
   cfg.dhuhr.enabled = true;
   memcpy(cfg.dhuhr.reminders, default_reminders, sizeof(default_reminders));
@@ -172,11 +159,10 @@ static int write_json_file(FILE *f, const Config *cfg) {
 
   fprintf(f, "  \"prayers\": {\n");
 
-  const char *prayer_names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                                   &cfg->asr,  &cfg->maghrib, &cfg->isha};
+  const char *prayer_names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+  const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
 
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     fprintf(f, "    \"%s\": {\n", prayer_names[i]);
     fprintf(f, "      \"enabled\": %s,\n", prayers[i]->enabled ? "true" : "false");
     fprintf(f, "      \"adhan\": ");
@@ -453,14 +439,6 @@ int config_load(Config *cfg) {
     if (fajr)
       parse_prayer_config(ctx, fajr, &cfg->fajr);
 
-    char *sunrise = get_value(ctx, "sunrise", prayers);
-    if (sunrise)
-      parse_prayer_config(ctx, sunrise, &cfg->sunrise);
-
-    char *dhuha = get_value(ctx, "dhuha", prayers);
-    if (dhuha)
-      parse_prayer_config(ctx, dhuha, &cfg->dhuha);
-
     char *dhuhr = get_value(ctx, "dhuhr", prayers);
     if (dhuhr)
       parse_prayer_config(ctx, dhuhr, &cfg->dhuhr);
@@ -571,10 +549,9 @@ bool config_validate(const Config *cfg) {
     return false;
 
   // Validate reminders
-  const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                                   &cfg->asr,  &cfg->maghrib, &cfg->isha};
+  const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
 
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     if (prayers[i]->reminder_count < 0 || prayers[i]->reminder_count > MAX_REMINDERS) {
       return false;
     }
@@ -605,10 +582,6 @@ PrayerConfig *config_get_prayer(Config *cfg, const char *prayer_name) {
 
   if (strcmp(name_lower, "fajr") == 0)
     return &cfg->fajr;
-  if (strcmp(name_lower, "sunrise") == 0)
-    return &cfg->sunrise;
-  if (strcmp(name_lower, "dhuha") == 0)
-    return &cfg->dhuha;
   if (strcmp(name_lower, "dhuhr") == 0 || strcmp(name_lower, "dhur") == 0)
     return &cfg->dhuhr;
   if (strcmp(name_lower, "asr") == 0)
@@ -756,10 +729,9 @@ struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int mont
   // Apply each prayer's offset to the RESULT and re-normalize into [0, 24) so a
   // prayer pushed across midnight stays a valid minute-of-day for the cache,
   // the checker, and format_time_hm (they otherwise diverge on an unwrapped time).
-  double *fields[] = {&t.fajr, &t.sunrise, &t.dhuha, &t.dhuhr, &t.asr, &t.maghrib, &t.isha};
-  const PrayerConfig *pcfgs[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                                 &cfg->asr,  &cfg->maghrib, &cfg->isha};
-  for (int i = 0; i < 7; i++) {
+  double *fields[] = {&t.fajr, &t.dhuhr, &t.asr, &t.maghrib, &t.isha};
+  const PrayerConfig *pcfgs[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     *fields[i] = offset_wrap_day(*fields[i] + pcfgs[i]->offset / 60.0);
   }
 

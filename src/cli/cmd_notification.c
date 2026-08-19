@@ -95,9 +95,8 @@ static int notif_enable(int argc, char **argv, bool enable) {
   }
 
   if (argc == 0 || strcmp(argv[0], "all") == 0) {
-    PrayerConfig *all[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
-                           &cfg.asr,  &cfg.maghrib, &cfg.isha};
-    for (int i = 0; i < 7; i++)
+    PrayerConfig *all[] = {&cfg.fajr, &cfg.dhuhr, &cfg.asr, &cfg.maghrib, &cfg.isha};
+    for (int i = 0; i < PRAYER_COUNT; i++)
       all[i]->enabled = enable;
     if (config_save(&cfg) != 0) {
       fprintf(stderr, "Error: Failed to save config\n");
@@ -199,9 +198,8 @@ static int notif_reminder(int argc, char **argv) {
       fprintf(stderr, "Error: Failed to load config\n");
       return 1;
     }
-    PrayerConfig *pc[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
-                          &cfg.asr,  &cfg.maghrib, &cfg.isha};
-    for (int i = 0; i < 7; i++) {
+    PrayerConfig *pc[] = {&cfg.fajr, &cfg.dhuhr, &cfg.asr, &cfg.maghrib, &cfg.isha};
+    for (int i = 0; i < PRAYER_COUNT; i++) {
       pc[i]->reminder_count = count;
       for (int j = 0; j < count; j++)
         pc[i]->reminders[j] = mins[j];
@@ -306,9 +304,8 @@ static int notif_adhan(int argc, char **argv) {
     char adhan[MAX_ADHAN_PATH];
     if (resolve_adhan_path(argv[1], adhan, sizeof(adhan)) != 0)
       return 1;
-    PrayerConfig *pc[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
-                          &cfg.asr,  &cfg.maghrib, &cfg.isha};
-    for (int i = 0; i < 7; i++)
+    PrayerConfig *pc[] = {&cfg.fajr, &cfg.dhuhr, &cfg.asr, &cfg.maghrib, &cfg.isha};
+    for (int i = 0; i < PRAYER_COUNT; i++)
       copy_string(pc[i]->adhan, sizeof(pc[i]->adhan), adhan);
     if (config_save(&cfg) != 0) {
       fprintf(stderr, "Error: Failed to save config\n");
