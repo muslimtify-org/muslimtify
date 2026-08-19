@@ -72,6 +72,41 @@ static void test_build_triggers_includes_future(void) {
   check_bool("includes dhuhr exact", found_dhuhr);
 }
 
+// A prayer the Sun never reaches has no time, and must not be scheduled. The
+// C library reports it as non-finite, and (int)ceil(NAN * 60.0) is undefined
+// behaviour: on x86-64 it yields -2147483648. That value fails the exact-time
+// bounds check by luck, but the reminder path then computes
+// prayer_min - reminders[j], a signed overflow that wraps to a large positive
+// minute and passes the check, producing triggers at minute 2147483618 that
+// carry a non-finite prayer_time.
+//
+// Mutation record: removing the isfinite guard from cache_build_triggers and
+// running the suite produces, pasted verbatim from the terminal:
+//   FAIL [no trigger carries a non-finite time]
+//   FAIL [no trigger carries a non-finite time]
+//   FAIL [no trigger carries a non-finite time]
+// one for each reminder configured on the affected prayer.
+static void test_build_triggers_skips_non_finite(void) {
+  printf("build_triggers skips a prayer that does not occur...\n");
+  Config cfg = test_config();
+  struct PrayerTimes times = jakarta_times();
+  PrayerCache cache = {0};
+
+  int with_asr = cache_build_triggers(&cache, &cfg, &times, 0, "2026-02-16");
+
+  struct PrayerTimes polar = times;
+  polar.asr = NAN;
+  PrayerCache polar_cache = {0};
+  int without_asr = cache_build_triggers(&polar_cache, &cfg, &polar, 0, "2026-02-16");
+
+  check_bool("non-finite asr drops its triggers", without_asr < with_asr);
+  for (int i = 0; i < polar_cache.trigger_count; i++) {
+    check_bool("no trigger at a wild minute", polar_cache.triggers[i].minute >= 0);
+    check_bool("no trigger carries a non-finite time",
+               isfinite(polar_cache.triggers[i].prayer_time));
+  }
+}
+
 static void test_build_triggers_sorted(void) {
   printf("  build triggers sorted ascending...\n");
   Config cfg = test_config();
@@ -525,6 +560,7 @@ int main(void) {
 
   test_build_triggers_includes_future();
   test_build_triggers_sorted();
+  test_build_triggers_skips_non_finite();
   test_build_triggers_skips_disabled();
   test_build_triggers_includes_reminders();
   test_remove_trigger();

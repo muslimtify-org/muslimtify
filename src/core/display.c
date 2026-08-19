@@ -6,6 +6,7 @@
 #include "prayer_checker.h"
 #include "util.h"
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -397,11 +398,18 @@ static bool next_prayer_info(const struct PrayerTimes *times, const Config *cfg,
     mt_civil_from_days(serial, &ny, &nm, &nd);
     struct PrayerTimes tomorrow = prayer_times_for_config(cfg, ny, nm, nd);
     next_time = prayer_get_time(&tomorrow, next);
-    minutes_until = (int)((next_time + 24.0 - now_dec) * 60.0);
+    minutes_until = isfinite(next_time) ? (int)((next_time + 24.0 - now_dec) * 60.0) : 0;
   }
 
   format_time_hm(next_time, time_str, time_cap);
-  snprintf(remaining, rem_cap, "%02d:%02d", minutes_until / 60, minutes_until % 60);
+  // format_time_hm renders a non-finite time as "--:--" already. The countdown
+  // has to be guarded separately, because (int) of a non-finite double is
+  // undefined behaviour and would print a field like "-35791394:-8".
+  if (isfinite(next_time)) {
+    snprintf(remaining, rem_cap, "%02d:%02d", minutes_until / 60, minutes_until % 60);
+  } else {
+    snprintf(remaining, rem_cap, "--:--");
+  }
   return true;
 }
 
