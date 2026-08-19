@@ -1,10 +1,10 @@
 #define _POSIX_C_SOURCE 200809L
 #define JSON_IMPLEMENTATION
 #include "config.h"
-#include "prayer_checker.h"
 #include "json.h"
 #include "location.h"
 #include "platform.h"
+#include "prayer_checker.h"
 #include "string_util.h"
 #include <ctype.h>
 #include <errno.h>
