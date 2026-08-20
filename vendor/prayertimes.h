@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-/* prayertimes.h -- v0.2.0 -- single-header C/C++ prayer-time calculation library
+/* prayertimes.h -- v0.2.1 -- single-header C/C++ prayer-time calculation library
  *
  * The version above is this file's own. It is not the libmuslim release
  * tag, which is a calendar date such as 2026.08.18 and covers a snapshot
@@ -77,15 +77,17 @@
  * during this work and made results worse, so it was deliberately left
  * alone.
  *
- * The published-table suite tests/test_prayertimes.c reports 745 checks.
+ * The published-table suite tests/test_prayertimes.c reports 756 checks.
  * 702 of those compare a computed time against a published table at a
  * uniform tolerance of 2 minutes, with a residual distribution of 369
  * checks at 0 minutes, 326 at 1 and 7 at 2, which sums to the 702. The
- * remaining 43 carry no residual because they are not time comparisons:
+ * remaining 54 carry no residual because they are not time comparisons:
  * 7 assert the test's own clock_diff_minutes helper, 8 assert the
- * civil-day converters, 15 assert the time formatters and 13 pin the
+ * civil-day converters, 15 assert the time formatters, 19 pin the
  * struct PrayerTimes field contract, including the per-method
- * high-latitude behaviour.
+ * high-latitude behaviour, the caller override for it and the asr
+ * domain guard, and 5 assert that the five prescribed times stay in
+ * order at five locations across every method.
  *
  * These counts fell from 940 and 895 when sunrise and dhuha were removed
  * from the struct in v0.2.0. The fixtures behind them were the sunrise
@@ -226,7 +228,20 @@ typedef struct {
      is the case inside the polar circle. Every rule above is measured in
      units of the night, so without a reference there is nothing to measure
      and the affected times are NaN. Set to 0 when the authority publishes no
-     rule for this case, which is most of them. */
+     rule for this case, which is most of them.
+
+     A caller who needs a time anyway can copy the table entry and set this
+     themselves. That is a deliberate escape hatch: the library will not put
+     a ruling in an authority's mouth, but it will not stand between a user
+     and a prayer time either. The choice is then the caller's, and it is
+     recorded in their code rather than misattributed to the authority.
+
+         MethodParams mine = *method_params_get(CALC_RUSSIA);
+         mine.high_lat_method = HIGHLAT_ANGLE_BASED;
+         mine.high_lat_ref = 45.0;
+
+     At Murmansk, 68.97 N, that takes 2025 from 102 days with a non-finite
+     prescribed time to none. tests/test_prayertimes.c pins both numbers. */
   double high_lat_ref;
 } MethodParams;
 
@@ -718,7 +733,7 @@ static double reference_event(double ref_lat, double decl, double noon,
    sunset or sunrise at all, every such rule is undefined, because the unit it
    measures in does not exist, and only a reference latitude can answer. */
 static double high_lat_substitute(const MethodParams *params, double decl,
-                                  double noon, double sunrise, double sunset,
+                                  double noon, double sunrise, double evening,
                                   double night, double angle, double sign) {
   if (isnan(night)) {
     if (params->high_lat_ref <= 0.0)
@@ -728,12 +743,12 @@ static double high_lat_substitute(const MethodParams *params, double decl,
 
   switch (params->high_lat_method) {
   case HIGHLAT_MIDDLE_OF_NIGHT:
-    return sign < 0 ? sunrise - night / 2.0 : sunset + night / 2.0;
+    return sign < 0 ? sunrise - night / 2.0 : evening + night / 2.0;
   case HIGHLAT_ONE_SEVENTH:
-    return sign < 0 ? sunrise - night / 7.0 : sunset + night / 7.0;
+    return sign < 0 ? sunrise - night / 7.0 : evening + night / 7.0;
   case HIGHLAT_ANGLE_BASED:
     return sign < 0 ? sunrise - (angle / 60.0) * night
-                    : sunset + (angle / 60.0) * night;
+                    : evening + (angle / 60.0) * night;
   case HIGHLAT_NEAREST_LATITUDE: {
     /* Proportional measurement: the event takes the same share of this night
        that it takes of the night at the reference latitude. */
@@ -749,7 +764,7 @@ static double high_lat_substitute(const MethodParams *params, double decl,
       return NAN;
     double frac = sign < 0 ? ((r_event + 24.0) - r_set) / r_night
                            : (r_event - r_set) / r_night;
-    return fmod(sunset + frac * night + 48.0, 24.0);
+    return fmod(evening + frac * night + 48.0, 24.0);
   }
   case HIGHLAT_NONE:
   default:
@@ -776,12 +791,24 @@ calculate_prayer_times(int year, int month, int day, double latitude,
      sunrise or sunset to refine and no night to measure a substitution
      against. A method whose authority names a reference latitude borrows that
      latitude's day. One that does not leaves these NaN, which is the honest
-     answer when nothing has been published for the case. */
+     answer when nothing has been published for the case.
+
+     When the reference latitude is used it has to solve the whole day, not
+     just sunrise and sunset. Borrowing those two while leaving fajr, isha and
+     asr at the true latitude puts two different places in one schedule, and
+     the result is not ordered: at 78.22 N the Sun can fail to reach -0.833
+     while still crossing -17, so maghrib comes from 45 N and isha from 78 N
+     and isha lands first. solve_lat carries that choice to every hour angle
+     below. */
+  int polar = 0;
+  double solve_lat = latitude;
   if (isnan(ha_sunrise)) {
     if (params->high_lat_ref > 0.0) {
-      sunrise = reference_event(params->high_lat_ref, decl, noon,
+      polar = 1;
+      solve_lat = params->high_lat_ref;
+      sunrise = reference_event(solve_lat, decl, noon,
                                 REFRACTION_CORRECTION, -1.0);
-      sunset = reference_event(params->high_lat_ref, decl, noon,
+      sunset = reference_event(solve_lat, decl, noon,
                                REFRACTION_CORRECTION, 1.0);
     }
   } else {
@@ -797,12 +824,14 @@ calculate_prayer_times(int year, int month, int day, double latitude,
   /* Fajr */
   bool fajr_failed = false;
   double ha_fajr =
-      hour_angle_safe(latitude, decl, params->fajr_angle, &fajr_failed);
+      hour_angle_safe(solve_lat, decl, params->fajr_angle, &fajr_failed);
   double fajr = noon - ha_fajr;
   if (fajr_failed) {
     fajr = high_lat_substitute(params, decl, noon, sunrise, sunset, night,
                                params->fajr_angle, -1.0);
-  } else {
+  } else if (!polar) {
+    /* refine_event re-solves at the true location, which would undo the
+       transplant, so a borrowed day is left unrefined. */
     fajr = refine_event(jd, latitude, longitude, timezone, params->fajr_angle,
                         -1.0, fajr);
   }
@@ -818,12 +847,12 @@ calculate_prayer_times(int year, int month, int day, double latitude,
   if (params->isha_angle > 0.0) {
     bool isha_failed = false;
     double ha_isha =
-        hour_angle_safe(latitude, decl, params->isha_angle, &isha_failed);
+        hour_angle_safe(solve_lat, decl, params->isha_angle, &isha_failed);
     isha = noon + ha_isha;
     if (isha_failed) {
-      isha = high_lat_substitute(params, decl, noon, sunrise, sunset, night,
+      isha = high_lat_substitute(params, decl, noon, sunrise, maghrib, night,
                                  params->isha_angle, 1.0);
-    } else {
+    } else if (!polar) {
       isha = refine_event(jd, latitude, longitude, timezone, params->isha_angle,
                           +1.0, isha);
     }
@@ -832,12 +861,31 @@ calculate_prayer_times(int year, int month, int day, double latitude,
     isha = maghrib + (double)params->isha_interval / 60.0;
   }
 
-  /* Asr */
-  double asr_angle = atan(1.0 / ((double)params->asr_shadow +
-                                 tan(fabs(latitude - decl) * DEG_TO_RAD))) *
-                     RAD_TO_DEG;
-  double ha_asr = hour_angle(latitude, decl, -asr_angle);
-  double asr = noon + ha_asr;
+  /* Asr. Solved at solve_lat, and not only for consistency: asr is defined by
+     the length of a shadow, so it needs the Sun above the horizon.
+
+     The Sun's greatest altitude on a day is 90 - fabs(lat - decl), so a
+     separation of 90 degrees or more means it never rises and no shadow of
+     any ratio is cast. The formula does not say so. Its tangent turns
+     negative past 90 and it returns a negative shadow altitude, which
+     hour_angle then solves into a plausible looking time. At 78.22 N on
+     2026-01-01 that altitude is -13.922 degrees against a peak Sun altitude
+     of -11.235, and the result was reported as 14:47.
+
+     That is the one field that used to survive an isfinite() check on a day
+     where fajr, maghrib and isha were all correctly unavailable, so a caller
+     filtering per field would show it. A wrong time is worse than no time.
+     Where a reference latitude is in use solve_lat is that latitude, its
+     separation is always under 90, and a real shadow exists. */
+  double asr;
+  if (fabs(solve_lat - decl) >= 90.0) {
+    asr = NAN;
+  } else {
+    double asr_angle = atan(1.0 / ((double)params->asr_shadow +
+                                   tan(fabs(solve_lat - decl) * DEG_TO_RAD))) *
+                       RAD_TO_DEG;
+    asr = noon + hour_angle(solve_lat, decl, -asr_angle);
+  }
 
   /* Apply ihtiyat (precautionary) adjustments */
   double iht = (double)params->ihtiyat / 60.0;

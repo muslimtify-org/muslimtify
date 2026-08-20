@@ -314,6 +314,14 @@ int cache_build_triggers(PrayerCache *cache, const Config *cfg, const struct Pra
       continue;
 
     double pt = prayer_get_time(times, type);
+    // A prayer that does not occur has no time to schedule. Above roughly 66
+    // degrees the C library reports a non-finite value for an event the Sun
+    // never reaches, and converting that to int is undefined behaviour: on
+    // x86-64 (int)ceil(NAN * 60.0) is -2147483648, which happens to fail the
+    // bounds check below rather than firing a notification at a wild minute.
+    // Relying on that is not a guard, so this is.
+    if (!isfinite(pt))
+      continue;
     int prayer_min = (int)ceil(pt * 60.0);
     const char *name = prayer_get_name(type);
     const PrayerConfig *pcfg = prayer_get_config(cfg, type);
