@@ -121,14 +121,14 @@ jobs:
           body: |
             Prebuilt binaries for ${{ github.ref_name }}.
 
-            **Linux** (dynamically linked — install `libnotify` and `libcurl`
-            from your distro first):
-            - **x86_64** — `muslimtify-*-linux-x86_64.tar.gz`
-            - **aarch64** — `muslimtify-*-linux-aarch64.tar.gz`
+            **Linux** (dynamically linked: install `libnotify` and
+            `libcurl` from your distro first):
+            - **x86_64**: `muslimtify-*-linux-x86_64.tar.gz`
+            - **aarch64**: `muslimtify-*-linux-aarch64.tar.gz`
 
-            **Windows** — run the installer for your architecture:
-            - **x64** — `muslimtify-*-setup-x64.exe`
-            - **arm64** — `muslimtify-*-setup-arm64.exe`
+            **Windows**, run the installer for your architecture:
+            - **x64**: `muslimtify-*-setup-x64.exe`
+            - **arm64**: `muslimtify-*-setup-arm64.exe`
 
             Verify downloads with `sha256sum -c SHA256SUMS`.
 
