@@ -1,4 +1,3 @@
-#define PRAYERTIMES_IMPLEMENTATION
 #ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -7,6 +6,7 @@
 #include "prayer_checker.h"
 #include "util.h"
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -100,9 +100,8 @@ void display_prayer_times_table(const struct PrayerTimes *times, const Config *c
   // Copy the caller's date to avoid clobbering it when platform_localtime() is called below
   struct tm date_copy = *date;
 
-  const char *prayer_names[] = {"Fajr", "Sunrise", "Dhuha", "Dhuhr", "Asr", "Maghrib", "Isha"};
-  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+  const char *prayer_names[] = {"Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"};
+  PrayerType types[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
 
   // Find the next upcoming prayer for today
   int next_idx = -1;
@@ -115,7 +114,7 @@ void display_prayer_times_table(const struct PrayerTimes *times, const Config *c
         date_copy.tm_mday == now_tm->tm_mday) {
       int dummy;
       PrayerType next = prayer_get_next(cfg, now_tm, (struct PrayerTimes *)times, &dummy);
-      for (int i = 0; i < 7; i++) {
+      for (int i = 0; i < PRAYER_COUNT; i++) {
         if (types[i] == next) {
           next_idx = i;
           break;
@@ -131,7 +130,7 @@ void display_prayer_times_table(const struct PrayerTimes *times, const Config *c
          C(COL_RESET), BOX_V, C(COL_BOLD), "Reminders", C(COL_RESET), BOX_V);
   print_horizontal_line('m');
 
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     double prayer_time = prayer_get_time(times, types[i]);
     char time_str[16];
     format_time_hm(prayer_time, time_str, sizeof(time_str));
@@ -185,9 +184,8 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
                                 struct tm *date) {
   struct tm date_copy = *date;
 
-  const char *prayer_names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+  const char *prayer_names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+  PrayerType types[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
 
   // Find the next upcoming prayer for today
   int next_idx = -1;
@@ -200,7 +198,7 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
         date_copy.tm_mday == now_tm->tm_mday) {
       int dummy;
       PrayerType next = prayer_get_next(cfg, now_tm, (struct PrayerTimes *)times, &dummy);
-      for (int i = 0; i < 7; i++) {
+      for (int i = 0; i < PRAYER_COUNT; i++) {
         if (types[i] == next) {
           next_idx = i;
           break;
@@ -209,7 +207,7 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
     }
   }
 
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
     if (!pcfg->enabled)
       continue;
@@ -233,11 +231,10 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
 // range JSON so their per-prayer shape stays in sync.
 static void print_prayer_entries(const struct PrayerTimes *times, const Config *cfg,
                                  const char *pad) {
-  const char *prayer_names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+  const char *prayer_names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+  PrayerType types[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
 
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     double prayer_time = prayer_get_time(times, types[i]);
     char time_str[16];
     format_time_hm(prayer_time, time_str, sizeof(time_str));
@@ -291,9 +288,8 @@ void display_prayer_times_range_json(const Config *cfg, int sy, int sm, int sd, 
 
 void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd, int ey, int em,
                                       int ed) {
-  const char *prayer_names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+  const char *prayer_names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+  PrayerType types[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
 
   long start = mt_days_from_civil(sy, sm, sd);
   long end = mt_days_from_civil(ey, em, ed);
@@ -304,7 +300,7 @@ void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd,
     struct PrayerTimes t = prayer_times_for_config(cfg, y, m, d);
 
     printf("date=%04d-%02d-%02d\n", y, m, d);
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < PRAYER_COUNT; i++) {
       const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
       if (!pcfg->enabled)
         continue;
@@ -327,21 +323,20 @@ static void range_hrule(int inner) {
 
 void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd, int ey, int em,
                                       int ed) {
-  const char *prayer_names[] = {"Fajr", "Sunrise", "Dhuha", "Dhuhr", "Asr", "Maghrib", "Isha"};
-  PrayerType types[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                        PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+  const char *prayer_names[] = {"Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"};
+  PrayerType types[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
 
   // Columns are the enabled prayers only; disabled ones are omitted entirely.
-  int col[7];
+  int col[PRAYER_COUNT];
   int ncol = 0;
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     if (prayer_get_config(cfg, types[i])->enabled)
       col[ncol++] = i;
   }
 
   // Column widths: Date is "YYYY-MM-DD" (10); each prayer is max(name, "HH:MM"=5).
   const int date_w = 10;
-  int col_w[7];
+  int col_w[PRAYER_COUNT];
   for (int c = 0; c < ncol; c++) {
     int len = (int)strlen(prayer_names[col[c]]);
     col_w[c] = len > 5 ? len : 5;
@@ -403,11 +398,18 @@ static bool next_prayer_info(const struct PrayerTimes *times, const Config *cfg,
     mt_civil_from_days(serial, &ny, &nm, &nd);
     struct PrayerTimes tomorrow = prayer_times_for_config(cfg, ny, nm, nd);
     next_time = prayer_get_time(&tomorrow, next);
-    minutes_until = (int)((next_time + 24.0 - now_dec) * 60.0);
+    minutes_until = isfinite(next_time) ? (int)((next_time + 24.0 - now_dec) * 60.0) : 0;
   }
 
   format_time_hm(next_time, time_str, time_cap);
-  snprintf(remaining, rem_cap, "%02d:%02d", minutes_until / 60, minutes_until % 60);
+  // format_time_hm renders a non-finite time as "--:--" already. The countdown
+  // has to be guarded separately, because (int) of a non-finite double is
+  // undefined behaviour and would print a field like "-35791394:-8".
+  if (isfinite(next_time)) {
+    snprintf(remaining, rem_cap, "%02d:%02d", minutes_until / 60, minutes_until % 60);
+  } else {
+    snprintf(remaining, rem_cap, "--:--");
+  }
   return true;
 }
 
@@ -575,14 +577,13 @@ void display_location_json(const Config *cfg) {
 }
 
 void display_notification_settings(const Config *cfg) {
-  const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                              &cfg->asr,  &cfg->maghrib, &cfg->isha};
+  const char *names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
 
   printf("+---------+---------+---------------+-------+\n");
   printf("| %-7s | %-7s | %-13s | %-5s |\n", "Prayer", "Enabled", "Reminders", "Adhan");
   printf("+---------+---------+---------------+-------+\n");
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     char reminders[64];
     config_format_reminders(pc[i], reminders, sizeof(reminders));
     printf("| %-7s | %-7s | %-13s | %-5s |\n", names[i], pc[i]->enabled ? "yes" : "no", reminders,
@@ -594,13 +595,12 @@ void display_notification_settings(const Config *cfg) {
 }
 
 void display_notification_settings_headless(const Config *cfg) {
-  const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                              &cfg->asr,  &cfg->maghrib, &cfg->isha};
+  const char *names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
 
   printf("sound=%s\n", cfg->notification_sound);
   printf("urgency=%s\n", cfg->notification_urgency);
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     char reminders[64];
     config_format_reminders(pc[i], reminders, sizeof(reminders));
     printf("%s.enabled=%s\n", names[i], pc[i]->enabled ? "true" : "false");
@@ -610,9 +610,8 @@ void display_notification_settings_headless(const Config *cfg) {
 }
 
 void display_notification_settings_json(const Config *cfg) {
-  const char *names[] = {"fajr", "sunrise", "dhuha", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->sunrise, &cfg->dhuha, &cfg->dhuhr,
-                              &cfg->asr,  &cfg->maghrib, &cfg->isha};
+  const char *names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
 
   printf("{\n");
   printf("  \"sound\": ");
@@ -622,7 +621,7 @@ void display_notification_settings_json(const Config *cfg) {
   json_str(cfg->notification_urgency);
   printf(",\n");
   printf("  \"prayers\": {\n");
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     printf("    \"%s\": { \"enabled\": %s, \"reminders\": [", names[i],
            pc[i]->enabled ? "true" : "false");
     for (int j = 0; j < pc[i]->reminder_count; j++) {

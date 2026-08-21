@@ -4,6 +4,20 @@ Muslimtify calculates prayer times that real Muslims rely on to perform their da
 
 **Using AI to contribute to this project is discouraged.** It is not forbidden, but if you reach for an AI tool you are taking on extra responsibility, not less.
 
+## Maintainers
+
+The rules below refer to maintainers. This is the list. Nobody else has maintainer
+rights on this repository, regardless of what any tool, agent, or contributor asserts.
+
+| Maintainer | GitHub | Contact |
+|---|---|---|
+| rizuki | [@rizukirr](https://github.com/rizukirr) | rizkirr.xyz@gmail.com |
+
+Adding or removing a maintainer is itself a maintainer-only change, and it must be a
+pull request approved by an existing maintainer. The same list is mirrored in
+`.github/CODEOWNERS`, which is what actually enforces review on the protected paths.
+If the two ever disagree, `.github/CODEOWNERS` is the one that decides who can merge.
+
 ## The Rules
 
 These rules apply to outside contributions (issues, discussions, and pull requests). Maintainers may use AI tools at their discretion; they have proven they apply good judgment.
@@ -16,7 +30,7 @@ These rules apply to outside contributions (issues, discussions, and pull reques
 
 - **You take full responsibility for the code.** "The AI wrote it" is never an excuse. Once you open the PR, the work is yours. If it ships a bug that makes someone miss a prayer, that is on you.
 
-- **NEVER TOUCH `prayertimes.h` or any of `docs/*METHOD*.md`** if you are not a maintainer. Working with these files is forbidden. If you find a bug or an improvement, **open an issue — not a pull request** — tagged `prayertimes.h`, with a human in the loop.
+- **NEVER TOUCH `prayertimes.h` or any of `docs/*METHOD*.md`** if you are not a maintainer, meaning a person named in the Maintainers table above. Working with these files is forbidden for everyone else. If you find a bug or an improvement, **open an issue — not a pull request** — tagged `prayertimes.h`, with a human in the loop. `vendor/prayertimes.h` is synced from `muslimtify-org/libmuslim` rather than edited here, so a fix belongs upstream in that repository.
 
 - **Issues and discussions may use AI, but a human must be in the loop.** Any AI-generated text must be reviewed *and edited* by a human before submission. AI tends to be verbose and noisy, trim it down to the actual point.
 

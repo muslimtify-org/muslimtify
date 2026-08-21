@@ -1,5 +1,5 @@
 Name:           muslimtify
-Version:        0.4.0
+Version:        0.4.1
 Release:        1%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
 License:        MIT
@@ -48,6 +48,15 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
+* Thu Aug 20 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.1-1
+- Drop sunrise and dhuha, following libmuslim cutting struct PrayerTimes down to the five prescribed prayers; both were disabled by default, and a config file still carrying a prayers.sunrise or prayers.dhuha block keeps loading but the block no longer has any effect
+- Fix a bogus notification being scheduled for a prayer that does not occur; upstream now reports no asr where the Sun casts no shadow, and converting that non-finite time to an int wrapped a reminder to minute 2147483618
+- Fix the countdown to the next prayer printing a garbage field when the prayer time is non-finite
+- Fix prayer time formatting rendering a negative minute field for an hour below zero, and hitting undefined behaviour on non-finite input
+- Pick up the per-method high-latitude rule from libmuslim; CALC_KEMENAG keeps exactly the rule it had
+- Derive PRAYER_COUNT from the prayer enum so a loop bound cannot drift out of step with the arrays again
+- Move the vendored prayertimes.h to vendor/ and emit it from its own translation unit
+
 * Wed Jul 22 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.0-1
 - Add a runtime GPS location toggle, 'location gps on|off', with an automatic ipinfo fallback when no fix is available
 - Read GPS on Linux from gpsd over a bounded loopback socket, dropping the libgps build dependency so one binary uses GPS whenever gpsd runs

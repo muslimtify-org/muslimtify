@@ -11,14 +11,17 @@ extern "C" {
 
 typedef enum {
   PRAYER_FAJR,
-  PRAYER_SUNRISE,
-  PRAYER_DHUHA,
   PRAYER_DHUHR,
   PRAYER_ASR,
   PRAYER_MAGHRIB,
   PRAYER_ISHA,
   PRAYER_NONE
 } PrayerType;
+
+/* The number of real prayers, which is every value before PRAYER_NONE. Loops
+   over the parallel prayer arrays must use this rather than a literal, so that
+   adding or removing a prayer cannot leave a stale bound behind. */
+#define PRAYER_COUNT ((int)PRAYER_NONE)
 
 /**
  * Get human-readable prayer name

@@ -7,10 +7,6 @@ const char *prayer_get_name(PrayerType type) {
   switch (type) {
   case PRAYER_FAJR:
     return "Fajr";
-  case PRAYER_SUNRISE:
-    return "Sunrise";
-  case PRAYER_DHUHA:
-    return "Dhuha";
   case PRAYER_DHUHR:
     return "Dhuhr";
   case PRAYER_ASR:
@@ -28,10 +24,6 @@ double prayer_get_time(const struct PrayerTimes *times, PrayerType type) {
   switch (type) {
   case PRAYER_FAJR:
     return times->fajr;
-  case PRAYER_SUNRISE:
-    return times->sunrise;
-  case PRAYER_DHUHA:
-    return times->dhuha;
   case PRAYER_DHUHR:
     return times->dhuhr;
   case PRAYER_ASR:
@@ -49,10 +41,6 @@ const PrayerConfig *prayer_get_config(const Config *cfg, PrayerType type) {
   switch (type) {
   case PRAYER_FAJR:
     return &cfg->fajr;
-  case PRAYER_SUNRISE:
-    return &cfg->sunrise;
-  case PRAYER_DHUHA:
-    return &cfg->dhuha;
   case PRAYER_DHUHR:
     return &cfg->dhuhr;
   case PRAYER_ASR:
@@ -75,13 +63,12 @@ PrayerType prayer_get_next(const Config *cfg, struct tm *now, struct PrayerTimes
                            int *minutes_until) {
   double current_time = now->tm_hour + now->tm_min / 60.0;
 
-  PrayerType prayers[] = {PRAYER_FAJR, PRAYER_SUNRISE, PRAYER_DHUHA, PRAYER_DHUHR,
-                          PRAYER_ASR,  PRAYER_MAGHRIB, PRAYER_ISHA};
+  PrayerType prayers[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
 
   PrayerType next_prayer = PRAYER_NONE;
   double min_diff = 24.0 * 60.0; // Max minutes in a day
 
-  for (int i = 0; i < 7; i++) {
+  for (int i = 0; i < PRAYER_COUNT; i++) {
     PrayerType type = prayers[i];
 
     // Skip if disabled

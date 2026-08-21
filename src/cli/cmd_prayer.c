@@ -1,5 +1,6 @@
 #include "cache.h"
 #include "cli_internal.h"
+#include "prayer_checker.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -52,9 +53,8 @@ int handle_offset(int argc, char **argv) {
 
   bool is_all = strcmp(prayer_name, "all") == 0;
   if (is_all) {
-    PrayerConfig *prayers[] = {&cfg.fajr, &cfg.sunrise, &cfg.dhuha, &cfg.dhuhr,
-                               &cfg.asr,  &cfg.maghrib, &cfg.isha};
-    for (int i = 0; i < 7; i++) {
+    PrayerConfig *prayers[] = {&cfg.fajr, &cfg.dhuhr, &cfg.asr, &cfg.maghrib, &cfg.isha};
+    for (int i = 0; i < PRAYER_COUNT; i++) {
       prayers[i]->offset = (int)value;
     }
   } else {

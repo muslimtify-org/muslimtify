@@ -476,13 +476,15 @@ static void test_show(void) {
   check_ret("show headless ret", 0);
   check_contains("show headless fajr", "fajr=");
   check_contains("show headless isha", "isha=");
-  check_bool("show headless no sunrise", strstr(captured, "sunrise=") == NULL);
   check_bool("show headless not capitalized", strstr(captured, "Fajr=") == NULL);
 
-  // enable all -> disabled prayers now appear
+  // a disabled prayer drops out, and enable all brings it back
+  run(4, (char *[]){"m", "notification", "disable", "asr", NULL});
+  run(3, (char *[]){"m", "show", "--headless", NULL});
+  check_bool("show headless no asr", strstr(captured, "asr=") == NULL);
   run(4, (char *[]){"m", "notification", "enable", "all", NULL});
   run(3, (char *[]){"m", "show", "--headless", NULL});
-  check_contains("show headless sunrise", "sunrise=");
+  check_contains("show headless asr", "asr=");
 
   // mutual exclusion
   run(4, (char *[]){"m", "show", "--json", "--headless", NULL});
@@ -625,7 +627,6 @@ static void test_show_range(void) {
   check_contains("range headless date1", "date=2022-01-01");
   check_contains("range headless date2", "date=2022-01-02");
   check_contains("range headless fajr", "fajr=");
-  check_bool("range headless no sunrise", strstr(captured, "sunrise=") == NULL);
 
   // table range (default): pivoted table, one row per day, columns = enabled prayers only
   run(5, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-02", NULL});
@@ -636,9 +637,11 @@ static void test_show_range(void) {
   check_contains("range table col isha", "Isha");
   check_contains("range table d1", "2022-01-01");
   check_contains("range table d2", "2022-01-02");
-  // disabled prayers (sunrise, dhuha by default) are hidden as columns
-  check_bool("range table hides sunrise", strstr(captured, "Sunrise") == NULL);
-  check_bool("range table hides dhuha", strstr(captured, "Dhuha") == NULL);
+  // a disabled prayer is hidden as a column
+  run(4, (char *[]){"m", "notification", "disable", "asr", NULL});
+  run(5, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-02", NULL});
+  check_bool("range table hides asr", strstr(captured, "Asr") == NULL);
+  run(4, (char *[]){"m", "notification", "enable", "all", NULL});
   // unbroken full-width border (no internal + column separators)
   check_bool("range table no cross border", strstr(captured, "-+-") == NULL);
 
@@ -917,7 +920,7 @@ static void test_offset(void) {
     check_bool("offset fajr reset", cfg.fajr.offset == 0);
   }
 
-  // offset all 3 -> applies to all 7 including disabled sunrise
+  // offset all 3 -> applies to all five
   reset_config();
   run(4, (char *[]){"m", "offset", "all", "3", NULL});
   check_ret("offset all ret", 0);
@@ -925,7 +928,6 @@ static void test_offset(void) {
     Config cfg;
     config_load(&cfg);
     check_bool("offset all fajr", cfg.fajr.offset == 3);
-    check_bool("offset all sunrise", cfg.sunrise.offset == 3);
     check_bool("offset all isha", cfg.isha.offset == 3);
   }
 

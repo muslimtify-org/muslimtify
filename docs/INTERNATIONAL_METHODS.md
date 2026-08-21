@@ -6,10 +6,16 @@ Research notes for adding multi-method support to muslimtify.
 
 ## 1. Current State
 
-Muslimtify currently supports **only the Kemenag method** with hardcoded constants in
-`include/prayertimes.h`. The config fields `calculation.method` and `calculation.madhab` are
-stored but **not used** in any calculation logic. The astronomical algorithm is the USNO
-simplified model (~1 arcminute accuracy), which is sufficient for prayer times.
+> Updated 2026-08-18. This section described the state when these notes were written. Multi
+> method support has since landed: 22 methods are implemented and `calculation.method` is
+> resolved through `method_from_string()` at `src/core/config.c:711`. The rest of this
+> document is the research that informed that work.
+
+At the time of writing, Muslimtify supported **only the Kemenag method** with hardcoded
+constants in `vendor/prayertimes.h`. The config fields `calculation.method` and
+`calculation.madhab` were stored but **not used** in any calculation logic. The astronomical
+algorithm is the USNO simplified model (~1 arcminute accuracy), which is sufficient for
+prayer times.
 
 ---
 
@@ -77,9 +83,9 @@ used.
 
 ### Kemenag (Indonesia)
 
-- Ihtiyat: +2 minutes on all prayer times (Sunrise gets -2 minutes).
+- Ihtiyat: +2 minutes on all prayer times.
 - Ceiling rounding: always rounds up to the next minute.
-- Includes Dhuha calculation at sun altitude $+4.3^\circ$.
+- Kemenag also publishes Terbit and Dhuha, the latter at sun altitude $+4.3^\circ$. Neither is returned by `struct PrayerTimes` as of prayertimes.h v0.2.0, and muslimtify no longer displays or notifies for either.
 - Transitioning to 16-second ihtiyat based on modern ephemeris data (VSOP, ELP, DE, INPOP).
 
 ### Morocco
@@ -342,7 +348,7 @@ The current `calculate_prayer_times()` must be extended to handle three branchin
 ### Ihtiyat Handling
 
 Currently hardcoded to 2 minutes for all times. Must become per-method:
-- Kemenag: +2 min all times, -2 min sunrise
+- Kemenag: +2 min all times
 - Dubai: +3 min on sunrise/dhuhr/asr/maghrib
 - Moonsighting: +5 min on dhuhr
 - Most others: 0 min (no ihtiyat)

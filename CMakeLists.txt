@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22...3.31)
-project(muslimtify VERSION 0.4.0 LANGUAGES C)
+project(muslimtify VERSION 0.4.1 LANGUAGES C)
 
 # -- Default build type --------------------------------------------------------
 
@@ -152,6 +152,7 @@ add_library(muslimtify_core OBJECT
     # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
     # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
     $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
+    src/core/prayertimes.c
     src/core/display.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>

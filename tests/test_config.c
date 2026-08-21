@@ -225,8 +225,6 @@ static void test_default(void) {
   check_bool("default lon=0", cfg.longitude == 0.0);
   check_bool("default use_gps off", cfg.use_gps == false);
   check_bool("default fajr enabled", cfg.fajr.enabled);
-  check_bool("default sunrise disabled", !cfg.sunrise.enabled);
-  check_bool("default dhuha disabled", !cfg.dhuha.enabled);
   check_bool("default dhuhr enabled", cfg.dhuhr.enabled);
   check_bool("default asr enabled", cfg.asr.enabled);
   check_bool("default maghrib enabled", cfg.maghrib.enabled);
@@ -234,23 +232,18 @@ static void test_default(void) {
   check_bool("default fajr reminders",
              cfg.fajr.reminder_count == 3 && cfg.fajr.reminders[0] == 30 &&
                  cfg.fajr.reminders[1] == 15 && cfg.fajr.reminders[2] == 5);
-  check_bool("default sunrise no reminders", cfg.sunrise.reminder_count == 0);
   check_bool("default method kemenag", strcmp(cfg.calculation_method, "kemenag") == 0);
   check_bool("default madhab shafi", strcmp(cfg.madhab, "shafi") == 0);
   check_bool("default sound adhan", strcmp(cfg.notification_sound, "adhan") == 0);
   check_bool("default sound_alarm", strcmp(cfg.notification_sound_alarm, "alarm") == 0);
   check_bool("default sound_reminder", strcmp(cfg.notification_sound_reminder, "reminder") == 0);
   check_bool("default adhan", strcmp(cfg.fajr.adhan, "") == 0);
-  check_bool("default adhan", strcmp(cfg.sunrise.adhan, "") == 0);
-  check_bool("default adhan", strcmp(cfg.dhuha.adhan, "") == 0);
   check_bool("default adhan", strcmp(cfg.dhuhr.adhan, "") == 0);
   check_bool("default adhan", strcmp(cfg.asr.adhan, "") == 0);
   check_bool("default adhan", strcmp(cfg.maghrib.adhan, "") == 0);
   check_bool("default adhan", strcmp(cfg.isha.adhan, "") == 0);
 
   check_bool("default adhan enabled", cfg.fajr.adhan_enabled == true);
-  check_bool("default adhan enabled", cfg.sunrise.adhan_enabled == false);
-  check_bool("default adhan enabled", cfg.dhuha.adhan_enabled == false);
   check_bool("default adhan enabled", cfg.dhuhr.adhan_enabled == true);
   check_bool("default adhan enabled", cfg.asr.adhan_enabled == true);
   check_bool("default adhan enabled", cfg.maghrib.adhan_enabled == true);
@@ -289,7 +282,6 @@ static void test_round_trip(void) {
   out.maghrib.offset = 5;
   strncpy(out.fajr.adhan, "/tmp/custom-fajr.mp3", sizeof(out.fajr.adhan) - 1);
   out.fajr.adhan_enabled = false; // default is true; flip it to prove it round-trips
-  out.sunrise.enabled = true;
   out.notification_timeout = 8000;
   strncpy(out.notification_sound, "off", sizeof(out.notification_sound) - 1);
   strncpy(out.notification_sound_alarm, "default", sizeof(out.notification_sound_alarm) - 1);
@@ -319,7 +311,6 @@ static void test_round_trip(void) {
   check_bool("rt fajr offset", in.fajr.offset == -7);
   check_bool("rt maghrib offset", in.maghrib.offset == 5);
   check_bool("rt unset offset 0", in.dhuhr.offset == 0);
-  check_bool("rt sunrise enabled", in.sunrise.enabled == true);
   check_bool("rt timeout", in.notification_timeout == 8000);
   check_bool("rt sound", strcmp(in.notification_sound, "off") == 0);
   check_bool("rt sound_alarm", strcmp(in.notification_sound_alarm, "default") == 0);

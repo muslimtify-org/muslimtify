@@ -47,8 +47,6 @@ typedef struct {
 
   // Prayers
   PrayerConfig fajr;
-  PrayerConfig sunrise;
-  PrayerConfig dhuha;
   PrayerConfig dhuhr;
   PrayerConfig asr;
   PrayerConfig maghrib;
@@ -83,7 +81,7 @@ int config_load(Config *cfg);
 int config_save(const Config *cfg);
 
 /**
- * Get default config with sunrise/dhuha disabled
+ * Get default config
  */
 Config config_default(void);
 
