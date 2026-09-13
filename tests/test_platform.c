@@ -378,6 +378,7 @@ static void test_file_sync(void) {
 }
 #endif
 
+#ifndef _WIN32
 // The config and cache temp files must be 0600 from the moment they exist, and
 // the directory mkdir_p creates last must be 0700. umask is cleared so that a
 // plain fopen or mkdir 0755 would show up as a wider mode.
@@ -440,6 +441,7 @@ static void test_private_modes(void) {
   rmdir(root);
   umask(old_umask);
 }
+#endif
 
 int main(void) {
   printf("=== platform boundary tests ===\n\n");
