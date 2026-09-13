@@ -14,6 +14,7 @@
 
 #ifndef _WIN32
 #include "platform/linux/gpsd_client.h"
+#include <unistd.h>
 #endif
 
 // Defined (non-static) in src/core/location.c; declared here test-only to keep
@@ -605,6 +606,73 @@ static void test_location_fetch_core(void) {
   expect(gps_status_message(GPS_NO_FIX) == NULL, "no-fix stays silent, unlike no-permission");
 }
 
+#ifndef _WIN32
+// Declared non-static in src/core/location.c as a test seam.
+extern int ensure_location_with(Config *cfg, int (*prepare)(Config *));
+
+// Simulates a successful first-run detection without touching the network.
+static int stub_prepare_ok(Config *cfg) {
+  cfg->latitude = -6.2;
+  cfg->longitude = 106.8;
+  return 0;
+}
+
+// Read a whole temp file into buf (capacity cap, NUL-terminated).
+static void slurp(FILE *f, char *buf, size_t cap) {
+  rewind(f);
+  size_t n = fread(buf, 1, cap - 1, f);
+  buf[n] = '\0';
+}
+
+static void test_ensure_location_streams(void) {
+  printf("\n-- ensure_location output streams --\n");
+
+  FILE *out = tmpfile();
+  FILE *err = tmpfile();
+  if (!out || !err) {
+    expect(false, "tmpfile for stream capture");
+    return;
+  }
+
+  Config cfg = config_default();
+  cfg.auto_detect = true;
+  cfg.latitude = 0.0;
+  cfg.longitude = 0.0;
+  cfg.city[0] = '\0';
+
+  fflush(stdout);
+  fflush(stderr);
+  int saved_out = dup(STDOUT_FILENO);
+  int saved_err = dup(STDERR_FILENO);
+  dup2(fileno(out), STDOUT_FILENO);
+  dup2(fileno(err), STDERR_FILENO);
+
+  int rc = ensure_location_with(&cfg, stub_prepare_ok);
+
+  fflush(stdout);
+  fflush(stderr);
+  dup2(saved_out, STDOUT_FILENO);
+  dup2(saved_err, STDERR_FILENO);
+  close(saved_out);
+  close(saved_err);
+
+  char out_buf[512];
+  char err_buf[512];
+  slurp(out, out_buf, sizeof(out_buf));
+  slurp(err, err_buf, sizeof(err_buf));
+  fclose(out);
+  fclose(err);
+
+  // A first run under `show --json` must keep stdout empty so the JSON that
+  // follows is the only thing on it.
+  expect(rc == 0, "first-run detection succeeds");
+  expect(out_buf[0] == '\0', "no status text on stdout");
+  expect(strstr(err_buf, "Detecting location...") != NULL, "progress line on stderr");
+  expect(strstr(err_buf, "Location detected: -6.2000, 106.8000") != NULL,
+         "detected line on stderr");
+}
+#endif /* _WIN32 */
+
 static void test_location_is_stale(void) {
   printf("\n-- location_is_stale --\n");
   const int64_t NOW = 1000000; // fixed reference time
@@ -779,6 +847,7 @@ int main(void) {
   test_location_fetch_core();
 #ifndef _WIN32
   test_gpsd_scan_line();
+  test_ensure_location_streams();
 #endif
   test_location_is_stale();
 

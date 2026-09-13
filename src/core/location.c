@@ -326,44 +326,54 @@ int location_prepare(Config *cfg) {
   return 0;
 }
 
-int ensure_location(Config *cfg) {
+/* Core of ensure_location with the prepare step injected, so tests can check
+ * where the status lines go without a network round-trip. Non-static (declared
+ * test-only) to keep the seam out of the public header.
+ *
+ * Status lines go to stderr: `show --json` and `--headless` reach this path,
+ * and their stdout must stay machine-readable on a first run. */
+int ensure_location_with(Config *cfg, int (*prepare)(Config *)) {
   if (!cfg)
     return -1;
 
   if (cfg->auto_detect && (fabs(cfg->latitude) < 1e-6 && fabs(cfg->longitude) < 1e-6)) {
-    printf("Detecting location...\n");
-    if (location_prepare(cfg) != 0) {
+    fprintf(stderr, "Detecting location...\n");
+    if (prepare(cfg) != 0) {
       fprintf(stderr, "Error: Failed to detect location\n");
       return -1;
     }
 
-    printf("✓ Location detected: ");
+    fprintf(stderr, "✓ Location detected: ");
     if (cfg->city[0] != '\0') {
-      printf("%s, %s\n", cfg->city, cfg->country);
+      fprintf(stderr, "%s, %s\n", cfg->city, cfg->country);
     } else {
-      printf("%.4f, %.4f\n", cfg->latitude, cfg->longitude);
+      fprintf(stderr, "%.4f, %.4f\n", cfg->latitude, cfg->longitude);
     }
 
     return 0;
   }
 
-  int prepare_result = location_prepare(cfg);
+  int prepare_result = prepare(cfg);
   if (prepare_result < 0) {
     fprintf(stderr, "Error: Failed to detect location\n");
     return -1;
   }
 
   if (prepare_result == 1) {
-    printf("Detecting location...\n");
-    printf("✓ Location detected: ");
+    fprintf(stderr, "Detecting location...\n");
+    fprintf(stderr, "✓ Location detected: ");
     if (cfg->city[0] != '\0') {
-      printf("%s, %s\n", cfg->city, cfg->country);
+      fprintf(stderr, "%s, %s\n", cfg->city, cfg->country);
     } else {
-      printf("%.4f, %.4f\n", cfg->latitude, cfg->longitude);
+      fprintf(stderr, "%.4f, %.4f\n", cfg->latitude, cfg->longitude);
     }
   }
 
   return 0;
+}
+
+int ensure_location(Config *cfg) {
+  return ensure_location_with(cfg, location_prepare);
 }
 
 /* Core of location_refresh with the fetch step injected, so tests can drive the
