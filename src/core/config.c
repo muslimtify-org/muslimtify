@@ -177,7 +177,7 @@ static int write_json_file(FILE *f, const Config *cfg) {
     }
     fprintf(f, "],\n");
     fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
-    fprintf(f, "    }%s\n", i < 6 ? "," : "");
+    fprintf(f, "    }%s\n", i + 1 < PRAYER_COUNT ? "," : "");
   }
 
   fprintf(f, "  },\n");
@@ -374,6 +374,19 @@ int config_load(Config *cfg) {
   char *content = read_file(path);
   if (!content) {
     fprintf(stderr, "Error: Cannot read config file\n");
+    return -1;
+  }
+
+  // Sections are looked up one by one and each one that fails keeps its
+  // defaults, so a cut-off file or a stray quote used to load "successfully" as
+  // mostly defaults, and the next save wrote those over the user's settings. A
+  // file that is not exactly one complete object is refused instead, which
+  // makes every caller stop before it can save.
+  const char *doc = skip_whitespace(content);
+  const char *doc_end = (*doc == '{') ? find_matching_bracket(doc, '{') : NULL;
+  if (!doc_end || *skip_whitespace(doc_end + 1) != '\0') {
+    fprintf(stderr, "Error: %s is not valid JSON, fix or delete it\n", path);
+    free(content);
     return -1;
   }
 

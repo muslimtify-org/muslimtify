@@ -85,7 +85,8 @@ void display_next_prayer_headless(const struct PrayerTimes *times, const Config 
                                   struct tm *current_time);
 
 /**
- * Display next prayer as a JSON object {prayer, time, remaining}
+ * Display next prayer as a JSON object {date, prayer, time, remaining}, where date
+ * is the calendar day the prayer actually falls on
  */
 void display_next_prayer_json(const struct PrayerTimes *times, const Config *cfg,
                               struct tm *current_time);
