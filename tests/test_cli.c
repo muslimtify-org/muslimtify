@@ -1640,6 +1640,25 @@ static void test_reminder_args(void) {
   check_bool("reminder args all clear cfg", fajr_reminder_count() == 0);
 }
 
+// `location set --auto` fetches over the network, so the config is corrupted
+// first: a rejection that came after config_load would fail on the config
+// instead, and never reach the fetch.
+static void test_location_auto_args(void) {
+  printf("  location set --auto validation...\n");
+
+  corrupt_config();
+  run(5, (char *[]){"m", "location", "set", "--auto", "--refresh-interval=3600", NULL});
+  check_ret("location auto refresh ret", 1);
+  check_contains("location auto refresh msg", "cannot be combined");
+
+  corrupt_config();
+  run(5, (char *[]){"m", "location", "set", "--auto", "--country=ZZZ", NULL});
+  check_ret("location auto bad country ret", 1);
+  check_contains("location auto bad country msg", "Invalid country code 'ZZZ'");
+
+  reset_config();
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1649,6 +1668,7 @@ int main(void) {
   test_version_and_help();
   test_output_helpers();
   test_location();
+  test_location_auto_args();
   test_removed_top_level();
   test_show();
   test_show_date_bounds();
