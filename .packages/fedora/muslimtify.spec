@@ -48,8 +48,8 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
-* Sun Sep 10 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.2-1
-- Add new --day-offset subcommand to show the current day offset
+* Sun Sep 13 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.2-1
+- Add show --day-offset to show the prayer times for a date relative to today
 - Fix config, location, CLI argument and DST countdown bugs
 
 * Thu Aug 20 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.1-1

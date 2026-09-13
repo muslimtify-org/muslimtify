@@ -1,9 +1,9 @@
 muslimtify (0.4.2-1) unstable; urgency=medium
 
-  * Add new --day-offset subcommand to show the current day offset
+  * Add show --day-offset to show the prayer times for a date relative to today
   * Fix config, location, CLI argument and DST countdown bugs
 
- -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Thu, 13 Sep 2026 18:51:02 +0700
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Sun, 13 Sep 2026 18:51:02 +0700
 
 muslimtify (0.4.1-1) unstable; urgency=medium
 
