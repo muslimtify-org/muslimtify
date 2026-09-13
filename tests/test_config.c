@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "config.h"
 #include "platform.h"
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -629,6 +630,45 @@ static void test_malformed_config_refused(void) {
   config_save(&cfg);
 }
 
+// jq and other pretty printers put each array element on its own line. Those
+// reminders used to load as empty, and the next save made the loss permanent.
+static void test_multiline_reminders(void) {
+  printf("  multi-line reminders...\n");
+  write_config_text("{\n  \"prayers\": {\n    \"fajr\": {\n      \"reminders\": [\n        45,\n"
+                    "\t\t25,\r\n        10\n      ]\n    },\n"
+                    "    \"asr\": { \"reminders\": [ 40 ,20 ] }\n  }\n}\n");
+  Config in;
+  check_bool("multi-line: load ok", config_load(&in) == 0);
+  check_bool("multi-line: fajr count", in.fajr.reminder_count == 3);
+  check_bool("multi-line: fajr values", in.fajr.reminders[0] == 45 && in.fajr.reminders[1] == 25 &&
+                                            in.fajr.reminders[2] == 10);
+  check_bool("multi-line: asr values",
+             in.asr.reminder_count == 2 && in.asr.reminders[0] == 40 && in.asr.reminders[1] == 20);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
+// 4294967306 is 2^32 + 10. Narrowing it to int before the range check turned
+// it into 10, which then passed the check.
+static void test_huge_values_not_wrapped(void) {
+  printf("  huge values not wrapped...\n");
+  write_config_text("{\n  \"prayers\": {\n"
+                    "    \"fajr\": { \"offset\": 4294967306, \"reminders\": [4294967306, 7] },\n"
+                    "    \"isha\": { \"offset\": -4294967306 }\n  },\n"
+                    "  \"notification\": { \"timeout\": 4294967306 }\n}\n");
+  Config in;
+  check_bool("huge: load ok", config_load(&in) == 0);
+  check_bool("huge: offset clamped to max", in.fajr.offset == PRAYER_OFFSET_MAX);
+  check_bool("huge: negative offset clamped to min", in.isha.offset == PRAYER_OFFSET_MIN);
+  check_bool("huge: reminder dropped, not wrapped",
+             in.fajr.reminder_count == 1 && in.fajr.reminders[0] == 7);
+  check_bool("huge: timeout not wrapped", in.notification_timeout == INT_MAX);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
 int main(void) {
   setup();
 
@@ -651,6 +691,8 @@ int main(void) {
   test_prayer_times_uses_dst_offset();
   test_config_escapes_adhan();
   test_malformed_config_refused();
+  test_multiline_reminders();
+  test_huge_values_not_wrapped();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

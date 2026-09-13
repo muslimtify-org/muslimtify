@@ -8,6 +8,7 @@
 #include "string_util.h"
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -326,35 +327,37 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
     char *p = reminders_str + 1; // Skip '['
     pcfg->reminder_count = 0;
 
-    while (*p && *p != ']' && pcfg->reminder_count < MAX_REMINDERS) {
-      // Skip whitespace and commas
-      while (*p && (*p == ' ' || *p == ','))
+    while (pcfg->reminder_count < MAX_REMINDERS) {
+      // Skip whitespace and commas. Pretty printers split the array across
+      // lines, so newlines and tabs must be skipped too.
+      while (*p && (isspace((unsigned char)*p) || *p == ','))
         p++;
 
-      if (*p >= '0' && *p <= '9') {
-        int value = (int)strtol(p, NULL, 10);
-        if (value > 0) {
-          pcfg->reminders[pcfg->reminder_count++] = value;
-        }
-        // Skip to next number
-        while (*p && *p >= '0' && *p <= '9')
-          p++;
-      } else {
+      if (*p < '0' || *p > '9')
         break;
+
+      char *end = NULL;
+      long value = strtol(p, &end, 10);
+      // Range check the long before narrowing it, so a huge value cannot wrap
+      // into range. Same bounds as config_parse_reminders.
+      if (value > 0 && value <= 1440) {
+        pcfg->reminders[pcfg->reminder_count++] = (int)value;
       }
+      p = end;
     }
   }
 
   char *offset_str = get_value(ctx, "offset", prayer_obj);
   if (offset_str) {
-    int off = (int)strtol(offset_str, NULL, 10);
+    long off = strtol(offset_str, NULL, 10);
     // Clamp on load: config_validate is not run on the load path, so a
     // hand-edited/corrupted value must be bounded here to keep the invariant.
+    // Clamp the long before the cast so a huge value cannot wrap into range.
     if (off < PRAYER_OFFSET_MIN)
       off = PRAYER_OFFSET_MIN;
     else if (off > PRAYER_OFFSET_MAX)
       off = PRAYER_OFFSET_MAX;
-    pcfg->offset = off;
+    pcfg->offset = (int)off;
   }
 }
 
@@ -479,8 +482,15 @@ int config_load(Config *cfg) {
     char *sound_reminder_str = get_value(ctx, "sound_reminder", notification);
     char *icon_str = get_value(ctx, "icon", notification);
 
-    if (timeout_str)
-      cfg->notification_timeout = (int)strtol(timeout_str, NULL, 10);
+    if (timeout_str) {
+      // Saturate to the int range instead of letting the cast wrap.
+      long timeout = strtol(timeout_str, NULL, 10);
+      if (timeout > INT_MAX)
+        timeout = INT_MAX;
+      else if (timeout < INT_MIN)
+        timeout = INT_MIN;
+      cfg->notification_timeout = (int)timeout;
+    }
     if (urgency_str) {
       if (!copy_string(cfg->notification_urgency, sizeof(cfg->notification_urgency), urgency_str)) {
         log_truncation("notification_urgency");
