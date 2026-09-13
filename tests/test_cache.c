@@ -1034,6 +1034,34 @@ static void test_consumed_trigger_not_resurrected_by_later_cycle(void) {
   check_bool("trigger fired exactly once, not once per later cycle", fire_count == 1);
 }
 
+// cache_is_valid_for_today keeps a same-day cache with no triggers left, which
+// only helps if cache_save and cache_load round trip an empty trigger list.
+// Otherwise the load fails and run_check_cycle rebuilds every minute anyway.
+static void test_empty_cache_roundtrip(void) {
+  printf("  empty cache roundtrip...\n");
+  char tmpdir[] = "/tmp/mt_cache_empty_XXXXXX";
+  if (!mkdtemp(tmpdir)) {
+    fprintf(stderr, "FAIL [mkdtemp]\n");
+    failed++;
+    return;
+  }
+  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  cache_reset_path();
+
+  PrayerCache empty = {0};
+  strcpy(empty.date, "2026-04-08");
+  check_bool("empty cache saves", cache_save(&empty) == 0);
+
+  PrayerCache loaded;
+  memset(&loaded, 0xAB, sizeof(loaded));
+  check_bool("empty cache loads", cache_load(&loaded) == 0);
+  check_bool("empty cache keeps date", strcmp(loaded.date, "2026-04-08") == 0);
+  check_bool("empty cache has no triggers", loaded.trigger_count == 0);
+
+  cache_invalidate();
+  rmdir(tmpdir);
+}
+
 int main(void) {
   printf("Running cache tests...\n");
 
@@ -1057,6 +1085,8 @@ int main(void) {
   test_build_triggers_reaches_within_catchup_window();
   test_cache_is_valid_for_today();
   test_consumed_trigger_not_resurrected_by_later_cycle();
+
+  test_empty_cache_roundtrip();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   return failed > 0 ? 1 : 0;
