@@ -669,6 +669,38 @@ static void test_huge_values_not_wrapped(void) {
   config_save(&cfg);
 }
 
+// A \u escape must load as the character it names. It used to stay literal,
+// so the city showed as "S\u00e3o Paulo" and the next save doubled the
+// backslash. Control characters are written as \u00XX and must come back too.
+static void test_unicode_escape_round_trip(void) {
+  printf("  unicode escape round trip...\n");
+  write_config_text("{\n  \"location\": { \"city\": \"S\\u00e3o Paulo\" }\n}\n");
+  Config in;
+  check_bool("unicode: load ok", config_load(&in) == 0);
+  check_bool("unicode: city decoded", strcmp(in.city, "S\xC3\xA3o Paulo") == 0);
+  check_bool("unicode: resave ok", config_save(&in) == 0);
+
+  char saved[16384] = "";
+  FILE *f = fopen(config_get_path(), "r");
+  if (f) {
+    size_t n = fread(saved, 1, sizeof(saved) - 1, f);
+    saved[n] = '\0';
+    fclose(f);
+  }
+  check_bool("unicode: saved as UTF-8", strstr(saved, "\"S\xC3\xA3o Paulo\"") != NULL);
+  check_bool("unicode: no literal escape saved", strstr(saved, "u00e3") == NULL);
+
+  Config out = config_default();
+  strcpy(out.country, "a\x01z\x1f");
+  check_bool("control: save ok", config_save(&out) == 0);
+  Config back;
+  check_bool("control: load ok", config_load(&back) == 0);
+  check_bool("control: country round trips", strcmp(back.country, "a\x01z\x1f") == 0);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
 int main(void) {
   setup();
 
@@ -693,6 +725,7 @@ int main(void) {
   test_malformed_config_refused();
   test_multiline_reminders();
   test_huge_values_not_wrapped();
+  test_unicode_escape_round_trip();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
