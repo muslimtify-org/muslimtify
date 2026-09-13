@@ -366,6 +366,8 @@ static int location_gps_handler(int argc, char **argv) {
     print_location_gps_help();
     return 0;
   }
+  if (cli_reject_extra_args("location gps", argc - 1, argv + 1))
+    return 1;
 
   Config cfg;
   if (config_load(&cfg) != 0) {

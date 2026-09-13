@@ -1659,6 +1659,121 @@ static void test_location_auto_args(void) {
   reset_config();
 }
 
+// Commands used to ignore arguments past the ones they read and exit 0. Each
+// case checks the error and that the config was not changed. daemon and
+// notification test are left out on purpose: if their check ever regressed,
+// the test would reach systemctl, schtasks or a real notification.
+static void test_extra_args(void) {
+  printf("  extra arguments...\n");
+  reset_config();
+  Config before;
+  config_load(&before);
+
+  run(4, (char *[]){"m", "notification", "disable", "all", NULL});
+  run(5, (char *[]){"m", "notification", "enable", "fajr", "isha", NULL});
+  check_ret("extra notification enable ret", 1);
+  check_contains("extra notification enable msg",
+                 "unexpected argument 'isha' for 'notification enable'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra notification enable leaves fajr", !cfg.fajr.enabled);
+    check_bool("extra notification enable leaves isha", !cfg.isha.enabled);
+  }
+  run(5, (char *[]){"m", "notification", "enable", "all", "x", NULL});
+  check_ret("extra notification enable all ret", 1);
+  run(4, (char *[]){"m", "notification", "enable", "all", NULL});
+  check_ret("extra notification enable restore ret", 0);
+
+  run(4, (char *[]){"m", "notification", "enable", "--help", NULL});
+  check_ret("extra notification enable help ret", 0);
+  check_contains("extra notification enable help msg", "Usage: muslimtify notification enable");
+
+  run(5, (char *[]){"m", "offset", "fajr", "4", "extra", NULL});
+  check_ret("extra offset ret", 1);
+  check_contains("extra offset msg", "unexpected argument 'extra' for 'offset'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra offset unchanged", cfg.fajr.offset == before.fajr.offset);
+  }
+
+  run(4, (char *[]){"m", "method", "mwl", "extra", NULL});
+  check_ret("extra method ret", 1);
+  check_contains("extra method msg", "unexpected argument 'extra' for 'method'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra method unchanged",
+               strcmp(cfg.calculation_method, before.calculation_method) == 0);
+  }
+  run(4, (char *[]){"m", "method", "--list", "extra", NULL});
+  check_ret("extra method list ret", 1);
+
+  run(4, (char *[]){"m", "madzhab", "hanafi", "extra", NULL});
+  check_ret("extra madzhab ret", 1);
+  check_contains("extra madzhab msg", "unexpected argument 'extra' for 'madzhab'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra madzhab unchanged", strcmp(cfg.madhab, before.madhab) == 0);
+  }
+  run(4, (char *[]){"m", "madzhab", "--list", "extra", NULL});
+  check_ret("extra madzhab list ret", 1);
+
+  run(5, (char *[]){"m", "location", "gps", "off", "extra", NULL});
+  check_ret("extra location gps ret", 1);
+  check_contains("extra location gps msg", "unexpected argument 'extra' for 'location gps'");
+
+  run(5, (char *[]){"m", "notification", "--urgency", "low", "extra", NULL});
+  check_ret("extra urgency ret", 1);
+  check_contains("extra urgency msg", "unexpected argument 'extra' for 'notification --urgency'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra urgency unchanged",
+               strcmp(cfg.notification_urgency, before.notification_urgency) == 0);
+  }
+
+  run(5, (char *[]){"m", "notification", "--sound", "off", "extra", NULL});
+  check_ret("extra sound ret", 1);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra sound unchanged",
+               strcmp(cfg.notification_sound, before.notification_sound) == 0);
+  }
+
+  run(6, (char *[]){"m", "notification", "--adhan", "enable", "fajr", "x", NULL});
+  check_ret("extra adhan enable ret", 1);
+  check_contains("extra adhan enable msg", "unexpected argument 'x' for 'notification --adhan'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra adhan enable unchanged", cfg.fajr.adhan_enabled == before.fajr.adhan_enabled);
+  }
+
+  // The config file is a readable regular file, so only the extra argument is wrong.
+  char adhan_path[512];
+  snprintf(adhan_path, sizeof(adhan_path), "%s", config_get_path());
+  run(6, (char *[]){"m", "notification", "--adhan", "set", adhan_path, "x", NULL});
+  check_ret("extra adhan set ret", 1);
+
+  run(5, (char *[]){"m", "notification", "--adhan", "stop", "x", NULL});
+  check_ret("extra adhan stop ret", 1);
+  check_contains("extra adhan stop msg", "unexpected argument 'x' for 'notification --adhan stop'");
+
+  run(3, (char *[]){"m", "version", "extra", NULL});
+  check_ret("extra version ret", 1);
+  check_contains("extra version msg", "unexpected argument 'extra' for 'version'");
+
+  run(3, (char *[]){"m", "help", "extra", NULL});
+  check_ret("extra help ret", 1);
+  check_contains("extra help msg", "unexpected argument 'extra' for 'help'");
+
+  reset_config();
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1684,6 +1799,7 @@ int main(void) {
   test_reminder_args();
   test_daemon_errors();
   test_offset();
+  test_extra_args();
   test_location_set_timezone_validation();
   test_json_no_trailing_comma();
 

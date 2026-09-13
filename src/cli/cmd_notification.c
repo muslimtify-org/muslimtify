@@ -14,6 +14,15 @@
 #include <time.h>
 
 static int notification_test(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify notification test [--adhan]\n");
+    return 0;
+  }
+  // Checked before anything is loaded or sent.
+  int consumed = (argc > 0 && strcmp(argv[0], "--adhan") == 0) ? 1 : 0;
+  if (cli_reject_extra_args("notification test", argc - consumed, argv + consumed))
+    return 1;
+
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
@@ -87,6 +96,14 @@ static void print_notification_help(void) {
 
 // Set enabled on one prayer or all seven.
 static int notif_enable(int argc, char **argv, bool enable) {
+  const char *command = enable ? "notification enable" : "notification disable";
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify %s [prayer|all]\n", command);
+    return 0;
+  }
+  if (cli_reject_extra_args(command, argc - 1, argv + 1))
+    return 1;
+
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
@@ -139,6 +156,8 @@ static int notif_urgency(int argc, char **argv) {
     fprintf(stderr, "Error: urgency must be normal, critical, or low\n");
     return 1;
   }
+  if (cli_reject_extra_args("notification --urgency", argc - 1, argv + 1))
+    return 1;
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
@@ -293,7 +312,9 @@ static int notif_adhan(int argc, char **argv) {
     printf("Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
     return 0;
   }
-  if (argc == 1 && strcmp(argv[0], "stop") == 0) {
+  if (argc > 0 && strcmp(argv[0], "stop") == 0) {
+    if (cli_reject_extra_args("notification --adhan stop", argc - 1, argv + 1))
+      return 1;
     if (notify_adhan_stop() == 0)
       printf("Adhan playback stopped\n");
     else
@@ -305,6 +326,8 @@ static int notif_adhan(int argc, char **argv) {
             "Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
     return 1;
   }
+  if (cli_reject_extra_args("notification --adhan", argc - 2, argv + 2))
+    return 1;
 
   Config cfg;
   if (config_load(&cfg) != 0) {
@@ -361,6 +384,8 @@ static int notif_sound(int argc, char **argv) {
     fprintf(stderr, "Error: --sound expects adhan, default, or off\n");
     return 1;
   }
+  if (cli_reject_extra_args("notification --sound", argc - 1, argv + 1))
+    return 1;
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");

@@ -81,8 +81,12 @@ static const CommandEntry top_commands[] = {
 // --- version / help -----------------------
 
 int handle_version(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify version\n");
+    return 0;
+  }
+  if (cli_reject_extra_args("version", argc, argv))
+    return 1;
 
   printf("Muslimtify v%s\n", MUSLIMTIFY_VERSION);
   printf("Prayer Time Notification Daemon\n\n");
@@ -102,8 +106,8 @@ int handle_version(int argc, char **argv) {
 }
 
 int handle_help(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
+  if (!cli_wants_help(argc, argv) && cli_reject_extra_args("help", argc, argv))
+    return 1;
 
   cli_print_help();
   return 0;
