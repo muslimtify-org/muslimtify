@@ -673,6 +673,59 @@ static void test_ensure_location_streams(void) {
 }
 #endif /* _WIN32 */
 
+// Declared non-static in src/core/location.c as a test seam.
+extern int location_parse_ipinfo(Config *cfg, char *body);
+
+static void test_location_parse_ipinfo(void) {
+  printf("\n-- location_parse_ipinfo --\n");
+
+  // A well-formed reply is applied in full.
+  char good[] = "{\"ip\":\"1.2.3.4\",\"loc\":\"-6.2146,106.8451\","
+                "\"timezone\":\"Asia/Jakarta\",\"country\":\"ID\"}";
+  Config ok = config_default();
+  ok.updated_at = 0;
+  int rc_ok = location_parse_ipinfo(&ok, good);
+  expect(rc_ok == 0 && fabs(ok.latitude - (-6.2146)) < 1e-9 &&
+             fabs(ok.longitude - 106.8451) < 1e-9 && strcmp(ok.timezone, "Asia/Jakarta") == 0 &&
+             strcmp(ok.country, "ID") == 0 && ok.updated_at != 0,
+         "valid reply applied");
+
+  // Replies with no usable "loc" must fail and leave cfg untouched, even when
+  // other fields in the same reply look valid.
+  const char *bad[] = {
+      "{\"ip\":\"10.0.0.1\",\"bogon\":true}",
+      "{\"loc\":\"abc,def\",\"timezone\":\"Asia/Tokyo\",\"country\":\"JP\"}",
+      "{\"loc\":\"1.5abc,2.5\",\"timezone\":\"Asia/Tokyo\",\"country\":\"JP\"}",
+      "{\"loc\":\"1.5,2.5xyz\",\"country\":\"JP\"}",
+      "{\"loc\":\",2.5\",\"country\":\"JP\"}",
+      "{\"loc\":\"1.5,\",\"country\":\"JP\"}",
+      "{\"loc\":\"1.5\",\"country\":\"JP\"}",
+      "{\"loc\":\"1.5,2.5,3.5\",\"country\":\"JP\"}",
+      "{\"loc\":\"91,10\",\"country\":\"JP\"}",
+      "{\"loc\":\"10,-181\",\"country\":\"JP\"}",
+      "{\"loc\":\"nan,10\",\"country\":\"JP\"}",
+      "{\"loc\":\"10,inf\",\"country\":\"JP\"}",
+      "{\"loc\":\"\",\"country\":\"JP\"}",
+  };
+  for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+    char body[256];
+    snprintf(body, sizeof(body), "%s", bad[i]);
+    Config c = config_default();
+    c.latitude = 1.11;
+    c.longitude = 2.22;
+    c.updated_at = 42;
+    snprintf(c.timezone, sizeof(c.timezone), "%s", "Europe/London");
+    snprintf(c.country, sizeof(c.country), "%s", "GB");
+    int rc = location_parse_ipinfo(&c, body);
+    bool untouched = fabs(c.latitude - 1.11) < 1e-9 && fabs(c.longitude - 2.22) < 1e-9 &&
+                     c.updated_at == 42 && strcmp(c.timezone, "Europe/London") == 0 &&
+                     strcmp(c.country, "GB") == 0;
+    char label[320];
+    snprintf(label, sizeof(label), "rejected, cfg untouched: %s", bad[i]);
+    expect(rc == -1 && untouched, label);
+  }
+}
+
 static void test_location_is_stale(void) {
   printf("\n-- location_is_stale --\n");
   const int64_t NOW = 1000000; // fixed reference time
@@ -845,6 +898,7 @@ int main(void) {
   test_location_refresh();
   test_gps_status_message();
   test_location_fetch_core();
+  test_location_parse_ipinfo();
 #ifndef _WIN32
   test_gpsd_scan_line();
   test_ensure_location_streams();
