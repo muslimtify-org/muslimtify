@@ -1521,6 +1521,70 @@ static void test_json_no_trailing_comma(void) {
   check_bool("reykjavik notification json no trailing comma", !has_trailing_comma(captured));
 }
 
+// Write a config file that config_load refuses. A command that loads the config
+// before checking its arguments then fails with "Failed to load config" instead
+// of the argument error, and nothing can reach the network on the way.
+static void corrupt_config(void) {
+  FILE *f = fopen(config_get_path(), "w");
+  if (f) {
+    fputs("{not json", f);
+    fclose(f);
+  }
+}
+
+static void test_show_args(void) {
+  printf("  show argument validation...\n");
+  reset_config();
+
+  // Arguments after --day-offset and its value are still checked.
+  run(6, (char *[]){"m", "show", "--day-offset", "1", "junk", "--headless", NULL});
+  check_ret("show args junk after day offset ret", 1);
+  check_contains("show args junk after day offset msg", "unknown option 'junk'");
+
+  // --date takes at most two dates.
+  run(6, (char *[]){"m", "show", "--date", "2024-01-01", "2024-01-03", "2024-01-05", NULL});
+  check_ret("show args third date ret", 1);
+  check_contains("show args third date msg", "unknown option '2024-01-05'");
+
+  // Removed-flag hints still fire after --date.
+  run(5, (char *[]){"m", "show", "--date", "2024-01-01", "--no-header", NULL});
+  check_ret("show args no-header after date ret", 1);
+  check_contains("show args no-header after date msg", "use '--headless'");
+
+  // --day-offset takes exactly one value.
+  run(5, (char *[]){"m", "show", "--day-offset", "1", "2", NULL});
+  check_ret("show args two offsets ret", 1);
+  check_contains("show args two offsets msg", "unknown option '2'");
+
+  // Valid forms still pass, with output flags before or after the values.
+  run(6, (char *[]){"m", "show", "--headless", "--date", "2024-01-01", "2024-01-02", NULL});
+  check_ret("show args flag before range ret", 0);
+  check_contains("show args flag before range d2", "date=2024-01-02");
+  run(5, (char *[]){"m", "show", "--day-offset", "-1", "--json", NULL});
+  check_ret("show args negative offset json ret", 0);
+
+  // --next cannot be combined with --date, in either order.
+  run(5, (char *[]){"m", "show", "--date", "2024-01-01", "--next", NULL});
+  check_ret("show args date with next ret", 1);
+  check_contains("show args date with next msg", "--next cannot be combined with --date");
+  run(5, (char *[]){"m", "show", "--next", "--date", "2024-01-01", NULL});
+  check_ret("show args next with date ret", 1);
+
+  // Bad values are reported before the config is loaded, so a fresh install
+  // never detects its location just to print an argument error.
+  corrupt_config();
+  run(4, (char *[]){"m", "show", "--date", "bogus", NULL});
+  check_ret("show args bad date before config ret", 1);
+  check_contains("show args bad date before config msg", "Invalid date bogus");
+  run(4, (char *[]){"m", "show", "--day-offset", "abc", NULL});
+  check_ret("show args bad offset before config ret", 1);
+  check_contains("show args bad offset before config msg", "Invalid day offset abc");
+  run(5, (char *[]){"m", "show", "--date", "2024-01-02", "2024-01-01", NULL});
+  check_ret("show args reversed range before config ret", 1);
+  check_contains("show args reversed range before config msg", "end date is before start date");
+  reset_config();
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1537,6 +1601,7 @@ int main(void) {
   test_day_markers();
   test_next();
   test_day_offset();
+  test_show_args();
   test_next_after_isha();
   test_method();
   test_madzhab();
