@@ -12,17 +12,34 @@
 #include <string.h>
 #include <time.h>
 
-// Fire a missed trigger only if it came due within this many minutes of now.
-// Covers any realistic adhan length and short cycle overruns, while dropping
-// prayers missed by a long suspend/resume rather than replaying them.
-#define CATCHUP_MAX_MIN 15
-
-TriggerAction trigger_catchup_action(int trigger_minute, int current_minute) {
+TriggerAction trigger_catchup_action(int trigger_minute, int minutes_before, int current_minute) {
   if (trigger_minute > current_minute)
     return TRIGGER_KEEP;
-  if (current_minute - trigger_minute <= CATCHUP_MAX_MIN)
-    return TRIGGER_FIRE;
-  return TRIGGER_DROP;
+  if (current_minute - trigger_minute > CATCHUP_MAX_MIN)
+    return TRIGGER_DROP;
+
+  // A reminder (minutes_before > 0) is only worth firing late while its
+  // prayer, at trigger_minute + minutes_before, is still ahead of now. Its
+  // whole point is to arrive before the prayer, so once the prayer has
+  // passed the reminder would land beside the adhan it was meant to
+  // precede. This never loses a real catch-up: a reminder's lateness
+  // exceeds its own prayer's by exactly minutes_before, so whenever a late
+  // reminder is still inside the catch-up window, its prayer's trigger is
+  // inside it too, by a wider margin, and fires on its own.
+  if (minutes_before > 0 && trigger_minute + minutes_before <= current_minute)
+    return TRIGGER_DROP;
+
+  return TRIGGER_FIRE;
+}
+
+bool cache_is_valid_for_today(const char *cache_date, int trigger_count, const char *today) {
+  (void)trigger_count;
+  return strcmp(cache_date, today) == 0;
+}
+
+bool trigger_plays_adhan(int trigger_minute, int minutes_before, bool adhan_enabled,
+                         int current_minute) {
+  return minutes_before == 0 && adhan_enabled && current_minute <= trigger_minute;
 }
 
 int run_check_cycle(void) {
@@ -58,7 +75,7 @@ int run_check_cycle(void) {
 
   PrayerCache cache;
   bool cache_valid =
-      (cache_load(&cache) == 0 && strcmp(cache.date, today) == 0 && cache.trigger_count > 0);
+      (cache_load(&cache) == 0 && cache_is_valid_for_today(cache.date, cache.trigger_count, today));
 
   if (!cache_valid) {
     struct PrayerTimes times =
@@ -72,7 +89,8 @@ int run_check_cycle(void) {
   bool dirty = false;
   int i = 0;
   while (i < cache.trigger_count) {
-    TriggerAction action = trigger_catchup_action(cache.triggers[i].minute, current_min);
+    TriggerAction action = trigger_catchup_action(cache.triggers[i].minute,
+                                                  cache.triggers[i].minutes_before, current_min);
 
     if (action == TRIGGER_KEEP) {
       i++;
@@ -91,7 +109,8 @@ int run_check_cycle(void) {
       char time_str[16];
       format_time_hm(cache.triggers[i].prayer_time, time_str, sizeof(time_str));
 
-      if (cache.triggers[i].minutes_before == 0 && cache.triggers[i].adhan_enabled) {
+      if (trigger_plays_adhan(cache.triggers[i].minute, cache.triggers[i].minutes_before,
+                              cache.triggers[i].adhan_enabled, current_min)) {
         notify_adhan(cache.triggers[i].prayer, time_str, cache.triggers[i].adhan);
       } else {
         const char *sound_preset = NULL;

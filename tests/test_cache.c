@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "cache.h"
+#include "check_cycle.h"
 #include "config.h"
 #include "platform.h"
 #include "prayer_checker.h"
@@ -392,21 +393,25 @@ static void test_adhan_survives_capacity_all_year(void) {
 }
 
 static void test_build_triggers_includes_future(void) {
-  printf("  build triggers includes future only...\n");
+  printf("  build triggers includes future and the catch-up window...\n");
   Config cfg = test_config();
   struct PrayerTimes times = jakarta_times();
   PrayerCache cache = {0};
 
   // At 12:00 (minute 720), should include dhuhr (12:04=724) and later,
-  // plus their reminders. Should NOT include fajr.
+  // plus their reminders. Fajr is long past CATCHUP_MAX_MIN before 720, so it
+  // is still excluded.
   int count = cache_build_triggers(&cache, &cfg, &times, 720, "2026-03-22");
 
   check_bool("has triggers", count > 0);
   check_bool("date set", strcmp(cache.date, "2026-03-22") == 0);
 
-  // First trigger should be at or after minute 720
+  // Every trigger is at or after the start of the catch-up window, not
+  // strictly at or after 720: a trigger up to CATCHUP_MAX_MIN in the past is
+  // deliberately kept so a slightly late rebuild does not drop it.
   for (int i = 0; i < cache.trigger_count; i++) {
-    check_bool("trigger >= current", cache.triggers[i].minute >= 720);
+    check_bool("trigger >= current - CATCHUP_MAX_MIN",
+               cache.triggers[i].minute >= 720 - CATCHUP_MAX_MIN);
   }
 
   // Should include dhuhr exact (minute 724 = ceil(12.0667*60))
@@ -902,6 +907,133 @@ static void test_cache_rejects_legacy_and_malformed(void) {
   cache_reset_path();
 }
 
+// Isolates cache_build_triggers to a single trigger (one prayer, no
+// reminders, no day-spill at Jakarta's latitude) so presence/absence of
+// "the" trigger is unambiguous across the tests below.
+static Config single_trigger_config(void) {
+  Config cfg = test_config();
+  cfg.dhuhr.enabled = false;
+  cfg.asr.enabled = false;
+  cfg.maghrib.enabled = false;
+  cfg.isha.enabled = false;
+  cfg.fajr.reminder_count = 0;
+  return cfg;
+}
+
+// Goal 1: a trigger stays reachable for CATCHUP_MAX_MIN minutes after its own
+// minute, not just up to it. Before this fix, cache.c:387/413 required
+// instant_min >= current_minute, so a cache rebuilt even one minute late
+// silently dropped a trigger that trigger_catchup_action would still have
+// fired: at Reykjavik on a day whose isha falls at 00:06, building the cache
+// at 00:05 kept it and building at 00:10 lost it, despite CATCHUP_MAX_MIN
+// being 15. The prayer's minute is derived from a minute-0 build rather than
+// pasted, so the test tracks whatever the calculation actually produces.
+//
+// Mutation record: reverting cache.c:387 to `instant_min >= current_minute`
+// makes this fail at offset 1 (expected present, trigger already gone).
+static void test_build_triggers_reaches_within_catchup_window(void) {
+  printf("  build triggers keeps a trigger reachable within the catch-up window...\n");
+  Config cfg = single_trigger_config();
+  struct PrayerTimes times = jakarta_times();
+  const char *date = "2026-06-15";
+
+  PrayerCache baseline;
+  cache_build_triggers(&baseline, &cfg, &times, 0, date);
+  check_bool("single trigger at minute 0", baseline.trigger_count == 1);
+  int trigger_minute = baseline.triggers[0].minute;
+
+  for (int offset = 0; offset <= CATCHUP_MAX_MIN + 1; offset++) {
+    PrayerCache cache;
+    cache_build_triggers(&cache, &cfg, &times, trigger_minute + offset, date);
+    bool present = (cache.trigger_count == 1 && cache.triggers[0].minute == trigger_minute);
+
+    char label[96];
+    snprintf(label, sizeof(label), "trigger present at %d minute(s) past due", offset);
+    if (offset <= CATCHUP_MAX_MIN) {
+      check_bool(label, present);
+    } else {
+      check_bool(label, !present);
+    }
+  }
+}
+
+// cache_is_valid_for_today ignores trigger_count on purpose: a same-day
+// cache is valid even when empty, because an empty list means today's
+// prayers are all done, not that the cache is missing.
+//
+// Mutation record: adding `&& trigger_count > 0` inside cache_is_valid_for_today
+// makes the first check below fail, since a same-day, zero-trigger cache
+// would then be reported invalid.
+static void test_cache_is_valid_for_today(void) {
+  printf("  cache_is_valid_for_today ignores trigger_count...\n");
+  const char *today = "2026-06-15";
+
+  check_bool("today, no triggers left is valid", cache_is_valid_for_today(today, 0, today));
+  check_bool("today, triggers left is valid", cache_is_valid_for_today(today, 3, today));
+  check_bool("yesterday is not valid", !cache_is_valid_for_today("2026-06-14", 3, today));
+}
+
+// Goal 3: once the last trigger of a day is consumed, it must not come back.
+// Were cache_is_valid_for_today to also require trigger_count > 0, an empty
+// cache would look invalid, the commented-out rebuild below would run every
+// following cycle, and it would readmit the trigger this test just consumed,
+// because it is still within CATCHUP_MAX_MIN of the minute it fired —
+// repeating the notification once a minute, which is the exact failure this
+// task exists to prevent.
+//
+// Mutation record, task 5: reverting cache_is_valid_for_today in
+// check_cycle.c to `strcmp(cache_date, today) == 0 && trigger_count > 0`
+// was applied, rebuilt, and run under ctest --test-dir build --output-on-failure.
+// The cache binary failed with:
+//   FAIL [today, no triggers left is valid]
+// 203 passed, 1 failed. The final `cache.trigger_count == 0` check below
+// stayed green under the mutant, because the rebuild and the removal it
+// triggers both happen inside the same loop iteration, so the count is back
+// at 0 by the time the assertion runs even though the trigger fired a second
+// time in between. Only the direct check in test_cache_is_valid_for_today
+// caught the mutant, so this test was decorative for the goal 3 case it
+// names. Rewritten below to count firings instead of trusting the final
+// count. With the counter in place the same mutant produces a second
+// failure:
+//   FAIL [trigger fired exactly once, not once per later cycle]
+// 203 passed, 2 failed.
+static void test_consumed_trigger_not_resurrected_by_later_cycle(void) {
+  printf("  consumed trigger stays consumed on a later cycle...\n");
+  Config cfg = single_trigger_config();
+  struct PrayerTimes times = jakarta_times();
+  const char *date = "2026-06-15";
+
+  PrayerCache cache;
+  cache_build_triggers(&cache, &cfg, &times, 0, date);
+  check_bool("single trigger built", cache.trigger_count == 1);
+  int trigger_minute = cache.triggers[0].minute;
+
+  // Walk daemon cycles minute by minute from the trigger's own minute through
+  // a few minutes past it, firing (removing) it the cycle it becomes due and
+  // rebuilding only when the cache is no longer valid for today. Count every
+  // removal as a fire: a resurrection shows up as more than one, even though
+  // the trigger count itself is back at 0 by the end of every iteration.
+  int fire_count = 0;
+  for (int minute = trigger_minute; minute <= trigger_minute + 5; minute++) {
+    if (!cache_is_valid_for_today(cache.date, cache.trigger_count, date)) {
+      cache_build_triggers(&cache, &cfg, &times, minute, date);
+    }
+
+    int i = 0;
+    while (i < cache.trigger_count) {
+      if (cache.triggers[i].minute <= minute) {
+        cache_remove_trigger(&cache, i);
+        fire_count++;
+      } else {
+        i++;
+      }
+    }
+  }
+
+  check_bool("trigger not resurrected across later cycles", cache.trigger_count == 0);
+  check_bool("trigger fired exactly once, not once per later cycle", fire_count == 1);
+}
+
 int main(void) {
   printf("Running cache tests...\n");
 
@@ -922,6 +1054,9 @@ int main(void) {
   test_no_double_scheduling_across_spill_days();
   test_reminders_land_on_day_they_occur();
   test_adhan_survives_capacity_all_year();
+  test_build_triggers_reaches_within_catchup_window();
+  test_cache_is_valid_for_today();
+  test_consumed_trigger_not_resurrected_by_later_cycle();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   return failed > 0 ? 1 : 0;

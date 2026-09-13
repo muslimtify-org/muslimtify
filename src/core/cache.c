@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include "cache.h"
+#include "check_cycle.h"
 #include "json.h"
 #include "platform.h"
 #include "prayer_checker.h"
@@ -384,7 +385,11 @@ int cache_build_triggers(PrayerCache *cache, const Config *cfg, const struct Pra
 
         if (pass == 0) {
           // Add exact prayer time, only when its instant actually falls on day D.
-          if (instant_min >= 0 && instant_min < 1440 && instant_min >= current_minute) {
+          // A trigger up to CATCHUP_MAX_MIN in the past is kept too, so a
+          // rebuild right after it fires does not drop it before
+          // trigger_catchup_action ever sees it.
+          if (instant_min >= 0 && instant_min < 1440 &&
+              instant_min >= current_minute - CATCHUP_MAX_MIN) {
             if (cache->trigger_count < MAX_TRIGGERS) {
               CacheTrigger *t = &cache->triggers[cache->trigger_count];
               if (!copy_string(t->prayer, sizeof(t->prayer), name)) {
@@ -410,7 +415,7 @@ int cache_build_triggers(PrayerCache *cache, const Config *cfg, const struct Pra
           int reminder_min = instant_min - pcfg->reminders[j];
           if (reminder_min < 0 || reminder_min >= 1440)
             continue;
-          if (reminder_min < current_minute)
+          if (reminder_min < current_minute - CATCHUP_MAX_MIN)
             continue;
 
           if (cache->trigger_count < MAX_TRIGGERS) {
