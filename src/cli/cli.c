@@ -136,6 +136,7 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "      --headless", "Show next prayer as key=value");
   printf("  %-25s %s\n", "    --date <start> [end]",
          "Show prayer times for a date or inclusive range (yyyy-mm-dd)");
+  printf("  %-25s %s\n", "    --day-offset <days>", "Show prayer times <days> from today (+/-)");
 
   printf("\n");
 
@@ -197,7 +198,7 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "notification", "Show notification settings");
   printf("  %-25s %s\n", "    enable|disable [prayer]", "Toggle prayer notifications");
   printf("  %-25s %s\n", "    --urgency <level>", "normal|critical|low");
-  printf("  %-25s %s\n", "    --reminder [--all] <prayer> <mins...>", "Pre-prayer reminders");
+  printf("  %-25s %s\n", "    --reminder <prayer|--all> <mins...>", "Pre-prayer reminders");
   printf("  %-25s %s\n", "    --adhan <enable|disable> <prayer>", "Per-prayer adhan");
   printf("  %-25s %s\n", "    --sound <adhan|default|off>", "Notification sound mode");
   printf("\n");

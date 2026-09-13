@@ -82,7 +82,7 @@ static void print_notification_help(void) {
   printf("  %-25s %s\n", "--json", "Show settings as JSON");
   printf("  %-25s %s\n", "--headless", "Show settings as key=value");
   printf("  %-25s %s\n", "--urgency <level>", "Set urgency: normal|critical|low");
-  printf("  %-25s %s\n", "--reminder [--all] <prayer> <minutes...>", "Set pre-prayer reminders");
+  printf("  %-25s %s\n", "--reminder <prayer|--all> <minutes...>", "Set pre-prayer reminders");
   printf("  %-25s %s\n", "--adhan <enable|disable> <prayer>", "Toggle per-prayer adhan");
   printf("  %-25s %s\n", "--adhan set <path>", "Set adhan audio file");
   printf("  %-25s %s\n", "--sound <adhan|default|off>", "Set notification sound mode");
@@ -138,7 +138,7 @@ static int notif_enable(int argc, char **argv, bool enable) {
 }
 
 static void print_reminder_help(void) {
-  printf("Usage: muslimtify notification --reminder [--all] <prayer> <minutes...>\n");
+  printf("Usage: muslimtify notification --reminder <prayer|--all> <minutes...>\n");
   printf("       muslimtify notification --reminder <prayer> none   (clear)\n");
 }
 

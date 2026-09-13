@@ -26,8 +26,8 @@ static void print_show_help(void) {
   printf("Commands:\n");
   printf("  %-25s %s\n", "--next <Option>", "Show next prayer time");
   printf("  %-25s %s\n", "--day-offset <offset>", "Show prayer time (+/-)<offset> days from now");
-  printf("  %-25s %s\n", "--date [date] <date> <options>",
-         "Show prayer time at or until desire date (yyyy-mm-dd)");
+  printf("  %-25s %s\n", "--date <start> [end]",
+         "Show prayer times for a date or inclusive range (yyyy-mm-dd)");
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");

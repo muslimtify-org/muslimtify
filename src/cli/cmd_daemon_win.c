@@ -186,8 +186,9 @@ static int daemon_install_handler(int argc, char **argv) {
   if (register_toast_activator() == 0) {
     printf("Adhan notification Stop button registered.\n");
   } else {
-    fprintf(stderr, "Warning: could not register the toast Stop button "
-                    "(notifications still work; stop via 'muslimtify sound stop').\n");
+    fprintf(stderr,
+            "Warning: could not register the toast Stop button "
+            "(notifications still work, stop via 'muslimtify notification --adhan stop').\n");
   }
   return result;
 }

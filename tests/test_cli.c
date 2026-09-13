@@ -1774,6 +1774,24 @@ static void test_extra_args(void) {
   reset_config();
 }
 
+static void test_help_text(void) {
+  printf("  help text...\n");
+  reset_config();
+
+  run(2, (char *[]){"m", "help", NULL});
+  check_ret("help text top ret", 0);
+  check_contains("help text top day offset", "--day-offset <days>");
+  check_contains("help text top reminder", "--reminder <prayer|--all>");
+
+  run(3, (char *[]){"m", "show", "--help", NULL});
+  check_ret("help text show ret", 0);
+  check_contains("help text show date", "--date <start> [end]");
+
+  run(4, (char *[]){"m", "notification", "--reminder", "--help", NULL});
+  check_ret("help text reminder ret", 0);
+  check_contains("help text reminder usage", "--reminder <prayer|--all> <minutes...>");
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1792,6 +1810,7 @@ int main(void) {
   test_next();
   test_day_offset();
   test_show_args();
+  test_help_text();
   test_next_after_isha();
   test_method();
   test_madzhab();
