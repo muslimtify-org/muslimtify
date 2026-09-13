@@ -158,9 +158,16 @@ static int location_set_handler(int argc, char **argv) {
   }
 
   if (auto_detect) {
-    if (override_lat || override_lon || override_tz) {
-      fprintf(stderr, "Error: --auto detects coordinates and timezone from IP; "
-                      "--lat / --long / --timezone cannot be combined with --auto\n");
+    if (override_lat || override_lon || override_tz || override_refresh) {
+      fprintf(stderr, "Error: --auto may be combined only with --city / --country; "
+                      "--lat / --long / --timezone / --refresh-interval cannot be combined "
+                      "with --auto\n");
+      return 1;
+    }
+    // Check the country code before the network fetch, not after it.
+    if (override_country && !country_is_valid_alpha2(override_country)) {
+      fprintf(stderr, "Error: Invalid country code '%s' (expected ISO 3166-1 alpha-2, e.g. ID)\n",
+              override_country);
       return 1;
     }
 
@@ -179,14 +186,8 @@ static int location_set_handler(int argc, char **argv) {
 
     if (override_city)
       set_city(&cfg, override_city);
-    if (override_country) {
-      if (!country_is_valid_alpha2(override_country)) {
-        fprintf(stderr, "Error: Invalid country code '%s' (expected ISO 3166-1 alpha-2, e.g. ID)\n",
-                override_country);
-        return 1;
-      }
+    if (override_country)
       set_country(&cfg, override_country);
-    }
 
     if (config_save(&cfg) != 0) {
       fprintf(stderr, "Error: Failed to save config\n");
@@ -365,6 +366,8 @@ static int location_gps_handler(int argc, char **argv) {
     print_location_gps_help();
     return 0;
   }
+  if (cli_reject_extra_args("location gps", argc - 1, argv + 1))
+    return 1;
 
   Config cfg;
   if (config_load(&cfg) != 0) {

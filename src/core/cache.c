@@ -257,11 +257,9 @@ int cache_save(const PrayerCache *cache) {
   char tmp_path[PLATFORM_PATH_MAX + 4];
   snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
 
-  FILE *f = platform_file_open(tmp_path, "w");
+  FILE *f = platform_file_create_private(tmp_path);
   if (!f)
     return -1;
-
-  platform_restrict_to_owner(f);
 
   fprintf(f, "{\n");
   fprintf(f, "  \"version\": %d,\n", CACHE_FORMAT_VERSION);
@@ -285,7 +283,8 @@ int cache_save(const PrayerCache *cache) {
   fprintf(f, "  ]\n");
   fprintf(f, "}\n");
 
-  int write_err = ferror(f) || fflush(f) != 0;
+  // Sync before the rename, or a power cut can leave an empty cache.
+  int write_err = ferror(f) || platform_file_sync(f) != 0;
   if (fclose(f) != 0 || write_err) {
     platform_file_delete(tmp_path);
     return -1;

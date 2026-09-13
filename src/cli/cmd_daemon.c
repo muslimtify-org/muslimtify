@@ -16,6 +16,7 @@
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
 #include "location.h"
 #include "prayertimes.h"
+#include <math.h>
 #endif
 
 // -- helpers -----------------------------------------------------------------
@@ -152,10 +153,15 @@ static int daemon_install_handler(int argc, char **argv) {
   remove(timer_path);
 
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
-  /* Auto-detect location and calculation method */
+  /* Auto-detect location and calculation method only when the config still
+   * needs a location, the same condition location_prepare uses. Coordinates
+   * and a method the user set by hand are kept. */
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Warning: Failed to load config, skipping auto-detect\n");
+  } else if (!(cfg.auto_detect && fabs(cfg.latitude) < 1e-6 && fabs(cfg.longitude) < 1e-6)) {
+    printf("✓ Using saved location %.4f, %.4f and method %s\n", cfg.latitude, cfg.longitude,
+           cfg.calculation_method);
   } else {
     printf("Detecting location...\n");
     if (config_auto_detect(&cfg) != 0) {
@@ -250,8 +256,9 @@ static int daemon_status_handler(int argc, char **argv) {
   (void)argv;
 
   printf("=== Service ===\n");
-  systemctl_user((const char *[]){"status", "muslimtify.service", "--no-pager", NULL});
-  return 0;
+  // Pass on the systemctl exit code, as the Windows version does with schtasks,
+  // so a failed query or a missing unit is not reported as success.
+  return systemctl_user((const char *[]){"status", "muslimtify.service", "--no-pager", NULL});
 }
 
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
@@ -296,8 +303,14 @@ int handle_daemon(int argc, char **argv) {
   }
   if (argc > 0) {
     const CommandEntry *sub = dispatch_lookup(daemon_commands, ARRAY_LEN(daemon_commands), argv[0]);
-    if (sub)
+    if (sub) {
+      // No daemon subcommand takes arguments. Checked before any of them runs.
+      char command[64];
+      snprintf(command, sizeof(command), "daemon %s", argv[0]);
+      if (cli_reject_extra_args(command, argc - 1, argv + 1))
+        return 1;
       return sub->handler(argc - 1, argv + 1);
+    }
 
     fprintf(stderr, "Error: Unknown daemon subcommand '%s'\n", argv[0]);
     print_daemon_help();

@@ -1521,6 +1521,277 @@ static void test_json_no_trailing_comma(void) {
   check_bool("reykjavik notification json no trailing comma", !has_trailing_comma(captured));
 }
 
+// Write a config file that config_load refuses. A command that loads the config
+// before checking its arguments then fails with "Failed to load config" instead
+// of the argument error, and nothing can reach the network on the way.
+static void corrupt_config(void) {
+  FILE *f = fopen(config_get_path(), "w");
+  if (f) {
+    fputs("{not json", f);
+    fclose(f);
+  }
+}
+
+static void test_show_args(void) {
+  printf("  show argument validation...\n");
+  reset_config();
+
+  // Arguments after --day-offset and its value are still checked.
+  run(6, (char *[]){"m", "show", "--day-offset", "1", "junk", "--headless", NULL});
+  check_ret("show args junk after day offset ret", 1);
+  check_contains("show args junk after day offset msg", "unknown option 'junk'");
+
+  // --date takes at most two dates.
+  run(6, (char *[]){"m", "show", "--date", "2024-01-01", "2024-01-03", "2024-01-05", NULL});
+  check_ret("show args third date ret", 1);
+  check_contains("show args third date msg", "unknown option '2024-01-05'");
+
+  // Removed-flag hints still fire after --date.
+  run(5, (char *[]){"m", "show", "--date", "2024-01-01", "--no-header", NULL});
+  check_ret("show args no-header after date ret", 1);
+  check_contains("show args no-header after date msg", "use '--headless'");
+
+  // --day-offset takes exactly one value.
+  run(5, (char *[]){"m", "show", "--day-offset", "1", "2", NULL});
+  check_ret("show args two offsets ret", 1);
+  check_contains("show args two offsets msg", "unknown option '2'");
+
+  // Valid forms still pass, with output flags before or after the values.
+  run(6, (char *[]){"m", "show", "--headless", "--date", "2024-01-01", "2024-01-02", NULL});
+  check_ret("show args flag before range ret", 0);
+  check_contains("show args flag before range d2", "date=2024-01-02");
+  run(5, (char *[]){"m", "show", "--day-offset", "-1", "--json", NULL});
+  check_ret("show args negative offset json ret", 0);
+
+  // --next cannot be combined with --date, in either order.
+  run(5, (char *[]){"m", "show", "--date", "2024-01-01", "--next", NULL});
+  check_ret("show args date with next ret", 1);
+  check_contains("show args date with next msg", "--next cannot be combined with --date");
+  run(5, (char *[]){"m", "show", "--next", "--date", "2024-01-01", NULL});
+  check_ret("show args next with date ret", 1);
+
+  // Bad values are reported before the config is loaded, so a fresh install
+  // never detects its location just to print an argument error.
+  corrupt_config();
+  run(4, (char *[]){"m", "show", "--date", "bogus", NULL});
+  check_ret("show args bad date before config ret", 1);
+  check_contains("show args bad date before config msg", "Invalid date bogus");
+  run(4, (char *[]){"m", "show", "--day-offset", "abc", NULL});
+  check_ret("show args bad offset before config ret", 1);
+  check_contains("show args bad offset before config msg", "Invalid day offset abc");
+  run(5, (char *[]){"m", "show", "--date", "2024-01-02", "2024-01-01", NULL});
+  check_ret("show args reversed range before config ret", 1);
+  check_contains("show args reversed range before config msg", "end date is before start date");
+  reset_config();
+}
+
+static int fajr_reminder_count(void) {
+  Config cfg;
+  if (config_load(&cfg) != 0)
+    return -1;
+  return cfg.fajr.reminder_count;
+}
+
+static void test_reminder_args(void) {
+  printf("  notification --reminder validation...\n");
+  reset_config();
+
+  run(6, (char *[]){"m", "notification", "--reminder", "fajr", "30", "15", NULL});
+  check_ret("reminder args seed ret", 0);
+
+  // --all with no minutes used to clear every prayer's reminders.
+  run(4, (char *[]){"m", "notification", "--reminder", "--all", NULL});
+  check_ret("reminder args all no minutes ret", 1);
+  check_contains("reminder args all no minutes msg", "at least one minute value");
+  check_bool("reminder args all no minutes keeps fajr", fajr_reminder_count() == 2);
+
+  // The per-prayer form with no minutes is rejected the same way.
+  run(4, (char *[]){"m", "notification", "--reminder", "fajr", NULL});
+  check_ret("reminder args prayer no minutes ret", 1);
+  check_contains("reminder args prayer no minutes msg", "at least one minute value");
+  check_bool("reminder args prayer no minutes keeps fajr", fajr_reminder_count() == 2);
+
+  // Values past MAX_REMINDERS used to be dropped without being checked.
+  run(16, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
+                     "8", "9", "10", "11", "abc", NULL});
+  check_ret("reminder args eleven plus junk ret", 1);
+  check_contains("reminder args eleven plus junk msg", "at most 10 reminder values");
+  check_bool("reminder args eleven plus junk keeps fajr", fajr_reminder_count() == 2);
+
+  run(15, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
+                     "8", "9", "10", "11", NULL});
+  check_ret("reminder args eleven ret", 1);
+  check_bool("reminder args eleven keeps fajr", fajr_reminder_count() == 2);
+
+  run(15, (char *[]){"m", "notification", "--reminder", "--all", "1", "2", "3", "4", "5", "6", "7",
+                     "8", "9", "10", "11", NULL});
+  check_ret("reminder args all eleven ret", 1);
+  check_bool("reminder args all eleven keeps fajr", fajr_reminder_count() == 2);
+
+  // Exactly MAX_REMINDERS values are accepted.
+  run(14, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
+                     "8", "9", "10", NULL});
+  check_ret("reminder args ten ret", 0);
+  check_bool("reminder args ten stored", fajr_reminder_count() == 10);
+
+  // none and clear still clear on purpose.
+  run(5, (char *[]){"m", "notification", "--reminder", "--all", "clear", NULL});
+  check_ret("reminder args all clear ret", 0);
+  check_bool("reminder args all clear cfg", fajr_reminder_count() == 0);
+}
+
+// `location set --auto` fetches over the network, so the config is corrupted
+// first: a rejection that came after config_load would fail on the config
+// instead, and never reach the fetch.
+static void test_location_auto_args(void) {
+  printf("  location set --auto validation...\n");
+
+  corrupt_config();
+  run(5, (char *[]){"m", "location", "set", "--auto", "--refresh-interval=3600", NULL});
+  check_ret("location auto refresh ret", 1);
+  check_contains("location auto refresh msg", "cannot be combined");
+
+  corrupt_config();
+  run(5, (char *[]){"m", "location", "set", "--auto", "--country=ZZZ", NULL});
+  check_ret("location auto bad country ret", 1);
+  check_contains("location auto bad country msg", "Invalid country code 'ZZZ'");
+
+  reset_config();
+}
+
+// Commands used to ignore arguments past the ones they read and exit 0. Each
+// case checks the error and that the config was not changed. daemon and
+// notification test are left out on purpose: if their check ever regressed,
+// the test would reach systemctl, schtasks or a real notification.
+static void test_extra_args(void) {
+  printf("  extra arguments...\n");
+  reset_config();
+  Config before;
+  config_load(&before);
+
+  run(4, (char *[]){"m", "notification", "disable", "all", NULL});
+  run(5, (char *[]){"m", "notification", "enable", "fajr", "isha", NULL});
+  check_ret("extra notification enable ret", 1);
+  check_contains("extra notification enable msg",
+                 "unexpected argument 'isha' for 'notification enable'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra notification enable leaves fajr", !cfg.fajr.enabled);
+    check_bool("extra notification enable leaves isha", !cfg.isha.enabled);
+  }
+  run(5, (char *[]){"m", "notification", "enable", "all", "x", NULL});
+  check_ret("extra notification enable all ret", 1);
+  run(4, (char *[]){"m", "notification", "enable", "all", NULL});
+  check_ret("extra notification enable restore ret", 0);
+
+  run(4, (char *[]){"m", "notification", "enable", "--help", NULL});
+  check_ret("extra notification enable help ret", 0);
+  check_contains("extra notification enable help msg", "Usage: muslimtify notification enable");
+
+  run(5, (char *[]){"m", "offset", "fajr", "4", "extra", NULL});
+  check_ret("extra offset ret", 1);
+  check_contains("extra offset msg", "unexpected argument 'extra' for 'offset'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra offset unchanged", cfg.fajr.offset == before.fajr.offset);
+  }
+
+  run(4, (char *[]){"m", "method", "mwl", "extra", NULL});
+  check_ret("extra method ret", 1);
+  check_contains("extra method msg", "unexpected argument 'extra' for 'method'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra method unchanged",
+               strcmp(cfg.calculation_method, before.calculation_method) == 0);
+  }
+  run(4, (char *[]){"m", "method", "--list", "extra", NULL});
+  check_ret("extra method list ret", 1);
+
+  run(4, (char *[]){"m", "madzhab", "hanafi", "extra", NULL});
+  check_ret("extra madzhab ret", 1);
+  check_contains("extra madzhab msg", "unexpected argument 'extra' for 'madzhab'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra madzhab unchanged", strcmp(cfg.madhab, before.madhab) == 0);
+  }
+  run(4, (char *[]){"m", "madzhab", "--list", "extra", NULL});
+  check_ret("extra madzhab list ret", 1);
+
+  run(5, (char *[]){"m", "location", "gps", "off", "extra", NULL});
+  check_ret("extra location gps ret", 1);
+  check_contains("extra location gps msg", "unexpected argument 'extra' for 'location gps'");
+
+  run(5, (char *[]){"m", "notification", "--urgency", "low", "extra", NULL});
+  check_ret("extra urgency ret", 1);
+  check_contains("extra urgency msg", "unexpected argument 'extra' for 'notification --urgency'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra urgency unchanged",
+               strcmp(cfg.notification_urgency, before.notification_urgency) == 0);
+  }
+
+  run(5, (char *[]){"m", "notification", "--sound", "off", "extra", NULL});
+  check_ret("extra sound ret", 1);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra sound unchanged",
+               strcmp(cfg.notification_sound, before.notification_sound) == 0);
+  }
+
+  run(6, (char *[]){"m", "notification", "--adhan", "enable", "fajr", "x", NULL});
+  check_ret("extra adhan enable ret", 1);
+  check_contains("extra adhan enable msg", "unexpected argument 'x' for 'notification --adhan'");
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("extra adhan enable unchanged", cfg.fajr.adhan_enabled == before.fajr.adhan_enabled);
+  }
+
+  // The config file is a readable regular file, so only the extra argument is wrong.
+  char adhan_path[512];
+  snprintf(adhan_path, sizeof(adhan_path), "%s", config_get_path());
+  run(6, (char *[]){"m", "notification", "--adhan", "set", adhan_path, "x", NULL});
+  check_ret("extra adhan set ret", 1);
+
+  run(5, (char *[]){"m", "notification", "--adhan", "stop", "x", NULL});
+  check_ret("extra adhan stop ret", 1);
+  check_contains("extra adhan stop msg", "unexpected argument 'x' for 'notification --adhan stop'");
+
+  run(3, (char *[]){"m", "version", "extra", NULL});
+  check_ret("extra version ret", 1);
+  check_contains("extra version msg", "unexpected argument 'extra' for 'version'");
+
+  run(3, (char *[]){"m", "help", "extra", NULL});
+  check_ret("extra help ret", 1);
+  check_contains("extra help msg", "unexpected argument 'extra' for 'help'");
+
+  reset_config();
+}
+
+static void test_help_text(void) {
+  printf("  help text...\n");
+  reset_config();
+
+  run(2, (char *[]){"m", "help", NULL});
+  check_ret("help text top ret", 0);
+  check_contains("help text top day offset", "--day-offset <days>");
+  check_contains("help text top reminder", "--reminder <prayer|--all>");
+
+  run(3, (char *[]){"m", "show", "--help", NULL});
+  check_ret("help text show ret", 0);
+  check_contains("help text show date", "--date <start> [end]");
+
+  run(4, (char *[]){"m", "notification", "--reminder", "--help", NULL});
+  check_ret("help text reminder ret", 0);
+  check_contains("help text reminder usage", "--reminder <prayer|--all> <minutes...>");
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1530,6 +1801,7 @@ int main(void) {
   test_version_and_help();
   test_output_helpers();
   test_location();
+  test_location_auto_args();
   test_removed_top_level();
   test_show();
   test_show_date_bounds();
@@ -1537,12 +1809,16 @@ int main(void) {
   test_day_markers();
   test_next();
   test_day_offset();
+  test_show_args();
+  test_help_text();
   test_next_after_isha();
   test_method();
   test_madzhab();
   test_notification();
+  test_reminder_args();
   test_daemon_errors();
   test_offset();
+  test_extra_args();
   test_location_set_timezone_validation();
   test_json_no_trailing_comma();
 

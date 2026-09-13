@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "config.h"
 #include "platform.h"
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -438,6 +439,15 @@ static void test_config_perms(void) {
   struct stat st;
   check_bool("perms: stat", stat(config_get_path(), &st) == 0);
   check_bool("perms: owner-only (0600)", (st.st_mode & 077) == 0);
+
+  // The muslimtify directory was created by config_save and must be 0700.
+  char dir[1024];
+  snprintf(dir, sizeof(dir), "%s", config_get_path());
+  char *slash = strrchr(dir, '/');
+  if (slash)
+    *slash = '\0';
+  check_bool("perms: dir stat", stat(dir, &st) == 0);
+  check_bool("perms: dir owner-only (0700)", (st.st_mode & 0777) == 0700);
 #else
   (void)0;
 #endif
@@ -629,6 +639,121 @@ static void test_malformed_config_refused(void) {
   config_save(&cfg);
 }
 
+// jq and other pretty printers put each array element on its own line. Those
+// reminders used to load as empty, and the next save made the loss permanent.
+static void test_multiline_reminders(void) {
+  printf("  multi-line reminders...\n");
+  write_config_text("{\n  \"prayers\": {\n    \"fajr\": {\n      \"reminders\": [\n        45,\n"
+                    "\t\t25,\r\n        10\n      ]\n    },\n"
+                    "    \"asr\": { \"reminders\": [ 40 ,20 ] }\n  }\n}\n");
+  Config in;
+  check_bool("multi-line: load ok", config_load(&in) == 0);
+  check_bool("multi-line: fajr count", in.fajr.reminder_count == 3);
+  check_bool("multi-line: fajr values", in.fajr.reminders[0] == 45 && in.fajr.reminders[1] == 25 &&
+                                            in.fajr.reminders[2] == 10);
+  check_bool("multi-line: asr values",
+             in.asr.reminder_count == 2 && in.asr.reminders[0] == 40 && in.asr.reminders[1] == 20);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
+// 4294967306 is 2^32 + 10. Narrowing it to int before the range check turned
+// it into 10, which then passed the check.
+static void test_huge_values_not_wrapped(void) {
+  printf("  huge values not wrapped...\n");
+  write_config_text("{\n  \"prayers\": {\n"
+                    "    \"fajr\": { \"offset\": 4294967306, \"reminders\": [4294967306, 7] },\n"
+                    "    \"isha\": { \"offset\": -4294967306 }\n  },\n"
+                    "  \"notification\": { \"timeout\": 4294967306 }\n}\n");
+  Config in;
+  check_bool("huge: load ok", config_load(&in) == 0);
+  check_bool("huge: offset clamped to max", in.fajr.offset == PRAYER_OFFSET_MAX);
+  check_bool("huge: negative offset clamped to min", in.isha.offset == PRAYER_OFFSET_MIN);
+  check_bool("huge: reminder dropped, not wrapped",
+             in.fajr.reminder_count == 1 && in.fajr.reminders[0] == 7);
+  check_bool("huge: timeout not wrapped", in.notification_timeout == INT_MAX);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
+// A \u escape must load as the character it names. It used to stay literal,
+// so the city showed as "S\u00e3o Paulo" and the next save doubled the
+// backslash. Control characters are written as \u00XX and must come back too.
+static void test_unicode_escape_round_trip(void) {
+  printf("  unicode escape round trip...\n");
+  write_config_text("{\n  \"location\": { \"city\": \"S\\u00e3o Paulo\" }\n}\n");
+  Config in;
+  check_bool("unicode: load ok", config_load(&in) == 0);
+  check_bool("unicode: city decoded", strcmp(in.city, "S\xC3\xA3o Paulo") == 0);
+  check_bool("unicode: resave ok", config_save(&in) == 0);
+
+  char saved[16384] = "";
+  FILE *f = fopen(config_get_path(), "r");
+  if (f) {
+    size_t n = fread(saved, 1, sizeof(saved) - 1, f);
+    saved[n] = '\0';
+    fclose(f);
+  }
+  check_bool("unicode: saved as UTF-8", strstr(saved, "\"S\xC3\xA3o Paulo\"") != NULL);
+  check_bool("unicode: no literal escape saved", strstr(saved, "u00e3") == NULL);
+
+  Config out = config_default();
+  strcpy(out.country, "a\x01z\x1f");
+  check_bool("control: save ok", config_save(&out) == 0);
+  Config back;
+  check_bool("control: load ok", config_load(&back) == 0);
+  check_bool("control: country round trips", strcmp(back.country, "a\x01z\x1f") == 0);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
+#ifdef __linux__
+// Lowest free descriptor number. If a save leaks a descriptor, the number
+// taken after the save differs from the one taken before it.
+static int lowest_free_fd(void) {
+  int fd = dup(0);
+  if (fd >= 0)
+    close(fd);
+  return fd;
+}
+#endif
+
+// When the write fails the temp file must still be closed before it is
+// deleted. The temp path is pointed at /dev/full so the flush fails with
+// ENOSPC, and a leaked descriptor shows up as a changed lowest free fd.
+static void test_failed_save_closes_file(void) {
+#ifdef __linux__
+  printf("  failed save closes file...\n");
+  if (geteuid() == 0) {
+    // As root the save could change the mode of /dev/full through the link.
+    printf("  SKIP: running as root\n");
+    return;
+  }
+  Config cfg = config_default();
+  check_bool("failed save: seed", config_save(&cfg) == 0);
+
+  char tmp_path[1024];
+  snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", config_get_path());
+  unlink(tmp_path);
+  if (symlink("/dev/full", tmp_path) != 0) {
+    printf("  SKIP: cannot create symlink\n");
+    return;
+  }
+
+  int before = lowest_free_fd();
+  check_bool("failed save: returns -1", config_save(&cfg) == -1);
+  int after = lowest_free_fd();
+  check_bool("failed save: no descriptor leaked", before == after);
+  check_bool("failed save: temp path removed", access(tmp_path, F_OK) != 0);
+  unlink(tmp_path);
+#else
+  (void)0;
+#endif
+}
+
 int main(void) {
   setup();
 
@@ -651,6 +776,10 @@ int main(void) {
   test_prayer_times_uses_dst_offset();
   test_config_escapes_adhan();
   test_malformed_config_refused();
+  test_multiline_reminders();
+  test_huge_values_not_wrapped();
+  test_unicode_escape_round_trip();
+  test_failed_save_closes_file();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

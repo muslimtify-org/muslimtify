@@ -1062,6 +1062,40 @@ static void test_empty_cache_roundtrip(void) {
   rmdir(tmpdir);
 }
 
+// The cache records which prayers are enabled and when, so its directory and
+// file are owner-only. The directory does not exist before the save, so the
+// save creates it.
+static void test_cache_perms(void) {
+#ifndef _WIN32
+  printf("  cache perms...\n");
+  char tmpdir[] = "/tmp/mt_cache_perms_XXXXXX";
+  if (!mkdtemp(tmpdir)) {
+    fprintf(stderr, "FAIL [mkdtemp]\n");
+    failed++;
+    return;
+  }
+  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  cache_reset_path();
+
+  PrayerCache cache = {0};
+  strcpy(cache.date, "2026-04-08");
+  check_bool("perms: cache saves", cache_save(&cache) == 0);
+
+  struct stat st;
+  check_bool("perms: cache file stat", stat(cache_get_path(), &st) == 0);
+  check_bool("perms: cache file owner-only (0600)", (st.st_mode & 0777) == 0600);
+
+  char dir[1024];
+  snprintf(dir, sizeof(dir), "%s/muslimtify", tmpdir);
+  check_bool("perms: cache dir stat", stat(dir, &st) == 0);
+  check_bool("perms: cache dir owner-only (0700)", (st.st_mode & 0777) == 0700);
+
+  cache_invalidate();
+  rmdir(dir);
+  rmdir(tmpdir);
+#endif
+}
+
 int main(void) {
   printf("Running cache tests...\n");
 
@@ -1087,6 +1121,7 @@ int main(void) {
   test_consumed_trigger_not_resurrected_by_later_cycle();
 
   test_empty_cache_roundtrip();
+  test_cache_perms();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   return failed > 0 ? 1 : 0;

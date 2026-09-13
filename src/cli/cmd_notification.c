@@ -14,6 +14,15 @@
 #include <time.h>
 
 static int notification_test(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify notification test [--adhan]\n");
+    return 0;
+  }
+  // Checked before anything is loaded or sent.
+  int consumed = (argc > 0 && strcmp(argv[0], "--adhan") == 0) ? 1 : 0;
+  if (cli_reject_extra_args("notification test", argc - consumed, argv + consumed))
+    return 1;
+
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
@@ -73,7 +82,7 @@ static void print_notification_help(void) {
   printf("  %-25s %s\n", "--json", "Show settings as JSON");
   printf("  %-25s %s\n", "--headless", "Show settings as key=value");
   printf("  %-25s %s\n", "--urgency <level>", "Set urgency: normal|critical|low");
-  printf("  %-25s %s\n", "--reminder [--all] <prayer> <minutes...>", "Set pre-prayer reminders");
+  printf("  %-25s %s\n", "--reminder <prayer|--all> <minutes...>", "Set pre-prayer reminders");
   printf("  %-25s %s\n", "--adhan <enable|disable> <prayer>", "Toggle per-prayer adhan");
   printf("  %-25s %s\n", "--adhan set <path>", "Set adhan audio file");
   printf("  %-25s %s\n", "--sound <adhan|default|off>", "Set notification sound mode");
@@ -87,6 +96,14 @@ static void print_notification_help(void) {
 
 // Set enabled on one prayer or all seven.
 static int notif_enable(int argc, char **argv, bool enable) {
+  const char *command = enable ? "notification enable" : "notification disable";
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify %s [prayer|all]\n", command);
+    return 0;
+  }
+  if (cli_reject_extra_args(command, argc - 1, argv + 1))
+    return 1;
+
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
@@ -121,7 +138,7 @@ static int notif_enable(int argc, char **argv, bool enable) {
 }
 
 static void print_reminder_help(void) {
-  printf("Usage: muslimtify notification --reminder [--all] <prayer> <minutes...>\n");
+  printf("Usage: muslimtify notification --reminder <prayer|--all> <minutes...>\n");
   printf("       muslimtify notification --reminder <prayer> none   (clear)\n");
 }
 
@@ -139,6 +156,8 @@ static int notif_urgency(int argc, char **argv) {
     fprintf(stderr, "Error: urgency must be normal, critical, or low\n");
     return 1;
   }
+  if (cli_reject_extra_args("notification --urgency", argc - 1, argv + 1))
+    return 1;
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
@@ -156,13 +175,19 @@ static int notif_urgency(int argc, char **argv) {
   return 0;
 }
 
-// Parse trailing space-separated minutes into `out` (0 < m <= 1440), up to
-// MAX_REMINDERS. Returns the count, or -1 on a bad value. "none" -> 0.
+// Parse trailing space-separated minutes into `out` (0 < m <= 1440). A lone
+// "none" or "clear" means no reminders and returns 0. Otherwise returns the
+// count, -1 on a bad value, -2 when no value is given, or -3 when more than
+// MAX_REMINDERS values are given.
 static int parse_minute_args(int argc, char **argv, int *out) {
   if (argc == 1 && (strcmp(argv[0], "none") == 0 || strcmp(argv[0], "clear") == 0))
     return 0;
+  if (argc == 0)
+    return -2;
+  if (argc > MAX_REMINDERS)
+    return -3;
   int count = 0;
-  for (int i = 0; i < argc && count < MAX_REMINDERS; i++) {
+  for (int i = 0; i < argc; i++) {
     char *end = NULL;
     long v = strtol(argv[i], &end, 10);
     if (end == argv[i] || *end != '\0' || v <= 0 || v > 1440)
@@ -170,6 +195,17 @@ static int parse_minute_args(int argc, char **argv, int *out) {
     out[count++] = (int)v;
   }
   return count;
+}
+
+// Print the error for a negative parse_minute_args result. Returns 1.
+static int minute_args_error(int rc) {
+  if (rc == -2)
+    fprintf(stderr, "Error: --reminder needs at least one minute value, or none to clear\n");
+  else if (rc == -3)
+    fprintf(stderr, "Error: at most %d reminder values are allowed\n", MAX_REMINDERS);
+  else
+    fprintf(stderr, "Error: reminder minutes must be integers 1..1440\n");
+  return 1;
 }
 
 static int notif_reminder(int argc, char **argv) {
@@ -188,10 +224,8 @@ static int notif_reminder(int argc, char **argv) {
   if (all) {
     int mins[MAX_REMINDERS];
     int count = parse_minute_args(argc, argv, mins);
-    if (count < 0) {
-      fprintf(stderr, "Error: reminder minutes must be integers 1..1440\n");
-      return 1;
-    }
+    if (count < 0)
+      return minute_args_error(count);
     Config cfg;
     if (config_load(&cfg) != 0) {
       fprintf(stderr, "Error: Failed to load config\n");
@@ -212,17 +246,15 @@ static int notif_reminder(int argc, char **argv) {
     return 0;
   }
 
-  if (argc < 2) {
+  if (argc < 1) {
     print_reminder_help();
     return 1;
   }
   const char *prayer = argv[0];
   int mins[MAX_REMINDERS];
   int count = parse_minute_args(argc - 1, argv + 1, mins);
-  if (count < 0) {
-    fprintf(stderr, "Error: reminder minutes must be integers 1..1440\n");
-    return 1;
-  }
+  if (count < 0)
+    return minute_args_error(count);
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
@@ -280,7 +312,9 @@ static int notif_adhan(int argc, char **argv) {
     printf("Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
     return 0;
   }
-  if (argc == 1 && strcmp(argv[0], "stop") == 0) {
+  if (argc > 0 && strcmp(argv[0], "stop") == 0) {
+    if (cli_reject_extra_args("notification --adhan stop", argc - 1, argv + 1))
+      return 1;
     if (notify_adhan_stop() == 0)
       printf("Adhan playback stopped\n");
     else
@@ -292,6 +326,8 @@ static int notif_adhan(int argc, char **argv) {
             "Usage: muslimtify notification --adhan <enable|disable> <prayer> | set <path>\n");
     return 1;
   }
+  if (cli_reject_extra_args("notification --adhan", argc - 2, argv + 2))
+    return 1;
 
   Config cfg;
   if (config_load(&cfg) != 0) {
@@ -348,6 +384,8 @@ static int notif_sound(int argc, char **argv) {
     fprintf(stderr, "Error: --sound expects adhan, default, or off\n");
     return 1;
   }
+  if (cli_reject_extra_args("notification --sound", argc - 1, argv + 1))
+    return 1;
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");

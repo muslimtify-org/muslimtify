@@ -186,8 +186,9 @@ static int daemon_install_handler(int argc, char **argv) {
   if (register_toast_activator() == 0) {
     printf("Adhan notification Stop button registered.\n");
   } else {
-    fprintf(stderr, "Warning: could not register the toast Stop button "
-                    "(notifications still work; stop via 'muslimtify sound stop').\n");
+    fprintf(stderr,
+            "Warning: could not register the toast Stop button "
+            "(notifications still work, stop via 'muslimtify notification --adhan stop').\n");
   }
   return result;
 }
@@ -263,8 +264,14 @@ int handle_daemon(int argc, char **argv) {
   }
   if (argc > 0) {
     const CommandEntry *sub = dispatch_lookup(daemon_commands, ARRAY_LEN(daemon_commands), argv[0]);
-    if (sub)
+    if (sub) {
+      // No daemon subcommand takes arguments. Checked before any of them runs.
+      char command[64];
+      snprintf(command, sizeof(command), "daemon %s", argv[0]);
+      if (cli_reject_extra_args(command, argc - 1, argv + 1))
+        return 1;
       return sub->handler(argc - 1, argv + 1);
+    }
 
     fprintf(stderr, "Error: Unknown daemon subcommand '%s'\n", argv[0]);
     print_daemon_help();

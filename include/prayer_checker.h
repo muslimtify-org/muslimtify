@@ -65,9 +65,14 @@ typedef struct {
  * order in `days`. Three days are needed because a prayer can cross midnight in
  * either direction: just after midnight the previous day's isha can still be
  * ahead, and it is not in the same day's times at all.
+ *
+ * `offsets` holds each day's UTC offset in hours, the one its times were
+ * computed with. `minutes_until` is the real time to the prayer, so when the
+ * prayer's day is on a different offset from now's date, across a DST change,
+ * the difference is taken off. `time` stays the wall-clock time on its day.
  */
 NextPrayer prayer_next_from_days(const Config *cfg, const struct tm *now,
-                                 const struct PrayerTimes days[3]);
+                                 const struct PrayerTimes days[3], const double offsets[3]);
 
 /**
  * prayer_next_from_days for `now`, given the times for now's date. The

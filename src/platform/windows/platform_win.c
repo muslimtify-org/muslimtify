@@ -277,6 +277,12 @@ FILE *platform_file_open(const char *path, const char *mode) {
   return f;
 }
 
+int platform_file_sync(FILE *f) {
+  if (fflush(f) != 0)
+    return -1;
+  return _commit(_fileno(f)) == 0 ? 0 : -1;
+}
+
 int platform_file_delete(const char *path) {
   wchar_t *wide_path = utf8_to_wide(path);
   if (!wide_path)
@@ -355,7 +361,8 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
   return PATH_FILE_OK;
 }
 
-void platform_restrict_to_owner(FILE *f) {
-  // %APPDATA% / %LOCALAPPDATA% are user-scoped by their default ACL; no action.
-  (void)f;
+FILE *platform_file_create_private(const char *path) {
+  // %APPDATA% and %LOCALAPPDATA% are user-scoped by their default ACL, so a
+  // plain open is already private.
+  return platform_file_open(path, "w");
 }

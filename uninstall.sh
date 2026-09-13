@@ -1,11 +1,11 @@
 #!/bin/bash
 # Muslimtify — full uninstaller
-# Stops the systemd timer, removes the binary and icons.
-# Config file is preserved unless --purge is passed.
+# Stops the systemd service, removes the unit files, binary, adhan and icons.
+# Config and cache are preserved unless --purge is passed.
 #
 # Usage:
-#   sudo ./uninstall.sh           # remove everything except config
-#   sudo ./uninstall.sh --purge   # also remove ~/.config/muslimtify
+#   sudo ./uninstall.sh           # remove everything except config and cache
+#   sudo ./uninstall.sh --purge   # also remove ~/.config/muslimtify and ~/.cache/muslimtify
 
 set -e
 
@@ -86,6 +86,15 @@ for unit in muslimtify.service muslimtify.timer; do
     fi
 done
 
+# cmake --install also places a copy of the unit under the install prefix.
+SYSTEM_UNIT="$INSTALL_PREFIX/lib/systemd/user/muslimtify.service"
+if [ -f "$SYSTEM_UNIT" ]; then
+    rm "$SYSTEM_UNIT"
+    ok "Removed $SYSTEM_UNIT"
+else
+    skip "unit not found at $SYSTEM_UNIT"
+fi
+
 if [ -d "$XDG_RT" ]; then
     run_as_user systemctl --user daemon-reload
     ok "Reloaded systemd"
@@ -93,7 +102,7 @@ fi
 
 # -- step 2: remove binary and icons ------------------------------------------
 
-step 2 "Removing binary and icons from $INSTALL_PREFIX..."
+step 2 "Removing binary, adhan and icons from $INSTALL_PREFIX..."
 
 BINARY="$INSTALL_PREFIX/bin/muslimtify"
 if [ -f "$BINARY" ]; then
@@ -112,9 +121,19 @@ for icon in \
     fi
 done
 
+DATA_DIR="$INSTALL_PREFIX/share/muslimtify"
+if [ -f "$DATA_DIR/adhan.mp3" ]; then
+    rm "$DATA_DIR/adhan.mp3"
+    ok "Removed $DATA_DIR/adhan.mp3"
+fi
+if [ -d "$DATA_DIR" ] && [ -z "$(ls -A "$DATA_DIR")" ]; then
+    rmdir "$DATA_DIR"
+    ok "Removed $DATA_DIR"
+fi
+
 # -- step 3: config directory --------------------------------------------------
 
-step 3 "Handling config files..."
+step 3 "Handling config and cache files..."
 
 CONFIG_DIR="$REAL_HOME/.config/muslimtify"
 if [ -d "$CONFIG_DIR" ]; then
@@ -130,6 +149,18 @@ else
     skip "config directory not found"
 fi
 
+CACHE_DIR="$REAL_HOME/.cache/muslimtify"
+if [ -d "$CACHE_DIR" ]; then
+    if $PURGE; then
+        rm -rf "$CACHE_DIR"
+        ok "Removed $CACHE_DIR"
+    else
+        warn "Cache preserved at $CACHE_DIR"
+    fi
+else
+    skip "cache directory not found"
+fi
+
 # -- done ----------------------------------------------------------------------
 
 echo ""
@@ -142,23 +173,27 @@ cat <<'MANUAL'
 -----------------------------------------------------
 Manual uninstall reference (if you prefer doing it yourself):
 
-  # 1. Stop and disable the timer
-  systemctl --user stop    muslimtify.timer
-  systemctl --user disable muslimtify.timer
+  # 1. Stop and disable the service
+  systemctl --user stop    muslimtify.service
+  systemctl --user disable muslimtify.service
 
   # 2. Remove systemd unit files
   rm -f ~/.config/systemd/user/muslimtify.service
   rm -f ~/.config/systemd/user/muslimtify.timer
+  sudo rm -f /usr/local/lib/systemd/user/muslimtify.service
   systemctl --user daemon-reload
 
   # 3. Remove the binary (requires sudo)
   sudo rm -f /usr/local/bin/muslimtify
 
-  # 4. Remove icons (requires sudo)
+  # 4. Remove the adhan and icons (requires sudo)
+  sudo rm -f /usr/local/share/muslimtify/adhan.mp3
+  sudo rmdir /usr/local/share/muslimtify
   sudo rm -f /usr/local/share/icons/hicolor/128x128/apps/muslimtify.png
   sudo rm -f /usr/local/share/pixmaps/muslimtify.png
 
-  # 5. Remove config (optional)
+  # 5. Remove config and cache (optional)
   rm -rf ~/.config/muslimtify
+  rm -rf ~/.cache/muslimtify
 -----------------------------------------------------
 MANUAL

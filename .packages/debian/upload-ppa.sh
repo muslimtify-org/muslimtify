@@ -127,7 +127,11 @@ ls -lh /tmp/${PKG_NAME}_${PKG_VERSION}*
 
 # --- Sign on host as the real user ---
 REAL_USER="${SUDO_USER:-$(whoami)}"
-REAL_HOME="$(eval echo "~${REAL_USER}")"
+REAL_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
+if [ -z "$REAL_HOME" ]; then
+    echo "Error: could not find the home directory of ${REAL_USER}" >&2
+    exit 1
+fi
 DSC_FILE="${OUTPUT_DIR}/${PKG_NAME}_${PKG_FULL_VERSION}.dsc"
 CHANGES_FILE="${OUTPUT_DIR}/${PKG_NAME}_${PKG_FULL_VERSION}_source.changes"
 

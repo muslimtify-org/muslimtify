@@ -105,6 +105,8 @@ CURLcode location_harden_curl(CURL *curl) {
   return CURLE_OK;
 }
 
+int location_parse_ipinfo(Config *cfg, char *body);
+
 static int location_fetch_ipinfo(Config *cfg) {
   if (!cfg)
     return -1;
@@ -160,31 +162,51 @@ static int location_fetch_ipinfo(Config *cfg) {
     return -1;
   }
 
-  // Parse JSON response
+  int rc = location_parse_ipinfo(cfg, response.data);
+  free(response.data);
+  return rc;
+}
+
+// Apply an ipinfo.io JSON reply to cfg. Returns 0 on success, -1 when the reply
+// carries no usable coordinates, in which case cfg is left untouched. A 200
+// reply can still lack them (the bogon reply for a private IP has no "loc"),
+// and treating that as success would save 0,0 and refetch on every call.
+// Non-static so tests can feed canned replies without a network round-trip.
+int location_parse_ipinfo(Config *cfg, char *body) {
+  if (!cfg || !body)
+    return -1;
+
   JsonContext *ctx = json_begin();
-  if (!ctx) {
-    free(response.data);
+  if (!ctx)
+    return -1;
+
+  // Parse "loc" field (format: "latitude,longitude"). Both numbers must be
+  // fully consumed, finite and in range, or the whole reply is rejected.
+  char *loc_str = get_value(ctx, "loc", body);
+  char *comma = loc_str ? strchr(loc_str, ',') : NULL;
+  if (!comma) {
+    fprintf(stderr, "Error: Location API returned no coordinates\n");
+    json_end(ctx);
     return -1;
   }
-
-  // Parse "loc" field (format: "latitude,longitude")
-  char *loc_str = get_value(ctx, "loc", response.data);
-  if (loc_str) {
-    char *comma = strchr(loc_str, ',');
-    if (comma) {
-      *comma = '\0';
-      double lat = strtod(loc_str, NULL);
-      double lon = strtod(comma + 1, NULL);
-      if (lat >= -90.0 && lat <= 90.0)
-        cfg->latitude = lat;
-      if (lon >= -180.0 && lon <= 180.0)
-        cfg->longitude = lon;
-    }
+  *comma = '\0';
+  char *lat_end = NULL;
+  char *lon_end = NULL;
+  double lat = strtod(loc_str, &lat_end);
+  double lon = strtod(comma + 1, &lon_end);
+  if (lat_end == loc_str || *lat_end != '\0' || lon_end == comma + 1 || *lon_end != '\0' ||
+      !isfinite(lat) || !isfinite(lon) || lat < -90.0 || lat > 90.0 || lon < -180.0 ||
+      lon > 180.0) {
+    fprintf(stderr, "Error: Location API returned invalid coordinates\n");
+    json_end(ctx);
+    return -1;
   }
+  cfg->latitude = lat;
+  cfg->longitude = lon;
 
   // Parse timezone. Reject a hostile/garbage value from the network before it
   // reaches setenv("TZ")/tzset() or gets persisted to config.
-  char *tz_str = get_value(ctx, "timezone", response.data);
+  char *tz_str = get_value(ctx, "timezone", body);
   if (tz_str) {
     if (!timezone_exists(tz_str)) {
       fprintf(stderr, "location: ignoring invalid/unknown timezone from API\n");
@@ -202,7 +224,7 @@ static int location_fetch_ipinfo(Config *cfg) {
   // actual city) and feeds nothing functional in the calculation pipeline.
 
   // Parse country
-  char *country_str = get_value(ctx, "country", response.data);
+  char *country_str = get_value(ctx, "country", body);
   if (country_str) {
     if (!copy_string(cfg->country, sizeof(cfg->country), country_str)) {
       location_log_trunc("country");
@@ -210,7 +232,6 @@ static int location_fetch_ipinfo(Config *cfg) {
   }
 
   json_end(ctx);
-  free(response.data);
 
   cfg->updated_at = (int64_t)time(NULL);
 
@@ -326,44 +347,54 @@ int location_prepare(Config *cfg) {
   return 0;
 }
 
-int ensure_location(Config *cfg) {
+/* Core of ensure_location with the prepare step injected, so tests can check
+ * where the status lines go without a network round-trip. Non-static (declared
+ * test-only) to keep the seam out of the public header.
+ *
+ * Status lines go to stderr: `show --json` and `--headless` reach this path,
+ * and their stdout must stay machine-readable on a first run. */
+int ensure_location_with(Config *cfg, int (*prepare)(Config *)) {
   if (!cfg)
     return -1;
 
   if (cfg->auto_detect && (fabs(cfg->latitude) < 1e-6 && fabs(cfg->longitude) < 1e-6)) {
-    printf("Detecting location...\n");
-    if (location_prepare(cfg) != 0) {
+    fprintf(stderr, "Detecting location...\n");
+    if (prepare(cfg) != 0) {
       fprintf(stderr, "Error: Failed to detect location\n");
       return -1;
     }
 
-    printf("✓ Location detected: ");
+    fprintf(stderr, "✓ Location detected: ");
     if (cfg->city[0] != '\0') {
-      printf("%s, %s\n", cfg->city, cfg->country);
+      fprintf(stderr, "%s, %s\n", cfg->city, cfg->country);
     } else {
-      printf("%.4f, %.4f\n", cfg->latitude, cfg->longitude);
+      fprintf(stderr, "%.4f, %.4f\n", cfg->latitude, cfg->longitude);
     }
 
     return 0;
   }
 
-  int prepare_result = location_prepare(cfg);
+  int prepare_result = prepare(cfg);
   if (prepare_result < 0) {
     fprintf(stderr, "Error: Failed to detect location\n");
     return -1;
   }
 
   if (prepare_result == 1) {
-    printf("Detecting location...\n");
-    printf("✓ Location detected: ");
+    fprintf(stderr, "Detecting location...\n");
+    fprintf(stderr, "✓ Location detected: ");
     if (cfg->city[0] != '\0') {
-      printf("%s, %s\n", cfg->city, cfg->country);
+      fprintf(stderr, "%s, %s\n", cfg->city, cfg->country);
     } else {
-      printf("%.4f, %.4f\n", cfg->latitude, cfg->longitude);
+      fprintf(stderr, "%.4f, %.4f\n", cfg->latitude, cfg->longitude);
     }
   }
 
   return 0;
+}
+
+int ensure_location(Config *cfg) {
+  return ensure_location_with(cfg, location_prepare);
 }
 
 /* Core of location_refresh with the fetch step injected, so tests can drive the

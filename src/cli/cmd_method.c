@@ -124,19 +124,6 @@ int handle_method(int argc, char **argv) {
   if (argc == 0)
     return method_show_current();
 
-  if (strcmp(argv[0], "--auto") == 0)
-    return method_auto();
-
-  if (strcmp(argv[0], "--list") == 0) {
-    Config cfg;
-    if (config_load(&cfg) != 0) {
-      fprintf(stderr, "Error: Failed to load config\n");
-      return 1;
-    }
-    print_method_list(stdout, &cfg);
-    return 0;
-  }
-
   // Removed subcommands -> migration hints.
   if (strcmp(argv[0], "show") == 0) {
     fprintf(stderr, "Error: 'method show' was removed; use 'method' to show the current method\n");
@@ -153,6 +140,22 @@ int handle_method(int argc, char **argv) {
   if (strcmp(argv[0], "madhab") == 0) {
     fprintf(stderr, "Error: 'method madhab' was removed; use 'madzhab <name>'\n");
     return 1;
+  }
+
+  if (cli_reject_extra_args("method", argc - 1, argv + 1))
+    return 1;
+
+  if (strcmp(argv[0], "--auto") == 0)
+    return method_auto();
+
+  if (strcmp(argv[0], "--list") == 0) {
+    Config cfg;
+    if (config_load(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to load config\n");
+      return 1;
+    }
+    print_method_list(stdout, &cfg);
+    return 0;
   }
 
   return method_set(argv[0]);
@@ -190,6 +193,8 @@ int handle_madzhab(int argc, char **argv) {
     print_madzhab_help();
     return 0;
   }
+  if (cli_reject_extra_args("madzhab", argc - 1, argv + 1))
+    return 1;
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");

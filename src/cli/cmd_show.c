@@ -26,8 +26,8 @@ static void print_show_help(void) {
   printf("Commands:\n");
   printf("  %-25s %s\n", "--next <Option>", "Show next prayer time");
   printf("  %-25s %s\n", "--day-offset <offset>", "Show prayer time (+/-)<offset> days from now");
-  printf("  %-25s %s\n", "--date [date] <date> <options>",
-         "Show prayer time at or until desire date (yyyy-mm-dd)");
+  printf("  %-25s %s\n", "--date <start> [end]",
+         "Show prayer times for a date or inclusive range (yyyy-mm-dd)");
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
@@ -191,21 +191,13 @@ int handle_show(int argc, char **argv) {
   bool want_next = false;
   bool want_date = false;
   bool want_day_offset = false;
-  int day_offset_idx = -1;
-  int date_idx = -1;
   for (int i = 0; i < argc; i++) {
-    if (strcmp(argv[i], "--day-offset") == 0) {
+    if (strcmp(argv[i], "--day-offset") == 0)
       want_day_offset = true;
-      day_offset_idx = i;
-    }
-
-    if (strcmp(argv[i], "--next") == 0)
+    else if (strcmp(argv[i], "--next") == 0)
       want_next = true;
-
-    if (strcmp(argv[i], "--date") == 0) {
+    else if (strcmp(argv[i], "--date") == 0)
       want_date = true;
-      date_idx = i;
-    }
   }
 
   if (cli_wants_help(argc, argv)) {
@@ -220,11 +212,38 @@ int handle_show(int argc, char **argv) {
     return 0;
   }
 
-  // Reject removed / unknown flags (with a migration hint for the old spellings).
+  // Check every argument before the config is loaded. --date takes a start date
+  // and an optional end date, --day-offset takes one value, and everything else
+  // must be a known flag (with a migration hint for the removed spellings).
+  const char *date_start = NULL;
+  const char *date_end = NULL;
+  const char *offset_arg = NULL;
+  bool seen_date = false;
+  bool seen_day_offset = false;
   for (int i = 0; i < argc; i++) {
     const char *a = argv[i];
-    if (strcmp(a, "--date") == 0 || strcmp(a, "--day-offset") == 0)
-      break;
+    if (strcmp(a, "--date") == 0) {
+      if (seen_date) {
+        fprintf(stderr, "Error: --date given more than once\n");
+        return 1;
+      }
+      seen_date = true;
+      if (i + 1 < argc && strncmp(argv[i + 1], "--", 2) != 0)
+        date_start = argv[++i];
+      if (date_start && i + 1 < argc && strncmp(argv[i + 1], "--", 2) != 0)
+        date_end = argv[++i];
+      continue;
+    }
+    if (strcmp(a, "--day-offset") == 0) {
+      if (seen_day_offset) {
+        fprintf(stderr, "Error: --day-offset given more than once\n");
+        return 1;
+      }
+      seen_day_offset = true;
+      if (i + 1 < argc && strncmp(argv[i + 1], "--", 2) != 0)
+        offset_arg = argv[++i];
+      continue;
+    }
     if (strcmp(a, "--next") == 0 || strcmp(a, "--json") == 0 || strcmp(a, "--headless") == 0)
       continue;
     if (strcmp(a, "--format") == 0) {
@@ -244,75 +263,25 @@ int handle_show(int argc, char **argv) {
     fprintf(stderr, "Error: --day-offset cannot be combined with --next or --date\n");
     return 1;
   }
+  if (want_next && want_date) {
+    fprintf(stderr, "Error: --next cannot be combined with --date\n");
+    return 1;
+  }
 
   OutputMode mode = OUTPUT_TABLE;
   if (cli_parse_output_mode(argc, argv, &mode) != 0)
     return 1;
 
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
-  if (ensure_location(&cfg) != 0)
-    return 1;
-
-  time_t now = time(NULL);
-  struct tm tm_buf;
-  platform_localtime(&now, &tm_buf);
-  struct tm *tm_now = &tm_buf;
-
-  struct PrayerTimes times =
-      prayer_times_for_config(&cfg, tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday);
-
-  if (want_next) {
-    switch (mode) {
-    case OUTPUT_JSON:
-      display_next_prayer_json(&times, &cfg, tm_now);
-      break;
-    case OUTPUT_HEADLESS:
-      display_next_prayer_headless(&times, &cfg, tm_now);
-      break;
-    default:
-      display_next_prayer(&times, &cfg, tm_now);
-      break;
-    }
-  } else if (want_date) {
-    char *start_arg = (date_idx + 1 < argc) ? argv[date_idx + 1] : NULL;
-    char *end_arg = NULL;
-    if (date_idx + 2 < argc && strncmp(argv[date_idx + 2], "--", 2) != 0)
-      end_arg = argv[date_idx + 2];
-
-    int sy, sm, sd;
-    if (parse_date(start_arg, &sy, &sm, &sd) != 0) {
-      fprintf(stderr, "Error: Invalid date %s\n", start_arg ? start_arg : "(missing)");
+  int sy = 0, sm = 0, sd = 0, ey = 0, em = 0, ed = 0;
+  if (want_date) {
+    if (parse_date(date_start, &sy, &sm, &sd) != 0) {
+      fprintf(stderr, "Error: Invalid date %s\n", date_start ? date_start : "(missing)");
       print_show_date_help();
       return 1;
     }
-
-    if (end_arg == NULL) {
-      // Single day
-      struct tm date_start = {0};
-      date_start.tm_year = sy - 1900;
-      date_start.tm_mon = sm - 1;
-      date_start.tm_mday = sd;
-      struct PrayerTimes start = prayer_times_for_config(&cfg, sy, sm, sd);
-      switch (mode) {
-      case OUTPUT_JSON:
-        display_prayer_times_json(&start, &cfg, &date_start);
-        break;
-      case OUTPUT_HEADLESS:
-        display_prayer_times_plain(&start, &cfg, &date_start);
-        break;
-      default:
-        display_prayer_times_table(&start, &cfg, &date_start);
-        break;
-      }
-    } else {
-      // Date range
-      int ey, em, ed;
-      if (parse_date(end_arg, &ey, &em, &ed) != 0) {
-        fprintf(stderr, "Error: Invalid date %s\n", end_arg);
+    if (date_end) {
+      if (parse_date(date_end, &ey, &em, &ed) != 0) {
+        fprintf(stderr, "Error: Invalid date %s\n", date_end);
         print_show_date_help();
         return 1;
       }
@@ -326,41 +295,90 @@ int handle_show(int argc, char **argv) {
                 MAX_RANGE_DAYS);
         return 1;
       }
-      switch (mode) {
-      case OUTPUT_JSON:
-        display_prayer_times_range_json(&cfg, sy, sm, sd, ey, em, ed);
-        break;
-      case OUTPUT_HEADLESS:
-        display_prayer_times_range_plain(&cfg, sy, sm, sd, ey, em, ed);
-        break;
-      default:
-        display_prayer_times_range_table(&cfg, sy, sm, sd, ey, em, ed);
-        break;
-      }
+    }
+  }
+
+  time_t now = time(NULL);
+  struct tm tm_buf;
+  platform_localtime(&now, &tm_buf);
+  struct tm *tm_now = &tm_buf;
+
+  struct tm date = *tm_now;
+  if (want_day_offset) {
+    long offset = 0;
+    if (parse_day_offset(offset_arg, &offset) != 0) {
+      fprintf(stderr, "Error: Invalid day offset %s\n", offset_arg ? offset_arg : "(missing)");
+      print_show_day_offset_help();
+      return 1;
+    }
+    int y, m, d;
+    mt_civil_from_days(mt_days_from_civil(date.tm_year + 1900, date.tm_mon + 1, date.tm_mday) +
+                           offset,
+                       &y, &m, &d);
+    if (y < 1 || y > 9999) {
+      fprintf(stderr, "Error: day offset %ld falls outside years 1-9999\n", offset);
+      return 1;
+    }
+    date.tm_year = y - 1900;
+    date.tm_mon = m - 1;
+    date.tm_mday = d;
+  }
+
+  Config cfg;
+  if (config_load(&cfg) != 0) {
+    fprintf(stderr, "Error: Failed to load config\n");
+    return 1;
+  }
+  if (ensure_location(&cfg) != 0)
+    return 1;
+
+  if (want_next) {
+    struct PrayerTimes times =
+        prayer_times_for_config(&cfg, tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday);
+    switch (mode) {
+    case OUTPUT_JSON:
+      display_next_prayer_json(&times, &cfg, tm_now);
+      break;
+    case OUTPUT_HEADLESS:
+      display_next_prayer_headless(&times, &cfg, tm_now);
+      break;
+    default:
+      display_next_prayer(&times, &cfg, tm_now);
+      break;
+    }
+  } else if (want_date && date_end == NULL) {
+    struct tm start_tm = {0};
+    start_tm.tm_year = sy - 1900;
+    start_tm.tm_mon = sm - 1;
+    start_tm.tm_mday = sd;
+    struct PrayerTimes start = prayer_times_for_config(&cfg, sy, sm, sd);
+    switch (mode) {
+    case OUTPUT_JSON:
+      display_prayer_times_json(&start, &cfg, &start_tm);
+      break;
+    case OUTPUT_HEADLESS:
+      display_prayer_times_plain(&start, &cfg, &start_tm);
+      break;
+    default:
+      display_prayer_times_table(&start, &cfg, &start_tm);
+      break;
+    }
+  } else if (want_date) {
+    switch (mode) {
+    case OUTPUT_JSON:
+      display_prayer_times_range_json(&cfg, sy, sm, sd, ey, em, ed);
+      break;
+    case OUTPUT_HEADLESS:
+      display_prayer_times_range_plain(&cfg, sy, sm, sd, ey, em, ed);
+      break;
+    default:
+      display_prayer_times_range_table(&cfg, sy, sm, sd, ey, em, ed);
+      break;
     }
   } else {
-    struct tm date = *tm_now;
-    if (want_day_offset) {
-      const char *arg = (day_offset_idx + 1 < argc) ? argv[day_offset_idx + 1] : NULL;
-      long offset = 0;
-      if (parse_day_offset(arg, &offset) != 0) {
-        fprintf(stderr, "Error: Invalid day offset %s\n", arg ? arg : "(missing)");
-        print_show_day_offset_help();
-        return 1;
-      }
-      int y, m, d;
-      mt_civil_from_days(mt_days_from_civil(date.tm_year + 1900, date.tm_mon + 1, date.tm_mday) +
-                             offset,
-                         &y, &m, &d);
-      if (y < 1 || y > 9999) {
-        fprintf(stderr, "Error: day offset %ld falls outside years 1-9999\n", offset);
-        return 1;
-      }
-      date.tm_year = y - 1900;
-      date.tm_mon = m - 1;
-      date.tm_mday = d;
-      times = prayer_times_for_config(&cfg, y, m, d);
-    }
+    // Today, or today shifted by --day-offset.
+    struct PrayerTimes times =
+        prayer_times_for_config(&cfg, date.tm_year + 1900, date.tm_mon + 1, date.tm_mday);
     switch (mode) {
     case OUTPUT_JSON:
       display_prayer_times_json(&times, &cfg, &date);
