@@ -1,3 +1,10 @@
+muslimtify (0.4.2-1) unstable; urgency=medium
+
+  * Add new --day-offset subcommand to show the current day offset
+  * Fix config, location, CLI argument and DST countdown bugs
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Thu, 13 Sep 2026 18:51:02 +0700
+
 muslimtify (0.4.1-1) unstable; urgency=medium
 
   * Drop sunrise and dhuha, following libmuslim cutting struct PrayerTimes down to the five prescribed prayers; both were disabled by default, and a config file still carrying a prayers.sunrise or prayers.dhuha block keeps loading but the block no longer has any effect
