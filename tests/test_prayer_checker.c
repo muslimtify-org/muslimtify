@@ -58,7 +58,8 @@ static void same_days(struct PrayerTimes days[3]) {
 
 static NextPrayer next_at(const Config *cfg, const struct PrayerTimes days[3], int hour, int min) {
   struct tm now = make_time(hour, min);
-  return prayer_next_from_days(cfg, &now, days);
+  static const double no_shift[3] = {0.0, 0.0, 0.0};
+  return prayer_next_from_days(cfg, &now, days, no_shift);
 }
 
 static void test_next_upcoming(void) {
@@ -175,6 +176,94 @@ static void test_next_before_midnight(void) {
   check_bool("before midnight@23:59 countdown not negative", next.minutes_until >= 0);
 }
 
+// A DST change between now's date and the next day. With offsets {0, 0, 1}
+// the next day runs an hour ahead, so a prayer at 04:26 on its wall clock is
+// an hour sooner than the wall-clock difference says. {1, 1, 0} is the mirror.
+static void test_next_across_offset_change(void) {
+  printf("  next across offset change...\n");
+  Config cfg = test_config();
+  struct PrayerTimes days[3];
+  same_days(days);
+  struct tm now = make_time(20, 0);
+
+  // 20:00 to 04:26 is 506 wall-clock minutes.
+  const double spring[3] = {0.0, 0.0, 1.0};
+  NextPrayer next = prayer_next_from_days(&cfg, &now, days, spring);
+  check_bool("spring fajr from next day", next.type == PRAYER_FAJR && next.day_delta == 1);
+  check_bool("spring countdown 446min", next.minutes_until == 446);
+  check_bool("spring time stays wall clock", next.time == days[2].fajr);
+
+  const double autumn[3] = {1.0, 1.0, 0.0};
+  next = prayer_next_from_days(&cfg, &now, days, autumn);
+  check_bool("autumn fajr from next day", next.type == PRAYER_FAJR && next.day_delta == 1);
+  check_bool("autumn countdown 566min", next.minutes_until == 566);
+  check_bool("autumn time stays wall clock", next.time == days[2].fajr);
+
+  // The choice must use the corrected countdown. Now's date has isha at
+  // 23:40, 220 minutes away. The next day's fajr is at 01:00 on its wall
+  // clock, 300 wall-clock minutes away but 180 real minutes with a two hour
+  // offset jump, so it is the nearer one. Without the jump isha wins.
+  days[1].isha = 23.0 + 40.0 / 60.0;
+  days[2].fajr = 1.0;
+  const double jump[3] = {0.0, 0.0, 2.0};
+  next = prayer_next_from_days(&cfg, &now, days, jump);
+  check_bool("jump picks next day's fajr", next.type == PRAYER_FAJR && next.day_delta == 1);
+  check_bool("jump countdown 180min", next.minutes_until == 180);
+  const double flat[3] = {0.0, 0.0, 0.0};
+  next = prayer_next_from_days(&cfg, &now, days, flat);
+  check_bool("no jump picks isha", next.type == PRAYER_ISHA && next.day_delta == 0);
+}
+
+// Europe/London at 22:00, after isha, the evening before a clock change. The
+// next prayer is the following day's fajr. The expected countdown is taken
+// from UTC instants with the zone's known offsets, GMT +0 and BST +1, not
+// from effective_tz_offset.
+static void check_london_after_isha(const char *label, int y, int m, int d, double now_off,
+                                    double next_off) {
+  Config cfg = config_default();
+  cfg.latitude = 51.5074;
+  cfg.longitude = -0.1278;
+  strncpy(cfg.timezone, "Europe/London", sizeof(cfg.timezone) - 1);
+  cfg.timezone_offset = 0.0;
+  cfg.auto_detect = false;
+
+  long serial = mt_days_from_civil(y, m, d);
+  int ny, nm, nd;
+  mt_civil_from_days(serial + 1, &ny, &nm, &nd);
+  struct PrayerTimes today = prayer_times_for_config(&cfg, y, m, d);
+  struct PrayerTimes tomorrow = prayer_times_for_config(&cfg, ny, nm, nd);
+
+  struct tm now = {0};
+  now.tm_year = y - 1900;
+  now.tm_mon = m - 1;
+  now.tm_mday = d;
+  now.tm_hour = 22;
+
+  // Minutes since the epoch, UTC. The prayer is rounded up like the countdown.
+  long now_utc = serial * 1440L + 22 * 60 - lround(now_off * 60.0);
+  long fajr_utc = (serial + 1) * 1440L + (long)ceil(tomorrow.fajr * 60.0) - lround(next_off * 60.0);
+  long expected = fajr_utc - now_utc;
+
+  NextPrayer next = prayer_get_next(&cfg, &now, &today);
+  char name[96];
+  snprintf(name, sizeof(name), "%s isha before 22:00", label);
+  check_bool(name, today.isha < 22.0);
+  snprintf(name, sizeof(name), "%s next is tomorrow's fajr", label);
+  check_bool(name, next.type == PRAYER_FAJR && next.day_delta == 1);
+  snprintf(name, sizeof(name), "%s countdown %ld min (got %d)", label, expected,
+           next.minutes_until);
+  check_bool(name, next.minutes_until == expected);
+  snprintf(name, sizeof(name), "%s time stays wall clock", label);
+  check_bool(name, next.time == tomorrow.fajr);
+}
+
+static void test_next_london_dst(void) {
+  printf("  next across London DST change...\n");
+  // BST starts at 01:00 UTC on 2026-03-29 and ends at 01:00 UTC on 2026-10-25.
+  check_london_after_isha("london spring", 2026, 3, 28, 0.0, 1.0);
+  check_london_after_isha("london autumn", 2026, 10, 24, 1.0, 0.0);
+}
+
 // -- helper function tests ---------------------------------------------------
 
 static void test_prayer_get_name(void) {
@@ -210,6 +299,8 @@ int main(void) {
   test_next_skips_disabled();
   test_next_spill_from_yesterday();
   test_next_before_midnight();
+  test_next_across_offset_change();
+  test_next_london_dst();
   test_prayer_get_name();
   test_prayer_is_enabled();
   test_prayer_get_time();
