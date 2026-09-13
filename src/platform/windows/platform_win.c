@@ -361,7 +361,8 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
   return PATH_FILE_OK;
 }
 
-void platform_restrict_to_owner(FILE *f) {
-  // %APPDATA% / %LOCALAPPDATA% are user-scoped by their default ACL; no action.
-  (void)f;
+FILE *platform_file_create_private(const char *path) {
+  // %APPDATA% and %LOCALAPPDATA% are user-scoped by their default ACL, so a
+  // plain open is already private.
+  return platform_file_open(path, "w");
 }

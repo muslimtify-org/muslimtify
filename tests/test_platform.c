@@ -12,6 +12,7 @@
 
 #ifndef _WIN32
 #include <pwd.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #else
 #define WIN32_LEAN_AND_MEAN
@@ -377,10 +378,74 @@ static void test_file_sync(void) {
 }
 #endif
 
+// The config and cache temp files must be 0600 from the moment they exist, and
+// the directory mkdir_p creates last must be 0700. umask is cleared so that a
+// plain fopen or mkdir 0755 would show up as a wider mode.
+static void test_private_modes(void) {
+  printf("test_private_modes\n");
+
+  mode_t old_umask = umask(0);
+  char root[] = "/tmp/mt_platform_perms_XXXXXX";
+  if (!mkdtemp(root)) {
+    report_result("mkdtemp() for perms", false);
+    umask(old_umask);
+    return;
+  }
+
+  char path[PLATFORM_PATH_MAX];
+  struct stat st;
+
+  snprintf(path, sizeof(path), "%s/new.tmp", root);
+  FILE *f = platform_file_create_private(path);
+  report_result("platform_file_create_private() opens a new file", f != NULL);
+  if (f) {
+    report_result("new private file is 0600 as created",
+                  fstat(fileno(f), &st) == 0 && (st.st_mode & 0777) == 0600);
+    fclose(f);
+  }
+  unlink(path);
+
+  snprintf(path, sizeof(path), "%s/old.tmp", root);
+  FILE *old = fopen(path, "w");
+  if (old)
+    fclose(old);
+  chmod(path, 0644);
+  f = platform_file_create_private(path);
+  report_result("platform_file_create_private() opens an existing file", f != NULL);
+  if (f) {
+    report_result("existing file narrowed to 0600",
+                  fstat(fileno(f), &st) == 0 && (st.st_mode & 0777) == 0600);
+    fclose(f);
+  }
+  unlink(path);
+
+  char parent[64];
+  snprintf(parent, sizeof(parent), "%s/parent", root);
+  snprintf(path, sizeof(path), "%s/muslimtify", parent);
+  report_result("platform_mkdir_p() nested", platform_mkdir_p(path) == 0);
+  report_result("created leaf directory is 0700",
+                stat(path, &st) == 0 && (st.st_mode & 0777) == 0700);
+  report_result("created parent directory is 0755",
+                stat(parent, &st) == 0 && (st.st_mode & 0777) == 0755);
+  rmdir(path);
+  rmdir(parent);
+
+  snprintf(path, sizeof(path), "%s/existing", root);
+  mkdir(path, 0755);
+  report_result("platform_mkdir_p() existing", platform_mkdir_p(path) == 0);
+  report_result("existing directory keeps its mode",
+                stat(path, &st) == 0 && (st.st_mode & 0777) == 0755);
+  rmdir(path);
+
+  rmdir(root);
+  umask(old_umask);
+}
+
 int main(void) {
   printf("=== platform boundary tests ===\n\n");
 
 #ifndef _WIN32
+  test_private_modes();
   test_file_sync();
   test_linux_home_fallback();
 #else

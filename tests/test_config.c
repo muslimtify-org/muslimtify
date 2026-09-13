@@ -439,6 +439,15 @@ static void test_config_perms(void) {
   struct stat st;
   check_bool("perms: stat", stat(config_get_path(), &st) == 0);
   check_bool("perms: owner-only (0600)", (st.st_mode & 077) == 0);
+
+  // The muslimtify directory was created by config_save and must be 0700.
+  char dir[1024];
+  snprintf(dir, sizeof(dir), "%s", config_get_path());
+  char *slash = strrchr(dir, '/');
+  if (slash)
+    *slash = '\0';
+  check_bool("perms: dir stat", stat(dir, &st) == 0);
+  check_bool("perms: dir owner-only (0700)", (st.st_mode & 0777) == 0700);
 #else
   (void)0;
 #endif

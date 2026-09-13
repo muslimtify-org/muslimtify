@@ -234,7 +234,9 @@ int config_save(const Config *cfg) {
     return -1;
   }
 
-  FILE *f = platform_file_open(tmp_path, "w");
+  // Owner-only from creation: the config records the user's coordinates, so
+  // keep it out of other local users' reach.
+  FILE *f = platform_file_create_private(tmp_path);
   if (!f) {
     int err = errno;
     char errbuf[128];
@@ -242,10 +244,6 @@ int config_save(const Config *cfg) {
     fprintf(stderr, "Error: Cannot write config file: %s\n", errbuf);
     return -1;
   }
-
-  // Owner-only: the config records the user's coordinates; keep it out of
-  // other local users' reach. Set on the temp file before the atomic rename.
-  platform_restrict_to_owner(f);
 
   // Close the file on every path before deciding. A failed write used to skip
   // fclose, leaking the stream, and Windows cannot delete a file still open.

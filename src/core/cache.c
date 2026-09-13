@@ -257,11 +257,9 @@ int cache_save(const PrayerCache *cache) {
   char tmp_path[PLATFORM_PATH_MAX + 4];
   snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
 
-  FILE *f = platform_file_open(tmp_path, "w");
+  FILE *f = platform_file_create_private(tmp_path);
   if (!f)
     return -1;
-
-  platform_restrict_to_owner(f);
 
   fprintf(f, "{\n");
   fprintf(f, "  \"version\": %d,\n", CACHE_FORMAT_VERSION);
