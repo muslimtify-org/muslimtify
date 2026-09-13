@@ -293,6 +293,18 @@ static void test_round_trip(void) {
   check_bool("save ok", config_save(&out) == 0);
   check_bool("config file exists", platform_file_exists(config_get_path()) == 1);
 
+  // The last prayer object must not be followed by a comma, or the saved file
+  // is not valid JSON for anything but our own lenient parser.
+  char saved[16384] = "";
+  FILE *sf = fopen(config_get_path(), "r");
+  if (sf) {
+    size_t n = fread(saved, 1, sizeof(saved) - 1, sf);
+    saved[n] = '\0';
+    fclose(sf);
+  }
+  check_bool("saved file read", saved[0] != '\0');
+  check_bool("no trailing comma after last prayer", strstr(saved, "},\n  },") == NULL);
+
   Config in;
   check_bool("load ok", config_load(&in) == 0);
 
@@ -578,6 +590,45 @@ static void test_config_escapes_adhan(void) {
 
 // -- main ---------------------------------------------------------------------
 
+static void write_config_text(const char *text) {
+  FILE *f = fopen(config_get_path(), "w");
+  if (f) {
+    fputs(text, f);
+    fclose(f);
+  }
+}
+
+// A file that is not one complete object must fail to load, so no caller saves
+// defaults over the settings it could not read.
+static void test_malformed_config_refused(void) {
+  printf("  malformed config refused...\n");
+  Config cfg = config_default();
+  config_save(&cfg);
+
+  const char *bad[][2] = {
+      {"stray quote", "{\n  \"location\": { \"city\": \"Lon\"don\", \"latitude\": 51.5 }\n}\n"},
+      {"cut off", "{\n  \"location\": { \"latitude\": 51.5 }\n"},
+      {"empty", ""},
+      {"junk after object", "{ \"location\": { \"latitude\": 51.5 } } junk"},
+      {"not an object", "[1, 2]"},
+  };
+  for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+    write_config_text(bad[i][1]);
+    Config loaded;
+    char name[64];
+    snprintf(name, sizeof(name), "malformed refused: %s", bad[i][0]);
+    check_bool(name, config_load(&loaded) == -1);
+  }
+
+  // A complete object with only some sections still loads, keeping defaults for the rest.
+  write_config_text("  { \"location\": { \"latitude\": 51.5 } }\n");
+  Config partial;
+  check_bool("partial object loads", config_load(&partial) == 0);
+  check_bool("partial object keeps value", fabs(partial.latitude - 51.5) < 0.001);
+
+  config_save(&cfg);
+}
+
 int main(void) {
   setup();
 
@@ -599,6 +650,7 @@ int main(void) {
   test_effective_tz_offset();
   test_prayer_times_uses_dst_offset();
   test_config_escapes_adhan();
+  test_malformed_config_refused();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
