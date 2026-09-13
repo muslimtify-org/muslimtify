@@ -256,8 +256,9 @@ static int daemon_status_handler(int argc, char **argv) {
   (void)argv;
 
   printf("=== Service ===\n");
-  systemctl_user((const char *[]){"status", "muslimtify.service", "--no-pager", NULL});
-  return 0;
+  // Pass on the systemctl exit code, as the Windows version does with schtasks,
+  // so a failed query or a missing unit is not reported as success.
+  return systemctl_user((const char *[]){"status", "muslimtify.service", "--no-pager", NULL});
 }
 
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
