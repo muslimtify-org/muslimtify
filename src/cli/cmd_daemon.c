@@ -16,6 +16,7 @@
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
 #include "location.h"
 #include "prayertimes.h"
+#include <math.h>
 #endif
 
 // -- helpers -----------------------------------------------------------------
@@ -152,10 +153,15 @@ static int daemon_install_handler(int argc, char **argv) {
   remove(timer_path);
 
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
-  /* Auto-detect location and calculation method */
+  /* Auto-detect location and calculation method only when the config still
+   * needs a location, the same condition location_prepare uses. Coordinates
+   * and a method the user set by hand are kept. */
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Warning: Failed to load config, skipping auto-detect\n");
+  } else if (!(cfg.auto_detect && fabs(cfg.latitude) < 1e-6 && fabs(cfg.longitude) < 1e-6)) {
+    printf("✓ Using saved location %.4f, %.4f and method %s\n", cfg.latitude, cfg.longitude,
+           cfg.calculation_method);
   } else {
     printf("Detecting location...\n");
     if (config_auto_detect(&cfg) != 0) {
