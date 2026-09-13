@@ -93,6 +93,9 @@ static void print_horizontal_line(char pos) {
   for (int i = 0; i < 12; i++)
     printf("%s", horiz);
   printf("%s", mid);
+  for (int i = 0; i < 12; i++)
+    printf("%s", horiz);
+  printf("%s", mid);
   for (int i = 0; i < 10; i++)
     printf("%s", horiz);
   printf("%s", mid);
@@ -154,42 +157,38 @@ void display_prayer_times_table(const struct PrayerTimes *times, const Config *c
     struct tm *now_tm = &now_buf;
     if (date_copy.tm_year == now_tm->tm_year && date_copy.tm_mon == now_tm->tm_mon &&
         date_copy.tm_mday == now_tm->tm_mday) {
-      int dummy;
-      PrayerType next = prayer_get_next(cfg, now_tm, (struct PrayerTimes *)times, &dummy);
-      for (int i = 0; i < PRAYER_COUNT; i++) {
-        if (types[i] == next) {
-          next_idx = i;
-          break;
-        }
-      }
+      // Only a prayer taken from the day shown here. After isha the next prayer is
+      // tomorrow's fajr, and marking today's fajr row, long passed, would be wrong.
+      NextPrayer next = prayer_get_next(cfg, now_tm, times);
+      if (next.type != PRAYER_NONE && next.day_delta == 0)
+        next_idx = (int)next.type;
     }
   }
 
+  long date_days =
+      mt_days_from_civil(date_copy.tm_year + 1900, date_copy.tm_mon + 1, date_copy.tm_mday);
+
   // Table header
   print_horizontal_line('t');
-  printf("%s %s%-10s%s %s %s%-8s%s %s %s%-8s%s %s %s%-21s%s %s\n", BOX_V, C(COL_BOLD), "Prayer",
-         C(COL_RESET), BOX_V, C(COL_BOLD), "Time", C(COL_RESET), BOX_V, C(COL_BOLD), "Status",
-         C(COL_RESET), BOX_V, C(COL_BOLD), "Reminders", C(COL_RESET), BOX_V);
+  printf("%s %s%-10s%s %s %s%-10s%s %s %s%-8s%s %s %s%-8s%s %s %s%-21s%s %s\n", BOX_V, C(COL_BOLD),
+         "Date", C(COL_RESET), BOX_V, C(COL_BOLD), "Prayer", C(COL_RESET), BOX_V, C(COL_BOLD),
+         "Time", C(COL_RESET), BOX_V, C(COL_BOLD), "Status", C(COL_RESET), BOX_V, C(COL_BOLD),
+         "Reminders", C(COL_RESET), BOX_V);
   print_horizontal_line('m');
-
-  bool any_next = false;
-  bool any_prev = false;
 
   for (int i = 0; i < PRAYER_COUNT; i++) {
     double prayer_time = prayer_get_time(times, types[i]);
     char time_str[16];
-    format_time_hm_day(prayer_time, time_str, sizeof(time_str));
+    format_time_hm(prayer_time, time_str, sizeof(time_str));
+
+    // The Date column carries the day a prayer actually falls on, so the time needs no marker.
+    int y, m, d;
+    mt_civil_from_days(date_days + prayer_time_day_offset(prayer_time), &y, &m, &d);
+    char date_str[40];
+    snprintf(date_str, sizeof(date_str), "%04d-%02d-%02d", y, m, d);
 
     const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
     bool enabled = pcfg->enabled;
-
-    if (enabled) {
-      int day = prayer_time_day_offset(prayer_time);
-      if (day > 0)
-        any_next = true;
-      else if (day < 0)
-        any_prev = true;
-    }
 
     // Buffer sized for: MAX_REMINDERS * "1440, " + " min before" = 10*6+11 = 71
     char reminders[80] = "";
@@ -214,29 +213,30 @@ void display_prayer_times_table(const struct PrayerTimes *times, const Config *c
 
     if (!enabled) {
       // Dim entire row; "Disabled" is exactly 8 chars
-      printf("%s%s %-10s %s %-8s %s Disabled %s %-21s %s%s\n", C(COL_DIM), BOX_V, prayer_names[i],
-             BOX_V, time_str, BOX_V, BOX_V, "-", BOX_V, C(COL_RESET));
+      printf("%s%s %-10s %s %-10s %s %-8s %s Disabled %s %-21s %s%s\n", C(COL_DIM), BOX_V, date_str,
+             BOX_V, prayer_names[i], BOX_V, time_str, BOX_V, BOX_V, "-", BOX_V, C(COL_RESET));
     } else if (is_next) {
       // Next prayer: bold+yellow name, yellow time, > indicator
-      printf("%s%s%s%-10s%s %s %s%-8s%s %s %sEnabled %s %s %-21s %s\n", BOX_V,
-             C(COL_BOLD COL_YELLOW), use_colors() ? ">" : " ", prayer_names[i], C(COL_RESET), BOX_V,
-             C(COL_YELLOW), time_str, C(COL_RESET), BOX_V, C(COL_GREEN), C(COL_RESET), BOX_V,
+      printf("%s %-10s %s%s%s%-10s%s %s %s%-8s%s %s %sEnabled %s %s %-21s %s\n", BOX_V, date_str,
+             BOX_V, C(COL_BOLD COL_YELLOW), use_colors() ? ">" : " ", prayer_names[i], C(COL_RESET),
+             BOX_V, C(COL_YELLOW), time_str, C(COL_RESET), BOX_V, C(COL_GREEN), C(COL_RESET), BOX_V,
              reminders, BOX_V);
     } else {
       // Normal enabled row; "Enabled " (7+1 space) = 8 chars
-      printf("%s %-10s %s %-8s %s %sEnabled %s %s %-21s %s\n", BOX_V, prayer_names[i], BOX_V,
-             time_str, BOX_V, C(COL_GREEN), C(COL_RESET), BOX_V, reminders, BOX_V);
+      printf("%s %-10s %s %-10s %s %-8s %s %sEnabled %s %s %-21s %s\n", BOX_V, date_str, BOX_V,
+             prayer_names[i], BOX_V, time_str, BOX_V, C(COL_GREEN), C(COL_RESET), BOX_V, reminders,
+             BOX_V);
     }
   }
 
   print_horizontal_line('b');
-  print_day_marker_legend(any_next, any_prev);
   printf("\n");
 }
 
 void display_prayer_times_plain(const struct PrayerTimes *times, const Config *cfg,
                                 struct tm *date) {
   struct tm date_copy = *date;
+  printf("date=%04d-%02d-%02d\n", date->tm_year + 1900, date->tm_mon + 1, date->tm_mday);
 
   const char *prayer_names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
   PrayerType types[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
@@ -250,14 +250,11 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
     struct tm *now_tm = &now_buf;
     if (date_copy.tm_year == now_tm->tm_year && date_copy.tm_mon == now_tm->tm_mon &&
         date_copy.tm_mday == now_tm->tm_mday) {
-      int dummy;
-      PrayerType next = prayer_get_next(cfg, now_tm, (struct PrayerTimes *)times, &dummy);
-      for (int i = 0; i < PRAYER_COUNT; i++) {
-        if (types[i] == next) {
-          next_idx = i;
-          break;
-        }
-      }
+      // Only a prayer taken from the day shown here. After isha the next prayer is
+      // tomorrow's fajr, and marking today's fajr row, long passed, would be wrong.
+      NextPrayer next = prayer_get_next(cfg, now_tm, times);
+      if (next.type != PRAYER_NONE && next.day_delta == 0)
+        next_idx = (int)next.type;
     }
   }
 
@@ -279,7 +276,7 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
 
     int day = prayer_time_day_offset(prayer_time);
     if (day != 0)
-      printf("%s_day_offset=%d\n", prayer_names[i], day);
+      printf("%s_offset=%d\n", prayer_names[i], day);
   }
 }
 
@@ -301,7 +298,7 @@ static void print_prayer_entries(const struct PrayerTimes *times, const Config *
 
     printf("%s\"%s\": {\n", pad, prayer_names[i]);
     printf("%s  \"time\": \"%s\",\n", pad, time_str);
-    printf("%s  \"day_offset\": %d,\n", pad, prayer_time_day_offset(prayer_time));
+    printf("%s  \"offset\": %d,\n", pad, prayer_time_day_offset(prayer_time));
     printf("%s  \"enabled\": %s,\n", pad, pcfg->enabled ? "true" : "false");
     printf("%s  \"reminders\": [", pad);
     for (int j = 0; j < pcfg->reminder_count; j++) {
@@ -318,8 +315,9 @@ static void print_prayer_entries(const struct PrayerTimes *times, const Config *
 
 void display_prayer_times_json(const struct PrayerTimes *times, const Config *cfg,
                                struct tm *date) {
-  (void)date;
   printf("{\n");
+  printf("  \"date\": \"%04d-%02d-%02d\",\n", date->tm_year + 1900, date->tm_mon + 1,
+         date->tm_mday);
   printf("  \"prayers\": {\n");
   print_prayer_entries(times, cfg, "    ");
   printf("  }\n");
@@ -372,7 +370,7 @@ void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd,
 
       int day = prayer_time_day_offset(prayer_time);
       if (day != 0)
-        printf("%s_day_offset=%d\n", prayer_names[i], day);
+        printf("%s_offset=%d\n", prayer_names[i], day);
     }
     if (z < end)
       printf("\n");
@@ -469,72 +467,60 @@ void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd,
 // writes nothing) when there is no upcoming prayer. `name` is the display name
 // as-is (capitalized); callers that need a lowercase key run lower_copy on it.
 static bool next_prayer_info(const struct PrayerTimes *times, const Config *cfg,
-                             struct tm *current_time, const char **name, char *time_str,
-                             size_t time_cap, char *remaining, size_t rem_cap) {
-  int minutes_until = 0;
-  PrayerType next = prayer_get_next(cfg, current_time, (struct PrayerTimes *)times, &minutes_until);
-  if (next == PRAYER_NONE)
+                             struct tm *current_time, const char **name, char *date_str,
+                             size_t date_cap, char *time_str, size_t time_cap, char *remaining,
+                             size_t rem_cap) {
+  NextPrayer next = prayer_get_next(cfg, current_time, times);
+  if (next.type == PRAYER_NONE)
     return false;
 
-  *name = prayer_get_name(next);
+  *name = prayer_get_name(next.type);
 
-  double now_dec = current_time->tm_hour + current_time->tm_min / 60.0;
-  double next_time = prayer_get_time(times, next);
-  if (next_time < now_dec) {
-    // The next occurrence is tomorrow (every prayer today has passed). Recompute
-    // that prayer's time for the next day's date so the displayed clock time is
-    // exact, and derive `remaining` from that same next-day time.
-    long serial = mt_days_from_civil(current_time->tm_year + 1900, current_time->tm_mon + 1,
-                                     current_time->tm_mday) +
-                  1;
-    int ny, nm, nd;
-    mt_civil_from_days(serial, &ny, &nm, &nd);
-    struct PrayerTimes tomorrow = prayer_times_for_config(cfg, ny, nm, nd);
-    next_time = prayer_get_time(&tomorrow, next);
-    minutes_until = isfinite(next_time) ? (int)((next_time + 24.0 - now_dec) * 60.0) : 0;
-  }
+  // The date the prayer actually falls on: the day its time was taken from, plus
+  // a day when that time crosses midnight. next.time is always finite, because
+  // prayer_get_next skips prayers that have no time.
+  long day = mt_days_from_civil(current_time->tm_year + 1900, current_time->tm_mon + 1,
+                                current_time->tm_mday) +
+             next.day_delta + prayer_time_day_offset(next.time);
+  int dy, dm, dd;
+  mt_civil_from_days(day, &dy, &dm, &dd);
+  snprintf(date_str, date_cap, "%04d-%02d-%02d", dy, dm, dd);
 
-  format_time_hm(next_time, time_str, time_cap);
-  // format_time_hm renders a non-finite time as "--:--" already. The countdown
-  // has to be guarded separately, because (int) of a non-finite double is
-  // undefined behaviour and would print a field like "-35791394:-8".
-  if (isfinite(next_time)) {
-    snprintf(remaining, rem_cap, "%02d:%02d", minutes_until / 60, minutes_until % 60);
-  } else {
-    snprintf(remaining, rem_cap, "--:--");
-  }
+  format_time_hm(next.time, time_str, time_cap);
+  snprintf(remaining, rem_cap, "%02d:%02d", next.minutes_until / 60, next.minutes_until % 60);
   return true;
 }
 
 void display_next_prayer(const struct PrayerTimes *times, const Config *cfg,
                          struct tm *current_time) {
   const char *name;
-  char time_str[16], remaining[16];
-  if (!next_prayer_info(times, cfg, current_time, &name, time_str, sizeof(time_str), remaining,
-                        sizeof(remaining))) {
+  char date_str[40], time_str[16], remaining[16];
+  if (!next_prayer_info(times, cfg, current_time, &name, date_str, sizeof(date_str), time_str,
+                        sizeof(time_str), remaining, sizeof(remaining))) {
     printf("No upcoming prayers enabled.\n");
     return;
   }
 
-  printf("+------------+----------+-----------+\n");
-  printf("| %-10s | %-8s | %-9s |\n", "Prayer", "Time", "Remaining");
-  printf("+------------+----------+-----------+\n");
-  printf("| %-10s | %-8s | %-9s |\n", name, time_str, remaining);
-  printf("+------------+----------+-----------+\n");
+  printf("+------------+------------+----------+-----------+\n");
+  printf("| %-10s | %-10s | %-8s | %-9s |\n", "Date", "Prayer", "Time", "Remaining");
+  printf("+------------+------------+----------+-----------+\n");
+  printf("| %-10s | %-10s | %-8s | %-9s |\n", date_str, name, time_str, remaining);
+  printf("+------------+------------+----------+-----------+\n");
 }
 
 void display_next_prayer_headless(const struct PrayerTimes *times, const Config *cfg,
                                   struct tm *current_time) {
   const char *name;
-  char time_str[16], remaining[16];
-  if (!next_prayer_info(times, cfg, current_time, &name, time_str, sizeof(time_str), remaining,
-                        sizeof(remaining))) {
+  char date_str[40], time_str[16], remaining[16];
+  if (!next_prayer_info(times, cfg, current_time, &name, date_str, sizeof(date_str), time_str,
+                        sizeof(time_str), remaining, sizeof(remaining))) {
     printf("No upcoming prayers enabled.\n");
     return;
   }
 
   char lname[16];
   lower_copy(lname, sizeof(lname), name);
+  printf("date=%s\n", date_str);
   printf("%s=%s\n", lname, time_str);
   printf("remaining=%s\n", remaining);
 }
@@ -542,9 +528,9 @@ void display_next_prayer_headless(const struct PrayerTimes *times, const Config 
 void display_next_prayer_json(const struct PrayerTimes *times, const Config *cfg,
                               struct tm *current_time) {
   const char *name;
-  char time_str[16], remaining[16];
-  if (!next_prayer_info(times, cfg, current_time, &name, time_str, sizeof(time_str), remaining,
-                        sizeof(remaining))) {
+  char date_str[40], time_str[16], remaining[16];
+  if (!next_prayer_info(times, cfg, current_time, &name, date_str, sizeof(date_str), time_str,
+                        sizeof(time_str), remaining, sizeof(remaining))) {
     printf("{}\n");
     return;
   }
@@ -552,6 +538,7 @@ void display_next_prayer_json(const struct PrayerTimes *times, const Config *cfg
   char lname[16];
   lower_copy(lname, sizeof(lname), name);
   printf("{\n");
+  printf("  \"date\": \"%s\",\n", date_str);
   printf("  \"prayer\": \"%s\",\n", lname);
   printf("  \"time\": \"%s\",\n", time_str);
   printf("  \"remaining\": \"%s\"\n", remaining);

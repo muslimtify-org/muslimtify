@@ -47,47 +47,56 @@ static Config test_config(void) {
   return cfg;
 }
 
-// -- prayer_get_next tests ---------------------------------------------------
+// -- next prayer tests -------------------------------------------------------
+
+// Jakarta's times for the previous, same and next day. Real neighbours differ
+// by a minute or so, which none of these cases depend on.
+static void same_days(struct PrayerTimes days[3]) {
+  for (int i = 0; i < 3; i++)
+    days[i] = jakarta_times();
+}
+
+static NextPrayer next_at(const Config *cfg, const struct PrayerTimes days[3], int hour, int min) {
+  struct tm now = make_time(hour, min);
+  return prayer_next_from_days(cfg, &now, days);
+}
 
 static void test_next_upcoming(void) {
   printf("  next upcoming...\n");
   Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
-
-  int mins = 0;
+  struct PrayerTimes days[3];
+  same_days(days);
 
   // At 03:00, next enabled prayer is fajr (04:26)
-  struct tm now = make_time(3, 0);
-  PrayerType next = prayer_get_next(&cfg, &now, &times, &mins);
-  check_bool("next@03:00 is fajr", next == PRAYER_FAJR);
-  check_bool("next@03:00 ~86min", mins > 80 && mins < 92);
+  NextPrayer next = next_at(&cfg, days, 3, 0);
+  check_bool("next@03:00 is fajr", next.type == PRAYER_FAJR && next.day_delta == 0);
+  check_bool("next@03:00 ~86min", next.minutes_until > 80 && next.minutes_until < 92);
 
   // At 13:00, next enabled is asr (15:29)
-  now = make_time(13, 0);
-  next = prayer_get_next(&cfg, &now, &times, &mins);
-  check_bool("next@13:00 is asr", next == PRAYER_ASR);
-  check_bool("next@13:00 ~149min", mins > 140 && mins < 155);
+  next = next_at(&cfg, days, 13, 0);
+  check_bool("next@13:00 is asr", next.type == PRAYER_ASR && next.day_delta == 0);
+  check_bool("next@13:00 ~149min", next.minutes_until > 140 && next.minutes_until < 155);
 }
 
 static void test_next_wraps_to_tomorrow(void) {
   printf("  next wraps to tomorrow...\n");
   Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
-
-  int mins = 0;
+  struct PrayerTimes days[3];
+  same_days(days);
 
   // At 20:00, all today's prayers have passed.
   // Next should be fajr (04:26 tomorrow) ≈ 506 minutes away.
-  struct tm now = make_time(20, 0);
-  PrayerType next = prayer_get_next(&cfg, &now, &times, &mins);
-  check_bool("next@20:00 is fajr", next == PRAYER_FAJR);
-  check_bool("next@20:00 ~506min", mins > 500 && mins < 515);
+  NextPrayer next = next_at(&cfg, days, 20, 0);
+  check_bool("next@20:00 is fajr", next.type == PRAYER_FAJR);
+  check_bool("next@20:00 from tomorrow", next.day_delta == 1);
+  check_bool("next@20:00 ~506min", next.minutes_until > 500 && next.minutes_until < 515);
 }
 
 static void test_next_all_disabled(void) {
   printf("  next all disabled...\n");
   Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
+  struct PrayerTimes days[3];
+  same_days(days);
 
   cfg.fajr.enabled = false;
   cfg.dhuhr.enabled = false;
@@ -95,23 +104,75 @@ static void test_next_all_disabled(void) {
   cfg.maghrib.enabled = false;
   cfg.isha.enabled = false;
 
-  int mins = 0;
-  struct tm now = make_time(10, 0);
-  PrayerType next = prayer_get_next(&cfg, &now, &times, &mins);
-  check_bool("next all disabled", next == PRAYER_NONE);
+  NextPrayer next = next_at(&cfg, days, 10, 0);
+  check_bool("next all disabled", next.type == PRAYER_NONE);
 }
 
 static void test_next_skips_disabled(void) {
   printf("  next skips disabled...\n");
   Config cfg = test_config();
-  struct PrayerTimes times = jakarta_times();
+  struct PrayerTimes days[3];
+  same_days(days);
 
   // Disable dhuhr, at 11:00 next should be asr (not dhuhr)
   cfg.dhuhr.enabled = false;
-  int mins = 0;
-  struct tm now = make_time(11, 0);
-  PrayerType next = prayer_get_next(&cfg, &now, &times, &mins);
-  check_bool("next skips disabled dhuhr", next == PRAYER_ASR);
+  NextPrayer next = next_at(&cfg, days, 11, 0);
+  check_bool("next skips disabled dhuhr", next.type == PRAYER_ASR);
+}
+
+// Reykjavik in April: isha falls just after midnight. At 00:05 the previous
+// day's isha, at 00:06, is still ahead, and it only exists in the previous
+// day's times. A search over the same day's times alone reported fajr here,
+// and with isha as the only enabled prayer it reported nothing at all.
+static void test_next_spill_from_yesterday(void) {
+  printf("  next spill from yesterday...\n");
+  Config cfg = test_config();
+  struct PrayerTimes days[3];
+  same_days(days);
+  days[0].isha = 24.0 + 6.0 / 60.0;  // previous day's isha, at 00:06 today
+  days[1].isha = 24.0 + 16.0 / 60.0; // same day's isha, at 00:16 tomorrow
+  days[2].isha = 24.0 + 26.0 / 60.0;
+
+  NextPrayer next = next_at(&cfg, days, 0, 5);
+  check_bool("spill@00:05 is isha", next.type == PRAYER_ISHA);
+  check_bool("spill@00:05 from previous day", next.day_delta == -1);
+  check_bool("spill@00:05 time is previous day's", next.time == days[0].isha);
+  check_bool("spill@00:05 ~1min", next.minutes_until >= 1 && next.minutes_until <= 2);
+
+  Config only_isha = cfg;
+  only_isha.fajr.enabled = false;
+  only_isha.dhuhr.enabled = false;
+  only_isha.asr.enabled = false;
+  only_isha.maghrib.enabled = false;
+  next = next_at(&only_isha, days, 0, 5);
+  check_bool("spill only isha found", next.type == PRAYER_ISHA && next.day_delta == -1);
+
+  // Once the previous day's isha has passed, the same day's isha is next, a day away.
+  next = next_at(&only_isha, days, 0, 10);
+  check_bool("spill@00:10 is same day's isha", next.type == PRAYER_ISHA && next.day_delta == 0);
+  check_bool("spill@00:10 ~1446min", next.minutes_until >= 1445 && next.minutes_until <= 1447);
+}
+
+// A negative offset can move fajr before midnight. A prayer that has already
+// passed must never be picked with a negative countdown.
+static void test_next_before_midnight(void) {
+  printf("  next before midnight...\n");
+  Config cfg = test_config();
+  struct PrayerTimes days[3];
+  same_days(days);
+  days[1].fajr = -0.2; // same day's fajr, at 23:48 on the previous day
+  days[2].fajr = -0.2; // next day's fajr, at 23:48 today
+
+  // 23:30: every prayer of the day has passed, and the next day's fajr is 18 minutes away.
+  NextPrayer next = next_at(&cfg, days, 23, 30);
+  check_bool("before midnight@23:30 is fajr", next.type == PRAYER_FAJR && next.day_delta == 1);
+  check_bool("before midnight@23:30 ~18min", next.minutes_until >= 17 && next.minutes_until <= 19);
+
+  // 23:59: that fajr has passed too, so the next is the next day's dhuhr.
+  next = next_at(&cfg, days, 23, 59);
+  check_bool("before midnight@23:59 is next day's dhuhr",
+             next.type == PRAYER_DHUHR && next.day_delta == 1);
+  check_bool("before midnight@23:59 countdown not negative", next.minutes_until >= 0);
 }
 
 // -- helper function tests ---------------------------------------------------
@@ -147,6 +208,8 @@ int main(void) {
   test_next_wraps_to_tomorrow();
   test_next_all_disabled();
   test_next_skips_disabled();
+  test_next_spill_from_yesterday();
+  test_next_before_midnight();
   test_prayer_get_name();
   test_prayer_is_enabled();
   test_prayer_get_time();

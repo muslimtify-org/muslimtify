@@ -5,12 +5,14 @@
 #include "config.h"
 #include "country.h"
 #include "display.h"
+#include "platform.h"
 #include "prayertimes.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 // -- test infrastructure -----------------------------------------------------
@@ -645,10 +647,10 @@ static void test_show_range(void) {
   check_ret("range json flag-first ret", 0);
   check_contains("range json flag-first d2", "\"2022-01-02\"");
 
-  // single-day JSON still prayers-only (regression)
+  // single-day JSON has the same shape as one range entry
   run(5, (char *[]){"m", "show", "--date", "2022-01-01", "--json", NULL});
   check_ret("range single json ret", 0);
-  check_bool("range single json no date key", strstr(captured, "\"date\":") == NULL);
+  check_contains("range single json date key", "\"date\": \"2022-01-01\"");
   check_contains("range single json prayers", "\"prayers\"");
 
   // headless range: date= blocks, enabled prayers only
@@ -738,10 +740,10 @@ static bool has_time_marker(const char *s) {
 // no-legend check. Output:
 //   FAIL [markers jakarta no legend]
 //
-// Mutant 2: both `if (day != 0)` guards on the headless `_day_offset` key
+// Mutant 2: both `if (day != 0)` guards on the headless `_offset` key
 // removed (single-day and range headless paths), so the key is always
 // emitted. Caught by the Jakarta headless check. Output:
-//   FAIL [markers jakarta headless no day_offset]
+//   FAIL [markers jakarta headless no offset]
 //
 // Mutant 3: print_day_marker_legend() made to never print the previous-day
 // line, dropping the `if (any_prev)` branch entirely. Caught by the Eureka
@@ -795,16 +797,16 @@ static void test_day_markers(void) {
 
   // Step 5: headless keys. At Reykjavik, the headless isha key prints the
   // bare time (the marker character is a table-only device) plus a separate
-  // _day_offset line.
+  // _offset line.
   run(7, (char *[]){"m", "location", "set", "--lat=64.1466", "--long=-21.9426",
                     "--timezone=Atlantic/Reykjavik", "--country=IS", NULL});
   run(3, (char *[]){"m", "method", "mwl", NULL});
   run(5, (char *[]){"m", "show", "--date", "2026-04-07", "--headless", NULL});
   check_ret("markers reykjavik headless ret", 0);
   check_contains("markers reykjavik headless isha bare", "isha=00:06\n");
-  check_contains("markers reykjavik headless offset", "isha_day_offset=1");
+  check_contains("markers reykjavik headless offset", "isha_offset=1");
 
-  // Jakarta never crosses midnight on this date, so no _day_offset key
+  // Jakarta never crosses midnight on this date, so no _offset key
   // appears at all.
   run(7, (char *[]){"m", "location", "set", "--lat=-6.2088", "--long=106.8456",
                     "--timezone=Asia/Jakarta", "--country=ID", NULL});
@@ -812,7 +814,7 @@ static void test_day_markers(void) {
   run(5, (char *[]){"m", "show", "--date", "2026-04-07", "--headless", NULL});
   check_ret("markers jakarta headless ret", 0);
   check_contains("markers jakarta headless has isha", "isha=19:01");
-  check_bool("markers jakarta headless no day_offset", strstr(captured, "_day_offset") == NULL);
+  check_bool("markers jakarta headless no offset", strstr(captured, "_offset") == NULL);
 
   // Step 6: no other surface carries the marker. Reuse Reykjavik, a
   // location the table above proves does mark, and check `show --next`,
@@ -847,17 +849,20 @@ static void test_next(void) {
   check_ret("next table ret", 0);
   check_contains("next table border", "+------------+");
   check_contains("next table remaining", "Remaining");
+  check_contains("next table date", "| Date ");
 
   // headless
   run(4, (char *[]){"m", "show", "--next", "--headless", NULL});
   check_ret("next headless ret", 0);
   check_contains("next headless remaining", "remaining=");
+  check_contains("next headless date", "date=");
 
   // json
   run(4, (char *[]){"m", "show", "--next", "--json", NULL});
   check_ret("next json ret", 0);
   check_contains("next json prayer", "\"prayer\"");
   check_contains("next json remaining", "\"remaining\"");
+  check_contains("next json date", "\"date\"");
 
   // per-mode help
   run(4, (char *[]){"m", "show", "--next", "--help", NULL});
@@ -868,6 +873,70 @@ static void test_next(void) {
   run(2, (char *[]){"m", "next", NULL});
   check_ret("bare next removed ret", 1);
   check_contains("bare next removed msg", "Unknown command");
+}
+
+// Dates are derived from the clock the same way cmd_show.c derives them, so a
+// run that straddles local midnight can see a one-day mismatch.
+static void test_day_offset(void) {
+  printf("  show --day-offset...\n");
+  reset_config();
+
+  time_t now = time(NULL);
+  struct tm tm_buf;
+  platform_localtime(&now, &tm_buf);
+  long today = mt_days_from_civil(tm_buf.tm_year + 1900, tm_buf.tm_mon + 1, tm_buf.tm_mday);
+  int y, m, d;
+  char tomorrow[16], yesterday[16];
+  mt_civil_from_days(today + 1, &y, &m, &d);
+  snprintf(tomorrow, sizeof(tomorrow), "%04d-%02d-%02d", y, m, d);
+  mt_civil_from_days(today - 1, &y, &m, &d);
+  snprintf(yesterday, sizeof(yesterday), "%04d-%02d-%02d", y, m, d);
+
+  // +1 renders exactly what --date renders for tomorrow: the date and the
+  // prayer times computed for that date, not today's times under a new date.
+  static char expected[sizeof(captured)];
+  run(5, (char *[]){"m", "show", "--date", tomorrow, "--json", NULL});
+  strcpy(expected, captured);
+  run(5, (char *[]){"m", "show", "--day-offset", "1", "--json", NULL});
+  check_ret("day offset +1 json ret", 0);
+  check_bool("day offset +1 json matches --date", strcmp(captured, expected) == 0);
+
+  char want[32];
+  snprintf(want, sizeof(want), "date=%s\n", yesterday);
+  run(5, (char *[]){"m", "show", "--day-offset", "-1", "--headless", NULL});
+  check_ret("day offset -1 headless ret", 0);
+  check_contains("day offset -1 headless date", want);
+
+  run(4, (char *[]){"m", "show", "--day-offset", "+1", NULL});
+  check_ret("day offset +1 table ret", 0);
+  check_contains("day offset +1 table date", tomorrow);
+
+  // atoi used to turn all of these into a silent 0
+  const char *bad[] = {"abc", "1x", "", " 1", "99999999"};
+  for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+    char name[64];
+    snprintf(name, sizeof(name), "day offset bad [%s] ret", bad[i]);
+    run(4, (char *[]){"m", "show", "--day-offset", (char *)bad[i], NULL});
+    check_ret(name, 1);
+    snprintf(name, sizeof(name), "day offset bad [%s] msg", bad[i]);
+    check_contains(name, "Invalid day offset");
+  }
+
+  run(3, (char *[]){"m", "show", "--day-offset", NULL});
+  check_ret("day offset missing ret", 1);
+  check_contains("day offset missing msg", "(missing)");
+
+  run(4, (char *[]){"m", "show", "--day-offset", "-999999", NULL});
+  check_ret("day offset before year 1 ret", 1);
+  check_contains("day offset before year 1 msg", "outside years 1-9999");
+
+  run(5, (char *[]){"m", "show", "--day-offset", "1", "--next", NULL});
+  check_ret("day offset with next ret", 1);
+  check_contains("day offset with next msg", "cannot be combined");
+
+  run(4, (char *[]){"m", "show", "--day-offset", "--help", NULL});
+  check_ret("day offset help ret", 0);
+  check_contains("day offset help usage", "--day-offset <offset>");
 }
 
 // When all of today's prayers have passed, `show --next` rolls over to tomorrow's
@@ -1426,7 +1495,7 @@ static void test_json_no_trailing_comma(void) {
   check_contains("jakarta notification json has output", "{");
   check_bool("jakarta notification json no trailing comma", !has_trailing_comma(captured));
 
-  // Step 4: Reykjavik, which puts a day_offset field into the show JSON.
+  // Step 4: Reykjavik, which puts an offset field into the show JSON.
   run(7, (char *[]){"m", "location", "set", "--lat=64.1466", "--long=-21.9426",
                     "--timezone=Atlantic/Reykjavik", "--country=IS", NULL});
   run(3, (char *[]){"m", "method", "mwl", NULL});
@@ -1467,6 +1536,7 @@ int main(void) {
   test_show_range();
   test_day_markers();
   test_next();
+  test_day_offset();
   test_next_after_isha();
   test_method();
   test_madzhab();

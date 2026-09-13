@@ -14,6 +14,9 @@
 // range loop is bounded only by the year range and can run for weeks.
 #define MAX_RANGE_DAYS 366
 
+// Largest magnitude accepted by `show --day-offset`: more days than years 1-9999 span.
+#define MAX_DAY_OFFSET (9999L * 366L)
+
 static void print_show_help(void) {
   printf("\n");
   printf("Show today's prayer times as a table\n");
@@ -52,8 +55,12 @@ static void print_show_day_offset_help(void) {
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
-  printf("  %-25s %s\n", "--json", "Prayer times as JSON (range: array of days)");
-  printf("  %-25s %s\n", "--headless", "Prayer times as key=value (range: date= blocks)");
+  printf("  %-25s %s\n", "--json", "Prayer times as JSON");
+  printf("  %-25s %s\n", "--headless", "Prayer times as key=value");
+  printf("\n");
+  printf("Notes:\n");
+  printf("  %s\n", "The offset is a whole number of days and may be negative.");
+  printf("  %s\n", "The shifted date must fall in years 1-9999.");
   printf("\n");
   printf("Examples:\n");
   printf("  %-40s %s\n", "muslimtify show --day-offset 1", "# One day");
@@ -73,7 +80,8 @@ static void print_show_next_help(void) {
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
-  printf("  %-25s %s\n", "--json", "Next prayer as JSON: {\"prayer\",\"time\",\"remaining\"}");
+  printf("  %-25s %s\n", "--json",
+         "Next prayer as JSON: {\"date\",\"prayer\",\"time\",\"remaining\"}");
   printf("  %-25s %s\n", "--headless", "Next prayer as key=value");
   printf("\n");
   printf("Examples:\n");
@@ -163,6 +171,22 @@ static int parse_date(const char *s, int *y, int *m, int *d) {
   return 0;
 }
 
+// Parse a whole-day offset such as "1", "+7" or "-365". Unlike atoi, a missing
+// value, junk such as "abc" or "1x", and leading whitespace are errors instead of
+// a silent 0. The bound is wider than the 1-9999 year span, so any value it cuts
+// off would be out of range anyway, and it keeps the day serial far from
+// overflowing the int year. Returns 0 on success, -1 otherwise.
+static int parse_day_offset(const char *s, long *out) {
+  if (s == NULL || (*s != '-' && *s != '+' && (*s < '0' || *s > '9')))
+    return -1;
+  char *end;
+  long v = strtol(s, &end, 10);
+  if (end == s || *end != '\0' || v < -MAX_DAY_OFFSET || v > MAX_DAY_OFFSET)
+    return -1;
+  *out = v;
+  return 0;
+}
+
 int handle_show(int argc, char **argv) {
   bool want_next = false;
   bool want_date = false;
@@ -170,17 +194,17 @@ int handle_show(int argc, char **argv) {
   int day_offset_idx = -1;
   int date_idx = -1;
   for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "--day-offset") == 0) {
+      want_day_offset = true;
+      day_offset_idx = i;
+    }
+
     if (strcmp(argv[i], "--next") == 0)
       want_next = true;
 
     if (strcmp(argv[i], "--date") == 0) {
       want_date = true;
       date_idx = i;
-    }
-
-    if (strcmp(argv[i], "--day-offset") == 0) {
-      want_day_offset = true;
-      day_offset_idx = i;
     }
   }
 
@@ -199,7 +223,7 @@ int handle_show(int argc, char **argv) {
   // Reject removed / unknown flags (with a migration hint for the old spellings).
   for (int i = 0; i < argc; i++) {
     const char *a = argv[i];
-    if (strcmp(a, "--date") == 0)
+    if (strcmp(a, "--date") == 0 || strcmp(a, "--day-offset") == 0)
       break;
     if (strcmp(a, "--next") == 0 || strcmp(a, "--json") == 0 || strcmp(a, "--headless") == 0)
       continue;
@@ -213,6 +237,11 @@ int handle_show(int argc, char **argv) {
     }
     fprintf(stderr, "Error: unknown option '%s'\n", a);
     print_show_help();
+    return 1;
+  }
+
+  if (want_day_offset && (want_next || want_date)) {
+    fprintf(stderr, "Error: --day-offset cannot be combined with --next or --date\n");
     return 1;
   }
 
@@ -279,8 +308,6 @@ int handle_show(int argc, char **argv) {
         display_prayer_times_table(&start, &cfg, &date_start);
         break;
       }
-    } else if (want_day_offset) {
-      // TODO: Not yet implemented
     } else {
       // Date range
       int ey, em, ed;
@@ -312,15 +339,37 @@ int handle_show(int argc, char **argv) {
       }
     }
   } else {
+    struct tm date = *tm_now;
+    if (want_day_offset) {
+      const char *arg = (day_offset_idx + 1 < argc) ? argv[day_offset_idx + 1] : NULL;
+      long offset = 0;
+      if (parse_day_offset(arg, &offset) != 0) {
+        fprintf(stderr, "Error: Invalid day offset %s\n", arg ? arg : "(missing)");
+        print_show_day_offset_help();
+        return 1;
+      }
+      int y, m, d;
+      mt_civil_from_days(mt_days_from_civil(date.tm_year + 1900, date.tm_mon + 1, date.tm_mday) +
+                             offset,
+                         &y, &m, &d);
+      if (y < 1 || y > 9999) {
+        fprintf(stderr, "Error: day offset %ld falls outside years 1-9999\n", offset);
+        return 1;
+      }
+      date.tm_year = y - 1900;
+      date.tm_mon = m - 1;
+      date.tm_mday = d;
+      times = prayer_times_for_config(&cfg, y, m, d);
+    }
     switch (mode) {
     case OUTPUT_JSON:
-      display_prayer_times_json(&times, &cfg, tm_now);
+      display_prayer_times_json(&times, &cfg, &date);
       break;
     case OUTPUT_HEADLESS:
-      display_prayer_times_plain(&times, &cfg, tm_now);
+      display_prayer_times_plain(&times, &cfg, &date);
       break;
     default:
-      display_prayer_times_table(&times, &cfg, tm_now);
+      display_prayer_times_table(&times, &cfg, &date);
       break;
     }
   }

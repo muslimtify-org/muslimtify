@@ -30,9 +30,8 @@ static int notification_test(int argc, char **argv) {
   struct PrayerTimes times =
       prayer_times_for_config(&cfg, tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday);
 
-  int minutes_until = 0;
-  PrayerType next = prayer_get_next(&cfg, tm_now, &times, &minutes_until);
-  if (next == PRAYER_NONE) {
+  NextPrayer next = prayer_get_next(&cfg, tm_now, &times);
+  if (next.type == PRAYER_NONE) {
     fprintf(stderr, "No upcoming prayers enabled.\n");
     return 1;
   }
@@ -43,20 +42,20 @@ static int notification_test(int argc, char **argv) {
   }
 
   char time_str[16];
-  format_time_hm(prayer_get_time(&times, next), time_str, sizeof(time_str));
+  format_time_hm(next.time, time_str, sizeof(time_str));
   const char *sound_preset =
       strcmp(cfg.notification_sound, "off") != 0 ? cfg.notification_sound_alarm : NULL;
   if (argc > 0 && strcmp(argv[0], "--adhan") == 0) {
     // Use the next prayer's configured adhan; notify_adhan falls back to the
     // bundled adhan when the configured path is empty.
-    const PrayerConfig *pcfg = prayer_get_config(&cfg, next);
-    notify_adhan(prayer_get_name(next), time_str, pcfg ? pcfg->adhan : "");
+    const PrayerConfig *pcfg = prayer_get_config(&cfg, next.type);
+    notify_adhan(prayer_get_name(next.type), time_str, pcfg ? pcfg->adhan : "");
   } else {
-    notify_prayer(prayer_get_name(next), time_str, 0, cfg.notification_urgency, sound_preset);
+    notify_prayer(prayer_get_name(next.type), time_str, 0, cfg.notification_urgency, sound_preset);
   }
 
   notify_cleanup();
-  printf("Sent test notification for %s at %s\n", prayer_get_name(next), time_str);
+  printf("Sent test notification for %s at %s\n", prayer_get_name(next.type), time_str);
   return 0;
 }
 

@@ -59,41 +59,43 @@ bool prayer_is_enabled(const Config *cfg, PrayerType type) {
   return pcfg ? pcfg->enabled : false;
 }
 
-PrayerType prayer_get_next(const Config *cfg, struct tm *now, struct PrayerTimes *times,
-                           int *minutes_until) {
-  double current_time = now->tm_hour + now->tm_min / 60.0;
+NextPrayer prayer_next_from_days(const Config *cfg, const struct tm *now,
+                                 const struct PrayerTimes days[3]) {
+  NextPrayer best = {PRAYER_NONE, 0, 0, 0.0};
+  int now_min = now->tm_hour * 60 + now->tm_min;
 
-  PrayerType prayers[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
+  for (int delta = -1; delta <= 1; delta++) {
+    for (int i = 0; i < PRAYER_COUNT; i++) {
+      PrayerType type = (PrayerType)i;
+      if (!prayer_is_enabled(cfg, type))
+        continue;
 
-  PrayerType next_prayer = PRAYER_NONE;
-  double min_diff = 24.0 * 60.0; // Max minutes in a day
+      double pt = prayer_get_time(&days[delta + 1], type);
+      // A prayer the Sun never reaches at this latitude has no time to count down to.
+      if (!isfinite(pt))
+        continue;
 
-  for (int i = 0; i < PRAYER_COUNT; i++) {
-    PrayerType type = prayers[i];
-
-    // Skip if disabled
-    if (!prayer_is_enabled(cfg, type))
-      continue;
-
-    double prayer_time = prayer_get_time(times, type);
-    double diff_hours = prayer_time - current_time;
-
-    // Handle prayers that are tomorrow (negative diff means passed today)
-    if (diff_hours < 0) {
-      diff_hours += 24.0;
-    }
-
-    double diff_minutes = diff_hours * 60.0;
-
-    if (diff_minutes < min_diff) {
-      min_diff = diff_minutes;
-      next_prayer = type;
+      // Minutes from the start of now's date to the prayer, rounded up like
+      // format_time_hm so the countdown and the printed time agree.
+      long until = (long)ceil((pt + 24.0 * delta) * 60.0) - now_min;
+      if (until < 0 || (best.type != PRAYER_NONE && until >= best.minutes_until))
+        continue;
+      best = (NextPrayer){type, (int)until, delta, pt};
     }
   }
 
-  if (minutes_until) {
-    *minutes_until = (int)min_diff;
-  }
+  return best;
+}
 
-  return next_prayer;
+NextPrayer prayer_get_next(const Config *cfg, const struct tm *now,
+                           const struct PrayerTimes *today) {
+  long serial = mt_days_from_civil(now->tm_year + 1900, now->tm_mon + 1, now->tm_mday);
+  struct PrayerTimes days[3];
+  days[1] = *today;
+  for (int delta = -1; delta <= 1; delta += 2) {
+    int y, m, d;
+    mt_civil_from_days(serial + delta, &y, &m, &d);
+    days[delta + 1] = prayer_times_for_config(cfg, y, m, d);
+  }
+  return prayer_next_from_days(cfg, now, days);
 }
