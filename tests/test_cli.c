@@ -1585,6 +1585,61 @@ static void test_show_args(void) {
   reset_config();
 }
 
+static int fajr_reminder_count(void) {
+  Config cfg;
+  if (config_load(&cfg) != 0)
+    return -1;
+  return cfg.fajr.reminder_count;
+}
+
+static void test_reminder_args(void) {
+  printf("  notification --reminder validation...\n");
+  reset_config();
+
+  run(6, (char *[]){"m", "notification", "--reminder", "fajr", "30", "15", NULL});
+  check_ret("reminder args seed ret", 0);
+
+  // --all with no minutes used to clear every prayer's reminders.
+  run(4, (char *[]){"m", "notification", "--reminder", "--all", NULL});
+  check_ret("reminder args all no minutes ret", 1);
+  check_contains("reminder args all no minutes msg", "at least one minute value");
+  check_bool("reminder args all no minutes keeps fajr", fajr_reminder_count() == 2);
+
+  // The per-prayer form with no minutes is rejected the same way.
+  run(4, (char *[]){"m", "notification", "--reminder", "fajr", NULL});
+  check_ret("reminder args prayer no minutes ret", 1);
+  check_contains("reminder args prayer no minutes msg", "at least one minute value");
+  check_bool("reminder args prayer no minutes keeps fajr", fajr_reminder_count() == 2);
+
+  // Values past MAX_REMINDERS used to be dropped without being checked.
+  run(16, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
+                     "8", "9", "10", "11", "abc", NULL});
+  check_ret("reminder args eleven plus junk ret", 1);
+  check_contains("reminder args eleven plus junk msg", "at most 10 reminder values");
+  check_bool("reminder args eleven plus junk keeps fajr", fajr_reminder_count() == 2);
+
+  run(15, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
+                     "8", "9", "10", "11", NULL});
+  check_ret("reminder args eleven ret", 1);
+  check_bool("reminder args eleven keeps fajr", fajr_reminder_count() == 2);
+
+  run(15, (char *[]){"m", "notification", "--reminder", "--all", "1", "2", "3", "4", "5", "6", "7",
+                     "8", "9", "10", "11", NULL});
+  check_ret("reminder args all eleven ret", 1);
+  check_bool("reminder args all eleven keeps fajr", fajr_reminder_count() == 2);
+
+  // Exactly MAX_REMINDERS values are accepted.
+  run(14, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
+                     "8", "9", "10", NULL});
+  check_ret("reminder args ten ret", 0);
+  check_bool("reminder args ten stored", fajr_reminder_count() == 10);
+
+  // none and clear still clear on purpose.
+  run(5, (char *[]){"m", "notification", "--reminder", "--all", "clear", NULL});
+  check_ret("reminder args all clear ret", 0);
+  check_bool("reminder args all clear cfg", fajr_reminder_count() == 0);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1606,6 +1661,7 @@ int main(void) {
   test_method();
   test_madzhab();
   test_notification();
+  test_reminder_args();
   test_daemon_errors();
   test_offset();
   test_location_set_timezone_validation();

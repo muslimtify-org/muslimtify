@@ -156,13 +156,19 @@ static int notif_urgency(int argc, char **argv) {
   return 0;
 }
 
-// Parse trailing space-separated minutes into `out` (0 < m <= 1440), up to
-// MAX_REMINDERS. Returns the count, or -1 on a bad value. "none" -> 0.
+// Parse trailing space-separated minutes into `out` (0 < m <= 1440). A lone
+// "none" or "clear" means no reminders and returns 0. Otherwise returns the
+// count, -1 on a bad value, -2 when no value is given, or -3 when more than
+// MAX_REMINDERS values are given.
 static int parse_minute_args(int argc, char **argv, int *out) {
   if (argc == 1 && (strcmp(argv[0], "none") == 0 || strcmp(argv[0], "clear") == 0))
     return 0;
+  if (argc == 0)
+    return -2;
+  if (argc > MAX_REMINDERS)
+    return -3;
   int count = 0;
-  for (int i = 0; i < argc && count < MAX_REMINDERS; i++) {
+  for (int i = 0; i < argc; i++) {
     char *end = NULL;
     long v = strtol(argv[i], &end, 10);
     if (end == argv[i] || *end != '\0' || v <= 0 || v > 1440)
@@ -170,6 +176,17 @@ static int parse_minute_args(int argc, char **argv, int *out) {
     out[count++] = (int)v;
   }
   return count;
+}
+
+// Print the error for a negative parse_minute_args result. Returns 1.
+static int minute_args_error(int rc) {
+  if (rc == -2)
+    fprintf(stderr, "Error: --reminder needs at least one minute value, or none to clear\n");
+  else if (rc == -3)
+    fprintf(stderr, "Error: at most %d reminder values are allowed\n", MAX_REMINDERS);
+  else
+    fprintf(stderr, "Error: reminder minutes must be integers 1..1440\n");
+  return 1;
 }
 
 static int notif_reminder(int argc, char **argv) {
@@ -188,10 +205,8 @@ static int notif_reminder(int argc, char **argv) {
   if (all) {
     int mins[MAX_REMINDERS];
     int count = parse_minute_args(argc, argv, mins);
-    if (count < 0) {
-      fprintf(stderr, "Error: reminder minutes must be integers 1..1440\n");
-      return 1;
-    }
+    if (count < 0)
+      return minute_args_error(count);
     Config cfg;
     if (config_load(&cfg) != 0) {
       fprintf(stderr, "Error: Failed to load config\n");
@@ -212,17 +227,15 @@ static int notif_reminder(int argc, char **argv) {
     return 0;
   }
 
-  if (argc < 2) {
+  if (argc < 1) {
     print_reminder_help();
     return 1;
   }
   const char *prayer = argv[0];
   int mins[MAX_REMINDERS];
   int count = parse_minute_args(argc - 1, argv + 1, mins);
-  if (count < 0) {
-    fprintf(stderr, "Error: reminder minutes must be integers 1..1440\n");
-    return 1;
-  }
+  if (count < 0)
+    return minute_args_error(count);
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
