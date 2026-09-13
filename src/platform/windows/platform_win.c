@@ -277,6 +277,12 @@ FILE *platform_file_open(const char *path, const char *mode) {
   return f;
 }
 
+int platform_file_sync(FILE *f) {
+  if (fflush(f) != 0)
+    return -1;
+  return _commit(_fileno(f)) == 0 ? 0 : -1;
+}
+
 int platform_file_delete(const char *path) {
   wchar_t *wide_path = utf8_to_wide(path);
   if (!wide_path)

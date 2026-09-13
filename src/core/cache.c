@@ -285,7 +285,8 @@ int cache_save(const PrayerCache *cache) {
   fprintf(f, "  ]\n");
   fprintf(f, "}\n");
 
-  int write_err = ferror(f) || fflush(f) != 0;
+  // Sync before the rename, or a power cut can leave an empty cache.
+  int write_err = ferror(f) || platform_file_sync(f) != 0;
   if (fclose(f) != 0 || write_err) {
     platform_file_delete(tmp_path);
     return -1;

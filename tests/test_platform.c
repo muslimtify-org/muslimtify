@@ -337,10 +337,51 @@ static void test_linux_home_fallback(void) {
 }
 #endif
 
+#ifndef _WIN32
+// platform_file_sync must report both a failed flush and a failed fsync, since
+// the saves treat either as a failed save.
+static void test_file_sync(void) {
+  printf("test_file_sync\n");
+
+  FILE *f = tmpfile();
+  report_result("tmpfile() for sync", f != NULL);
+  if (f) {
+    fputs("data", f);
+    report_result("platform_file_sync() on a regular file", platform_file_sync(f) == 0);
+    fclose(f);
+  }
+
+  // fsync on a pipe fails with EINVAL while the flush itself succeeds, so this
+  // only passes if the fsync result is checked.
+  int fds[2];
+  if (pipe(fds) == 0) {
+    FILE *p = fdopen(fds[1], "w");
+    if (p) {
+      fputs("x", p);
+      report_result("platform_file_sync() reports a failed fsync", platform_file_sync(p) != 0);
+      fclose(p);
+    } else {
+      close(fds[1]);
+    }
+    close(fds[0]);
+  }
+
+#ifdef __linux__
+  FILE *full = fopen("/dev/full", "w");
+  if (full) {
+    fputs("x", full);
+    report_result("platform_file_sync() reports a failed flush", platform_file_sync(full) != 0);
+    fclose(full);
+  }
+#endif
+}
+#endif
+
 int main(void) {
   printf("=== platform boundary tests ===\n\n");
 
 #ifndef _WIN32
+  test_file_sync();
   test_linux_home_fallback();
 #else
   test_windows_file_operations();

@@ -249,7 +249,8 @@ int config_save(const Config *cfg) {
 
   // Close the file on every path before deciding. A failed write used to skip
   // fclose, leaking the stream, and Windows cannot delete a file still open.
-  int write_err = write_json_file(f, cfg) != 0 || fflush(f) != 0;
+  // Sync before the rename, or a power cut can leave an empty config.
+  int write_err = write_json_file(f, cfg) != 0 || platform_file_sync(f) != 0;
   int err = errno;
   if (fclose(f) != 0 && !write_err) {
     write_err = 1;

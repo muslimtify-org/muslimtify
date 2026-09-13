@@ -73,6 +73,13 @@ int platform_file_exists(const char *path);
 FILE *platform_file_open(const char *path, const char *mode);
 
 /**
+ * Flush a stream and make the OS write its data to disk (fsync on POSIX,
+ * _commit on Windows), so a rename that follows cannot leave an empty file
+ * after a power loss. Returns 0 on success, -1 on failure.
+ */
+int platform_file_sync(FILE *f);
+
+/**
  * Delete a file. Returns 0 on success, -1 on failure.
  */
 int platform_file_delete(const char *path);
