@@ -247,8 +247,15 @@ int config_save(const Config *cfg) {
   // other local users' reach. Set on the temp file before the atomic rename.
   platform_restrict_to_owner(f);
 
-  if (write_json_file(f, cfg) != 0 || fflush(f) != 0 || fclose(f) != 0) {
-    int err = errno;
+  // Close the file on every path before deciding. A failed write used to skip
+  // fclose, leaking the stream, and Windows cannot delete a file still open.
+  int write_err = write_json_file(f, cfg) != 0 || fflush(f) != 0;
+  int err = errno;
+  if (fclose(f) != 0 && !write_err) {
+    write_err = 1;
+    err = errno;
+  }
+  if (write_err) {
     char errbuf[128];
     errno_string(err, errbuf, sizeof(errbuf));
     fprintf(stderr, "Error: Failed to write config file: %s\n", errbuf);
@@ -257,7 +264,7 @@ int config_save(const Config *cfg) {
   }
 
   if (platform_atomic_rename(tmp_path, path) != 0) {
-    int err = errno;
+    err = errno;
     char errbuf[128];
     errno_string(err, errbuf, sizeof(errbuf));
     fprintf(stderr, "Error: Failed to save config file: %s\n", errbuf);

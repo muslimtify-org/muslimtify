@@ -701,6 +701,50 @@ static void test_unicode_escape_round_trip(void) {
   config_save(&cfg);
 }
 
+#ifdef __linux__
+// Lowest free descriptor number. If a save leaks a descriptor, the number
+// taken after the save differs from the one taken before it.
+static int lowest_free_fd(void) {
+  int fd = dup(0);
+  if (fd >= 0)
+    close(fd);
+  return fd;
+}
+#endif
+
+// When the write fails the temp file must still be closed before it is
+// deleted. The temp path is pointed at /dev/full so the flush fails with
+// ENOSPC, and a leaked descriptor shows up as a changed lowest free fd.
+static void test_failed_save_closes_file(void) {
+#ifdef __linux__
+  printf("  failed save closes file...\n");
+  if (geteuid() == 0) {
+    // As root the save could change the mode of /dev/full through the link.
+    printf("  SKIP: running as root\n");
+    return;
+  }
+  Config cfg = config_default();
+  check_bool("failed save: seed", config_save(&cfg) == 0);
+
+  char tmp_path[1024];
+  snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", config_get_path());
+  unlink(tmp_path);
+  if (symlink("/dev/full", tmp_path) != 0) {
+    printf("  SKIP: cannot create symlink\n");
+    return;
+  }
+
+  int before = lowest_free_fd();
+  check_bool("failed save: returns -1", config_save(&cfg) == -1);
+  int after = lowest_free_fd();
+  check_bool("failed save: no descriptor leaked", before == after);
+  check_bool("failed save: temp path removed", access(tmp_path, F_OK) != 0);
+  unlink(tmp_path);
+#else
+  (void)0;
+#endif
+}
+
 int main(void) {
   setup();
 
@@ -726,6 +770,7 @@ int main(void) {
   test_multiline_reminders();
   test_huge_values_not_wrapped();
   test_unicode_escape_round_trip();
+  test_failed_save_closes_file();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
