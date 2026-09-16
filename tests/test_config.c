@@ -754,12 +754,52 @@ static void test_failed_save_closes_file(void) {
 #endif
 }
 
+static void test_coordinate_helpers(void) {
+  printf("  coordinate helpers...\n");
+
+  check_bool("lat 0 valid", config_latitude_is_valid(0.0));
+  check_bool("lat 90 valid", config_latitude_is_valid(90.0));
+  check_bool("lat -90 valid", config_latitude_is_valid(-90.0));
+  check_bool("lat 91 invalid", !config_latitude_is_valid(91.0));
+  check_bool("lat -91 invalid", !config_latitude_is_valid(-91.0));
+  check_bool("lat NaN invalid", !config_latitude_is_valid(NAN));
+  check_bool("lat +inf invalid", !config_latitude_is_valid(INFINITY));
+  check_bool("lat -inf invalid", !config_latitude_is_valid(-INFINITY));
+
+  check_bool("lon 0 valid", config_longitude_is_valid(0.0));
+  check_bool("lon 180 valid", config_longitude_is_valid(180.0));
+  check_bool("lon -180 valid", config_longitude_is_valid(-180.0));
+  check_bool("lon 181 invalid", !config_longitude_is_valid(181.0));
+  check_bool("lon 200 invalid", !config_longitude_is_valid(200.0));
+  check_bool("lon NaN invalid", !config_longitude_is_valid(NAN));
+  check_bool("lon +inf invalid", !config_longitude_is_valid(INFINITY));
+  check_bool("lon -inf invalid", !config_longitude_is_valid(-INFINITY));
+}
+
+static void test_validate_rejects_nan(void) {
+  printf("  validate rejects NaN...\n");
+
+  Config cfg = config_default();
+  cfg.latitude = -6.2088;
+  cfg.longitude = 106.8456;
+  check_bool("validate valid coords", config_validate(&cfg));
+
+  cfg.latitude = NAN;
+  check_bool("validate NaN latitude", !config_validate(&cfg));
+
+  cfg.latitude = -6.2088;
+  cfg.longitude = NAN;
+  check_bool("validate NaN longitude", !config_validate(&cfg));
+}
+
 int main(void) {
   setup();
 
   printf("Running config tests...\n");
   test_parse_reminders();
   test_validate();
+  test_coordinate_helpers();
+  test_validate_rejects_nan();
   test_get_prayer();
   test_format_reminders();
   test_default();

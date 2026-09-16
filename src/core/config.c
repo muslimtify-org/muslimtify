@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -568,14 +569,22 @@ int config_load(Config *cfg) {
   return 0;
 }
 
+bool config_latitude_is_valid(double lat) {
+  return isfinite(lat) && lat >= -90.0 && lat <= 90.0;
+}
+
+bool config_longitude_is_valid(double lon) {
+  return isfinite(lon) && lon >= -180.0 && lon <= 180.0;
+}
+
 bool config_validate(const Config *cfg) {
   if (!cfg)
     return false;
 
   // Validate location
-  if (cfg->latitude < -90.0 || cfg->latitude > 90.0)
+  if (!config_latitude_is_valid(cfg->latitude))
     return false;
-  if (cfg->longitude < -180.0 || cfg->longitude > 180.0)
+  if (!config_longitude_is_valid(cfg->longitude))
     return false;
   if (cfg->timezone_offset < -12.0 || cfg->timezone_offset > 14.0)
     return false;
