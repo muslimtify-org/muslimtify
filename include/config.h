@@ -111,6 +111,17 @@ bool config_latitude_is_valid(double lat);
 bool config_longitude_is_valid(double lon);
 
 /**
+ * True when cfg wants auto-detection and has no usable location, either unset
+ * at 0,0 from config_default or invalid.
+ *
+ * The old test was `auto_detect && fabs(latitude) < 1e-6 && fabs(longitude) <
+ * 1e-6`, written out at three call sites. `fabs(nan) < 1e-6` is false, so a
+ * config holding a NaN coordinate never re-detected and stayed broken, while a
+ * fresh install with the same auto_detect setting repaired itself.
+ */
+bool config_location_needs_detect(const Config *cfg);
+
+/**
  * Get prayer config by name (case-insensitive)
  * Returns: pointer to PrayerConfig or NULL if not found
  */

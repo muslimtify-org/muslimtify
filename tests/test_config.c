@@ -890,6 +890,32 @@ static void test_invalid_location_blanks_times(void) {
   check_bool("longitude 200 blanks", all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
 }
 
+static void test_location_needs_detect(void) {
+  printf("  location needs detect...\n");
+
+  Config cfg = config_default();
+  cfg.auto_detect = true;
+  cfg.latitude = 0.0;
+  cfg.longitude = 0.0;
+  check_bool("auto on, unset location detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = NAN;
+  cfg.longitude = 106.8456;
+  check_bool("auto on, NaN latitude detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = 91.0;
+  check_bool("auto on, out of range detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = -6.2088;
+  check_bool("auto on, valid location does not detect", !config_location_needs_detect(&cfg));
+
+  cfg.auto_detect = false;
+  cfg.latitude = NAN;
+  check_bool("auto off, NaN latitude does not detect", !config_location_needs_detect(&cfg));
+
+  check_bool("NULL does not detect", !config_location_needs_detect(NULL));
+}
+
 int main(void) {
   setup();
 
@@ -899,6 +925,7 @@ int main(void) {
   test_coordinate_helpers();
   test_validate_rejects_nan();
   test_invalid_location_blanks_times();
+  test_location_needs_detect();
   test_get_prayer();
   test_format_reminders();
   test_default();

@@ -333,7 +333,7 @@ int location_prepare(Config *cfg) {
   if (!cfg)
     return -1;
 
-  if (cfg->auto_detect && (fabs(cfg->latitude) < 1e-6 && fabs(cfg->longitude) < 1e-6)) {
+  if (config_location_needs_detect(cfg)) {
     if (location_fetch(cfg) != 0) {
       return -1;
     }
@@ -357,7 +357,7 @@ int ensure_location_with(Config *cfg, int (*prepare)(Config *)) {
   if (!cfg)
     return -1;
 
-  if (cfg->auto_detect && (fabs(cfg->latitude) < 1e-6 && fabs(cfg->longitude) < 1e-6)) {
+  if (config_location_needs_detect(cfg)) {
     fprintf(stderr, "Detecting location...\n");
     if (prepare(cfg) != 0) {
       fprintf(stderr, "Error: Failed to detect location\n");

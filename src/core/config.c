@@ -577,6 +577,14 @@ bool config_longitude_is_valid(double lon) {
   return isfinite(lon) && lon >= -180.0 && lon <= 180.0;
 }
 
+bool config_location_needs_detect(const Config *cfg) {
+  if (!cfg || !cfg->auto_detect)
+    return false;
+  if (!config_latitude_is_valid(cfg->latitude) || !config_longitude_is_valid(cfg->longitude))
+    return true;
+  return fabs(cfg->latitude) < 1e-6 && fabs(cfg->longitude) < 1e-6;
+}
+
 bool config_validate(const Config *cfg) {
   if (!cfg)
     return false;
