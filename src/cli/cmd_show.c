@@ -28,6 +28,7 @@ static void print_show_help(void) {
   printf("  %-25s %s\n", "--day-offset <offset>", "Show prayer time (+/-)<offset> days from now");
   printf("  %-25s %s\n", "--date <start> [end]",
          "Show prayer times for a date or inclusive range (yyyy-mm-dd)");
+  printf("  %-25s %s\n", "--time-format <12|24>", "Set the clock format (no arg shows current)");
   printf("  %-25s %s\n", "-h, --help", "Show this help");
   printf("\n");
   printf("Options:\n");
@@ -43,6 +44,7 @@ static void print_show_help(void) {
          "# Show prayer times for 2022-01-01 as JSON");
   printf("  %-25s %s\n", "muslimtify show --date 2022-01-01 2023-01-01",
          "# Show prayer times from 2022-01-01 to 2023-01-01");
+  printf("  %-25s %s\n", "muslimtify show --time-format 12", "# Print times as 04:35 AM");
 }
 
 static void print_show_day_offset_help(void) {
@@ -218,8 +220,10 @@ int handle_show(int argc, char **argv) {
   const char *date_start = NULL;
   const char *date_end = NULL;
   const char *offset_arg = NULL;
+  const char *time_format_arg = NULL;
   bool seen_date = false;
   bool seen_day_offset = false;
+  bool seen_time_format = false;
   for (int i = 0; i < argc; i++) {
     const char *a = argv[i];
     if (strcmp(a, "--date") == 0) {
@@ -244,6 +248,16 @@ int handle_show(int argc, char **argv) {
         offset_arg = argv[++i];
       continue;
     }
+    if (strcmp(a, "--time-format") == 0) {
+      if (seen_time_format) {
+        fprintf(stderr, "Error: --time-format given more than once\n");
+        return 1;
+      }
+      seen_time_format = true;
+      if (i + 1 < argc && strncmp(argv[i + 1], "--", 2) != 0)
+        time_format_arg = argv[++i];
+      continue;
+    }
     if (strcmp(a, "--next") == 0 || strcmp(a, "--json") == 0 || strcmp(a, "--headless") == 0)
       continue;
     if (strcmp(a, "--format") == 0) {
@@ -266,6 +280,46 @@ int handle_show(int argc, char **argv) {
   if (want_next && want_date) {
     fprintf(stderr, "Error: --next cannot be combined with --date\n");
     return 1;
+  }
+
+  if (seen_time_format) {
+    // A setter, not a view: it prints no prayer times, so pairing it with a
+    // selector or an output mode would silently drop one of the two.
+    bool has_mode = false;
+    for (int j = 0; j < argc; j++) {
+      if (strcmp(argv[j], "--json") == 0 || strcmp(argv[j], "--headless") == 0)
+        has_mode = true;
+    }
+    if (want_next || want_date || want_day_offset || has_mode) {
+      fprintf(stderr, "Error: --time-format cannot be combined with other show options\n");
+      return 1;
+    }
+
+    Config cfg;
+    if (config_load(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to load config\n");
+      return 1;
+    }
+
+    if (!time_format_arg) {
+      printf("Time format: %d-hour\n", cfg.time_format);
+      return 0;
+    }
+
+    int requested = atoi(time_format_arg);
+    if (requested != 12 && requested != 24) {
+      fprintf(stderr, "Error: Unknown time format '%s'\n", time_format_arg);
+      fprintf(stderr, "  Available: 12, 24\n");
+      return 1;
+    }
+
+    cfg.time_format = requested;
+    if (config_save(&cfg) != 0) {
+      fprintf(stderr, "Error: Failed to save config\n");
+      return 1;
+    }
+    printf("Time format set to %d-hour\n", requested);
+    return 0;
   }
 
   OutputMode mode = OUTPUT_TABLE;

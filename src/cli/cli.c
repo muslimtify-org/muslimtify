@@ -137,6 +137,7 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "    --date <start> [end]",
          "Show prayer times for a date or inclusive range (yyyy-mm-dd)");
   printf("  %-25s %s\n", "    --day-offset <days>", "Show prayer times <days> from today (+/-)");
+  printf("  %-25s %s\n", "    --time-format <12|24>", "Set clock format (12-hour or 24-hour)");
 
   printf("\n");
 

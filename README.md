@@ -191,6 +191,7 @@ muslimtify notification --reminder --all 30 15 5    # set every prayer's reminde
 muslimtify notification --reminder fajr 30 15 5     # set reminders for a single prayer
 muslimtify notification           # show current notification settings
 muslimtify location               # show current location
+muslimtify show --time-format 12  # print times as 04:35 AM (24 for 16:35)
 ```
 
 GPS is off by default and maps to a single `use_gps` key in the `location` block
@@ -307,6 +308,9 @@ prayers, reminder offsets, notification settings, or location data.
   "calculation": {
     "method": "kemenag",
     "madhab": "shafi"
+  },
+  "display": {
+    "time_format": 24
   }
 }
 ```
