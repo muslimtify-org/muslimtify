@@ -1792,6 +1792,32 @@ static void test_help_text(void) {
   check_contains("help text reminder usage", "--reminder <prayer|--all> <minutes...>");
 }
 
+// `location set --lat=nan` used to exit 0 and save "latitude": nan, because
+// the guard was `lat < -90.0 || lat > 90.0` and both comparisons are false for
+// NaN. The saved NaN then reached calculate_prayer_times, which returned a
+// believable schedule: fajr and isha printed at the same time as dhuhr.
+static void test_location_set_rejects_nan(void) {
+  printf("test_location_set_rejects_nan\n");
+  reset_config();
+
+  run(4, (char *[]){"m", "location", "set", "--lat=nan", NULL});
+  check_bool("nan latitude rejected", last_ret != 0);
+  check_contains("nan latitude error", "Invalid latitude");
+
+  run(4, (char *[]){"m", "location", "set", "--long=nan", NULL});
+  check_bool("nan longitude rejected", last_ret != 0);
+  check_contains("nan longitude error", "Invalid longitude");
+
+  // Positive control: the rejection must not be rejecting everything.
+  run(4, (char *[]){"m", "location", "set", "--lat=45", NULL});
+  check_ret("valid latitude accepted", 0);
+
+  // The saved value survived both rejections and took the valid update.
+  Config cfg;
+  check_bool("config loads", config_load(&cfg) == 0);
+  check_bool("latitude is the valid one", cfg.latitude == 45.0);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1820,6 +1846,7 @@ int main(void) {
   test_offset();
   test_extra_args();
   test_location_set_timezone_validation();
+  test_location_set_rejects_nan();
   test_json_no_trailing_comma();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
