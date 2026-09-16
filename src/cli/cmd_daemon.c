@@ -16,7 +16,6 @@
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
 #include "location.h"
 #include "prayertimes.h"
-#include <math.h>
 #endif
 
 // -- helpers -----------------------------------------------------------------

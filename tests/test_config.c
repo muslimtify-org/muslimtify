@@ -798,7 +798,7 @@ static bool all_five_nan(struct PrayerTimes t) {
 
 static void slurp_stream(FILE *f, char *buf, size_t cap) {
   fflush(f);
-  rewind(f);
+  fseek(f, 0, SEEK_SET);
   size_t n = fread(buf, 1, cap - 1, f);
   buf[n] = '\0';
 }
