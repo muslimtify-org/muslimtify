@@ -138,7 +138,9 @@ void format_time_cfg(const Config *cfg, double hours, char *out, size_t cap) {
   int hour12 = hour % 12;
   if (hour12 == 0)
     hour12 = 12;
-  snprintf(out, cap, "%02d:%c%c %s", hour12, hm[3], hm[4], meridiem);
+  char out12[9];
+  snprintf(out12, sizeof(out12), "%02u:%c%c %s", (unsigned)hour12 % 100u, hm[3], hm[4], meridiem);
+  snprintf(out, cap, "%s", out12);
 }
 
 void format_time_hm_day(const Config *cfg, double hours, char *outBuffer, size_t bufSize) {
@@ -441,8 +443,7 @@ void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd,
   }
   bool has_marker = any_next || any_prev;
 
-  // Column widths: Date is "YYYY-MM-DD" (10); each prayer is max(name, "HH:MM"=5,
-  // or 6 when a day marker can appear in this range).
+  // Date is "YYYY-MM-DD".
   const int date_w = 10;
   // A clock cell is "HH:MM" (5) or "hh:MM AM" (8), plus one for a day marker.
   const int clock_w = (cfg->time_format == 12) ? 8 : 5;
