@@ -752,6 +752,32 @@ double effective_tz_offset(const Config *cfg, int year, int month, int day) {
 }
 
 struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day) {
+  // An invalid coordinate must not reach calculate_prayer_times. It returns a
+  // finite schedule computed at the method's reference latitude, which reads
+  // as a real answer: a NaN latitude used to print fajr and isha at the same
+  // time as dhuhr. Reporting nothing is the honest result, and every consumer
+  // already handles it. cache_build_triggers skips non-finite times at
+  // cache.c:379 so no notification fires, prayer_next_from_days skips them at
+  // prayer_checker.c:75, and format_time_hm renders them as "--:--".
+  //
+  // The warning prints once per process. A `show --date` range calls this
+  // function once per day, and one `show` already calls it three times through
+  // prayer_get_next. It goes to stderr so that `show --json` and
+  // `show --headless` stay machine-readable.
+  if (!config_latitude_is_valid(cfg->latitude) || !config_longitude_is_valid(cfg->longitude)) {
+    static bool warned = false;
+    if (!warned) {
+      warned = true;
+      fprintf(stderr,
+              "Warning: invalid location in config (latitude %.6f, longitude %.6f), prayer times "
+              "unavailable. Run: muslimtify location set --lat=<latitude> --long=<longitude>\n",
+              cfg->latitude, cfg->longitude);
+    }
+    struct PrayerTimes unavailable = {
+        .fajr = NAN, .dhuhr = NAN, .asr = NAN, .maghrib = NAN, .isha = NAN};
+    return unavailable;
+  }
+
   MethodParams params = method_params_from_config(cfg);
   struct PrayerTimes t =
       calculate_prayer_times(year, month, day, cfg->latitude, cfg->longitude,
