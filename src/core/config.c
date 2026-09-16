@@ -135,6 +135,9 @@ Config config_default(void) {
   cfg.fajr_angle = 0;
   cfg.isha_angle = 0;
 
+  // Display defaults
+  cfg.time_format = 24;
+
   return cfg;
 }
 
@@ -216,6 +219,10 @@ static int write_json_file(FILE *f, const Config *cfg) {
   } else {
     fprintf(f, "\n");
   }
+  fprintf(f, "  },\n");
+
+  fprintf(f, "  \"display\": {\n");
+  fprintf(f, "    \"time_format\": %d\n", cfg->time_format);
   fprintf(f, "  }\n");
   fprintf(f, "}\n");
 
@@ -563,6 +570,15 @@ int config_load(Config *cfg) {
       cfg->isha_angle = strtod(isha_angle_str, NULL);
   }
 
+  char *display = get_value(ctx, "display", content);
+  if (display) {
+    char *time_format_str = get_value(ctx, "time_format", display);
+    /* Coerced rather than rejected: config_validate is not run on the load
+     * path, so a hand-edited value has to land on something printable. */
+    if (time_format_str)
+      cfg->time_format = (strtol(time_format_str, NULL, 10) == 12) ? 12 : 24;
+  }
+
   json_end(ctx);
   free(content);
 
@@ -613,6 +629,10 @@ bool config_validate(const Config *cfg) {
       return false;
     }
   }
+
+  // Validate display
+  if (cfg->time_format != 12 && cfg->time_format != 24)
+    return false;
 
   return true;
 }

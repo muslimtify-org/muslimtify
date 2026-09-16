@@ -67,15 +67,25 @@ static int removed_sound(int a, char **v) {
 // --- top-level dispatch table -----------------------
 
 static const CommandEntry top_commands[] = {
-    {"show", handle_show},       {"location", handle_location},
-    {"enable", removed_enable},  {"disable", removed_disable},
-    {"list", removed_list},      {"reminder", removed_reminder},
-    {"sound", removed_sound},    {"offset", handle_offset},
-    {"daemon", handle_daemon},   {"method", handle_method},
-    {"madzhab", handle_madzhab}, {"notification", handle_notification},
-    {"version", handle_version}, {"--version", handle_version},
-    {"-v", handle_version},      {"help", handle_help},
-    {"--help", handle_help},     {"-h", handle_help},
+    {"show", handle_show},
+    {"location", handle_location},
+    {"enable", removed_enable},
+    {"disable", removed_disable},
+    {"list", removed_list},
+    {"reminder", removed_reminder},
+    {"sound", removed_sound},
+    {"offset", handle_offset},
+    {"daemon", handle_daemon},
+    {"method", handle_method},
+    {"madzhab", handle_madzhab},
+    {"notification", handle_notification},
+    {"timeformat", handle_timeformat},
+    {"version", handle_version},
+    {"--version", handle_version},
+    {"-v", handle_version},
+    {"help", handle_help},
+    {"--help", handle_help},
+    {"-h", handle_help},
 };
 
 // --- version / help -----------------------
@@ -188,6 +198,8 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "madzhab <shafi|hanafi>", "Set madzhab");
 
   printf("  %-25s %s\n", "    --list", "List madzhab options");
+  printf("  %-25s %s\n", "timeformat <12|24>", "Set clock format (12-hour or 24-hour)");
+  printf("  %-25s %s\n", "    --list", "List clock formats");
 
   printf("\n");
 

@@ -141,6 +141,8 @@ static Config site_config(const Site *s) {
 static void test_day_offset_helper(void) {
   printf("  day offset helper...\n");
 
+  Config cfg = config_default();
+
   for (double h = -30.0; h <= 54.0; h += (1.0 / 60.0)) {
     long total = (long)ceil(h * 60.0);
     int expected_offset = total < 0 ? -1 : (total >= 24L * 60 ? 1 : 0);
@@ -149,7 +151,7 @@ static void test_day_offset_helper(void) {
     check_bool("day offset matches minute-rounded rule", offset == expected_offset);
 
     char hd[8];
-    format_time_hm_day(h, hd, sizeof(hd));
+    format_time_hm_day(&cfg, h, hd, sizeof(hd));
 
     char marker = hd[strlen(hd) - 1];
     bool has_marker = (marker == '+' || marker == '-');
@@ -252,7 +254,7 @@ static void test_marker_matches_raw_value(void) {
           continue;
 
         char hd[8];
-        format_time_hm_day(values[i], hd, sizeof(hd));
+        format_time_hm_day(&cfg, values[i], hd, sizeof(hd));
         char marker = hd[strlen(hd) - 1];
 
         // The marker follows the minute-rounded value, matching format_time_hm's
@@ -320,6 +322,76 @@ static void test_cache_triggers_unchanged(void) {
   check_bool("found a Reykjavik day with isha >= 24", found);
 }
 
+// -- test_time_format_12h ------------------------------------------------------
+
+static void test_time_format_12h(void) {
+  printf("  12-hour format...\n");
+
+  Config c24 = config_default();
+  Config c12 = config_default();
+  c12.time_format = 12;
+
+  char buf[16];
+
+  format_time_cfg(&c12, 0.0, buf, sizeof(buf));
+  check_bool("00:00 is 12:00 AM", strcmp(buf, "12:00 AM") == 0);
+  format_time_cfg(&c12, 0.5, buf, sizeof(buf));
+  check_bool("00:30 is 12:30 AM", strcmp(buf, "12:30 AM") == 0);
+  format_time_cfg(&c12, 11.0 + 59.0 / 60.0, buf, sizeof(buf));
+  check_bool("11:59 is 11:59 AM", strcmp(buf, "11:59 AM") == 0);
+  format_time_cfg(&c12, 12.0, buf, sizeof(buf));
+  check_bool("12:00 is 12:00 PM", strcmp(buf, "12:00 PM") == 0);
+  format_time_cfg(&c12, 12.5, buf, sizeof(buf));
+  check_bool("12:30 is 12:30 PM", strcmp(buf, "12:30 PM") == 0);
+  // 23.0 + 59.0/60.0 is not used here: on this platform it is representable
+  // as a hair above 23h59m, and format_time_hm's ceil-to-the-minute rounding
+  // carries that hair into 24:00, wrapping to 00:00 instead of 23:59. 58.5
+  // minutes rounds up to 59 the same way without landing on that edge.
+  format_time_cfg(&c12, 23.0 + 58.5 / 60.0, buf, sizeof(buf));
+  check_bool("23:59 is 11:59 PM", strcmp(buf, "11:59 PM") == 0);
+
+  // A non-finite time carries no hour, so it renders the same in both modes.
+  format_time_cfg(&c12, NAN, buf, sizeof(buf));
+  check_bool("NaN is --:-- in 12h", strcmp(buf, "--:--") == 0);
+  format_time_cfg(&c24, NAN, buf, sizeof(buf));
+  check_bool("NaN is --:-- in 24h", strcmp(buf, "--:--") == 0);
+
+  // 24-hour mode is byte-identical to the vendored formatter.
+  for (int minute = 0; minute < 24 * 60; minute++) {
+    double hours = minute / 60.0;
+    char raw[16], via[16];
+    format_time_hm(hours, raw, sizeof(raw));
+    format_time_cfg(&c24, hours, via, sizeof(via));
+    check_bool("24h matches format_time_hm", strcmp(raw, via) == 0);
+  }
+
+  // Every minute of the clock face maps to the same instant in both modes,
+  // which a hand-written table of cases cannot cover.
+  for (int minute = 0; minute < 24 * 60; minute++) {
+    double hours = minute / 60.0;
+    char s24[16], s12[16];
+    format_time_cfg(&c24, hours, s24, sizeof(s24));
+    format_time_cfg(&c12, hours, s12, sizeof(s12));
+
+    int h24 = (s24[0] - '0') * 10 + (s24[1] - '0');
+    int h12 = (s12[0] - '0') * 10 + (s12[1] - '0');
+    bool pm = s12[6] == 'P';
+    int back = (h12 % 12) + (pm ? 12 : 0);
+
+    check_bool("12h round trips to the same hour", back == h24);
+    check_bool("12h keeps the same minutes", s12[3] == s24[3] && s12[4] == s24[4]);
+    check_bool("12h hour is in 01..12", h12 >= 1 && h12 <= 12);
+  }
+
+  // Rounding up past midnight must land on 12:00 AM of the next day, not on
+  // 12:00 PM: the marker and the meridiem are derived from the same value.
+  char marked[16];
+  format_time_hm_day(&c12, 23.999, marked, sizeof(marked));
+  check_bool("23.999 is 12:00 AM+", strcmp(marked, "12:00 AM+") == 0);
+  format_time_hm_day(&c24, 23.999, marked, sizeof(marked));
+  check_bool("23.999 is 00:00+", strcmp(marked, "00:00+") == 0);
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -328,6 +400,7 @@ int main(void) {
   test_no_misordered_row();
   test_marker_matches_raw_value();
   test_cache_triggers_unchanged();
+  test_time_format_12h();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   return failed > 0 ? 1 : 0;

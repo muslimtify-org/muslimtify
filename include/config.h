@@ -65,6 +65,9 @@ typedef struct {
   char madhab[16];
   double fajr_angle; // custom method only (0 = use method default)
   double isha_angle; // custom method only (0 = use method default)
+
+  // Display
+  int time_format; // 12 or 24; anything else is coerced to 24 on load
 } Config;
 
 /**

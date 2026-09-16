@@ -21,12 +21,25 @@ extern "C" {
 int prayer_time_day_offset(double hours);
 
 /**
+ * Format a decimal-hours time for display, honoring cfg->time_format: "HH:MM"
+ * when it is 24, "hh:MM AM" / "hh:MM PM" when it is 12. The hour keeps its
+ * leading zero so every string in a column has the same width. A non-finite
+ * time renders as "--:--" in both modes, with no meridiem. Nine bytes are
+ * enough for either.
+ *
+ * The underlying "HH:MM" comes from format_time_hm, so the Kemenag round-up,
+ * the clock-face reduction of an out-of-range value and the non-finite case
+ * all stay in one place and cannot drift between the two modes.
+ */
+void format_time_cfg(const Config *cfg, double hours, char *out, size_t cap);
+
+/**
  * Format a decimal-hours time into "HH:MM" followed by '+' when the event falls
  * on the next calendar day and '-' when it falls on the previous one, so that a
  * row of five prayers reads in the order they occur. A non-finite time renders
- * as "--:--" with no marker. Seven bytes are enough for either.
+ * as "--:--" with no marker. Ten bytes are enough for either.
  */
-void format_time_hm_day(double hours, char *outBuffer, size_t bufSize);
+void format_time_hm_day(const Config *cfg, double hours, char *outBuffer, size_t bufSize);
 
 /**
  * Display prayer times in table format

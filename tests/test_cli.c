@@ -1818,6 +1818,53 @@ static void test_location_set_rejects_nan(void) {
   check_bool("latitude is the valid one", cfg.latitude == 45.0);
 }
 
+static void test_time_format(void) {
+  printf("  time format...\n");
+  reset_config();
+
+  run(2, (char *[]){"m", "timeformat", NULL});
+  check_ret("timeformat bare ret", 0);
+  check_contains("timeformat bare shows 24", "24-hour");
+
+  run(3, (char *[]){"m", "timeformat", "12", NULL});
+  check_ret("timeformat 12 ret", 0);
+
+  run(2, (char *[]){"m", "show", NULL});
+  check_ret("show after 12 ret", 0);
+  check_contains("table shows a meridiem", "M |");
+
+  run(3, (char *[]){"m", "show", "--headless", NULL});
+  check_bool("headless carries a meridiem",
+             strstr(captured, " AM") != NULL || strstr(captured, " PM") != NULL);
+
+  run(3, (char *[]){"m", "show", "--json", NULL});
+  check_bool("json carries a meridiem",
+             strstr(captured, " AM") != NULL || strstr(captured, " PM") != NULL);
+
+  run(3, (char *[]){"m", "timeformat", "--list", NULL});
+  check_ret("timeformat --list ret", 0);
+  check_contains("list marks current", "12");
+
+  run(3, (char *[]){"m", "timeformat", "24", NULL});
+  check_ret("timeformat 24 ret", 0);
+  run(3, (char *[]){"m", "show", "--headless", NULL});
+  check_bool("24h carries no meridiem",
+             strstr(captured, " AM") == NULL && strstr(captured, " PM") == NULL);
+
+  run(3, (char *[]){"m", "timeformat", "13", NULL});
+  check_ret("timeformat 13 ret", 1);
+  check_contains("timeformat 13 lists options", "Available: 12, 24");
+
+  run(4, (char *[]){"m", "timeformat", "12", "24", NULL});
+  check_ret("timeformat extra args rejected", 1);
+
+  // The flag moved to its own verb and is no longer an option on show.
+  run(4, (char *[]){"m", "show", "--time-format", "12", NULL});
+  check_ret("show --time-format rejected", 1);
+
+  reset_config();
+}
+
 // -- main ---------------------------------------------------------------------
 
 int main(void) {
@@ -1848,6 +1895,7 @@ int main(void) {
   test_location_set_timezone_validation();
   test_location_set_rejects_nan();
   test_json_no_trailing_comma();
+  test_time_format();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
