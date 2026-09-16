@@ -220,8 +220,8 @@ static int location_set_handler(int argc, char **argv) {
     char *end_lat;
     errno = 0;
     double lat = strtod(override_lat, &end_lat);
-    if (end_lat == override_lat || *end_lat != '\0' || errno == ERANGE || lat < -90.0 ||
-        lat > 90.0) {
+    if (end_lat == override_lat || *end_lat != '\0' || errno == ERANGE ||
+        !config_latitude_is_valid(lat)) {
       fprintf(stderr, "Error: Invalid latitude '%s'\n", override_lat);
       return 1;
     }
@@ -233,8 +233,8 @@ static int location_set_handler(int argc, char **argv) {
     char *end_lon;
     errno = 0;
     double lon = strtod(override_lon, &end_lon);
-    if (end_lon == override_lon || *end_lon != '\0' || errno == ERANGE || lon < -180.0 ||
-        lon > 180.0) {
+    if (end_lon == override_lon || *end_lon != '\0' || errno == ERANGE ||
+        !config_longitude_is_valid(lon)) {
       fprintf(stderr, "Error: Invalid longitude '%s'\n", override_lon);
       return 1;
     }

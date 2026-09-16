@@ -754,12 +754,179 @@ static void test_failed_save_closes_file(void) {
 #endif
 }
 
+static void test_coordinate_helpers(void) {
+  printf("  coordinate helpers...\n");
+
+  check_bool("lat 0 valid", config_latitude_is_valid(0.0));
+  check_bool("lat 90 valid", config_latitude_is_valid(90.0));
+  check_bool("lat -90 valid", config_latitude_is_valid(-90.0));
+  check_bool("lat 91 invalid", !config_latitude_is_valid(91.0));
+  check_bool("lat -91 invalid", !config_latitude_is_valid(-91.0));
+  check_bool("lat NaN invalid", !config_latitude_is_valid(NAN));
+  check_bool("lat +inf invalid", !config_latitude_is_valid(INFINITY));
+  check_bool("lat -inf invalid", !config_latitude_is_valid(-INFINITY));
+
+  check_bool("lon 0 valid", config_longitude_is_valid(0.0));
+  check_bool("lon 180 valid", config_longitude_is_valid(180.0));
+  check_bool("lon -180 valid", config_longitude_is_valid(-180.0));
+  check_bool("lon 181 invalid", !config_longitude_is_valid(181.0));
+  check_bool("lon 200 invalid", !config_longitude_is_valid(200.0));
+  check_bool("lon NaN invalid", !config_longitude_is_valid(NAN));
+  check_bool("lon +inf invalid", !config_longitude_is_valid(INFINITY));
+  check_bool("lon -inf invalid", !config_longitude_is_valid(-INFINITY));
+}
+
+static void test_validate_rejects_nan(void) {
+  printf("  validate rejects NaN...\n");
+
+  Config cfg = config_default();
+  cfg.latitude = -6.2088;
+  cfg.longitude = 106.8456;
+  check_bool("validate valid coords", config_validate(&cfg));
+
+  cfg.latitude = NAN;
+  check_bool("validate NaN latitude", !config_validate(&cfg));
+
+  cfg.latitude = -6.2088;
+  cfg.longitude = NAN;
+  check_bool("validate NaN longitude", !config_validate(&cfg));
+}
+
+static bool all_five_nan(struct PrayerTimes t) {
+  return isnan(t.fajr) && isnan(t.dhuhr) && isnan(t.asr) && isnan(t.maghrib) && isnan(t.isha);
+}
+
+static void slurp_stream(FILE *f, char *buf, size_t cap) {
+  fflush(f);
+  fseek(f, 0, SEEK_SET);
+  size_t n = fread(buf, 1, cap - 1, f);
+  buf[n] = '\0';
+}
+
+// Mutation record. The guard's condition in prayer_times_for_config
+// (src/core/config.c) was replaced by hand with `if (0)`, built with
+// `cmake --build build -j8`, run against
+// `ctest --test-dir build -R config --output-on-failure`, then reverted.
+// git status --porcelain was confirmed empty after the revert. Caught. Output:
+//   FAIL [NaN latitude blanks all five]
+//   FAIL [second call also blanks]
+//   FAIL [warning went to stderr]
+//   FAIL [warning names the repair command]
+//   FAIL [infinite longitude blanks]
+//   FAIL [latitude 91 blanks]
+//   FAIL [longitude 200 blanks]
+//   Results: 201 passed, 7 failed
+static void test_invalid_location_blanks_times(void) {
+  printf("  invalid location blanks times...\n");
+
+  Config cfg = config_default();
+  cfg.auto_detect = false;
+  cfg.latitude = -6.2088;
+  cfg.longitude = 106.8456;
+  check_bool("valid config still computes",
+             !all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+
+  FILE *out = tmpfile();
+  FILE *err = tmpfile();
+  check_bool("capture streams open", out != NULL && err != NULL);
+  if (!out || !err)
+    return;
+
+  fflush(stdout);
+  fflush(stderr);
+  int saved_out = dup(STDOUT_FILENO);
+  int saved_err = dup(STDERR_FILENO);
+  dup2(fileno(out), STDOUT_FILENO);
+  dup2(fileno(err), STDERR_FILENO);
+
+  cfg.latitude = NAN;
+  struct PrayerTimes first = prayer_times_for_config(&cfg, 2026, 9, 16);
+  fflush(stdout);
+  fflush(stderr);
+
+  FILE *err2 = tmpfile();
+  if (err2)
+    dup2(fileno(err2), STDERR_FILENO);
+  struct PrayerTimes second = prayer_times_for_config(&cfg, 2026, 9, 16);
+  fflush(stderr);
+
+  dup2(saved_out, STDOUT_FILENO);
+  dup2(saved_err, STDERR_FILENO);
+  close(saved_out);
+  close(saved_err);
+
+  char out_buf[512];
+  char err_buf[512];
+  char err2_buf[512];
+  slurp_stream(out, out_buf, sizeof(out_buf));
+  slurp_stream(err, err_buf, sizeof(err_buf));
+  err2_buf[0] = '\0';
+  if (err2)
+    slurp_stream(err2, err2_buf, sizeof(err2_buf));
+
+  check_bool("NaN latitude blanks all five", all_five_nan(first));
+  check_bool("second call also blanks", all_five_nan(second));
+  check_bool("warning went to stderr", strstr(err_buf, "Warning:") != NULL);
+  check_bool("warning names the repair command", strstr(err_buf, "location set") != NULL);
+  check_bool("warning is one line", strchr(err_buf, '\n') == strrchr(err_buf, '\n'));
+  check_bool("stdout stayed clean", out_buf[0] == '\0');
+  check_bool("warning printed once per process", err2_buf[0] == '\0');
+
+  fclose(out);
+  fclose(err);
+  if (err2)
+    fclose(err2);
+
+  // The remaining invalid inputs reuse the same already-warned process.
+  cfg.latitude = -6.2088;
+  cfg.longitude = INFINITY;
+  check_bool("infinite longitude blanks", all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+
+  cfg.latitude = 91.0;
+  cfg.longitude = 106.8456;
+  check_bool("latitude 91 blanks", all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+
+  cfg.latitude = -6.2088;
+  cfg.longitude = 200.0;
+  check_bool("longitude 200 blanks", all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+}
+
+static void test_location_needs_detect(void) {
+  printf("  location needs detect...\n");
+
+  Config cfg = config_default();
+  cfg.auto_detect = true;
+  cfg.latitude = 0.0;
+  cfg.longitude = 0.0;
+  check_bool("auto on, unset location detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = NAN;
+  cfg.longitude = 106.8456;
+  check_bool("auto on, NaN latitude detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = 91.0;
+  check_bool("auto on, out of range detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = -6.2088;
+  check_bool("auto on, valid location does not detect", !config_location_needs_detect(&cfg));
+
+  cfg.auto_detect = false;
+  cfg.latitude = NAN;
+  check_bool("auto off, NaN latitude does not detect", !config_location_needs_detect(&cfg));
+
+  check_bool("NULL does not detect", !config_location_needs_detect(NULL));
+}
+
 int main(void) {
   setup();
 
   printf("Running config tests...\n");
   test_parse_reminders();
   test_validate();
+  test_coordinate_helpers();
+  test_validate_rejects_nan();
+  test_invalid_location_blanks_times();
+  test_location_needs_detect();
   test_get_prayer();
   test_format_reminders();
   test_default();
