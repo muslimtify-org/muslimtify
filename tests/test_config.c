@@ -823,7 +823,8 @@ static void test_invalid_location_blanks_times(void) {
   cfg.auto_detect = false;
   cfg.latitude = -6.2088;
   cfg.longitude = 106.8456;
-  check_bool("valid config still computes", !all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+  check_bool("valid config still computes",
+             !all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
 
   FILE *out = tmpfile();
   FILE *err = tmpfile();
