@@ -948,7 +948,7 @@ Isya:    19:07
 
 Untuk pertanyaan, saran, atau pelaporan bug terkait implementasi ini, silakan hubungi:
 
-- **GitHub:** https://github.com/rizukirr/muslimtify
+- **GitHub:** https://github.com/muslimtify-org/muslimtify
 - **Email:** rizkirr.xyz@gmail.com
 
 **Catatan:** Dokumen ini dibuat berdasarkan penelitian dan verifikasi dengan API resmi Kemenag per November 2025. Untuk informasi terbaru, selalu rujuk ke sumber resmi Kementerian Agama RI.

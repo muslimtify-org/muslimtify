@@ -170,7 +170,7 @@ else in this guide depends on having these keys in place.
 
 ### Repository URLs
 
-- **GitHub:** `https://github.com/<YOUR_USERNAME>/muslimtify`
+- **GitHub:** `https://github.com/muslimtify-org/muslimtify`
 - **AUR:** `ssh://aur@aur.archlinux.org/muslimtify.git`
 - **Launchpad PPA:** `ppa:<YOUR_USERNAME>/muslimtify`
 - **COPR:** `<YOUR_USERNAME>/muslimtify`
@@ -759,7 +759,7 @@ This is a one-time process to register the package in the winget repository.
    git tag vX.Y.Z && git push --tags
    ```
 
-   Then create a release at `https://github.com/<YOUR_USERNAME>/muslimtify/releases/new`,
+   Then create a release at `https://github.com/muslimtify-org/muslimtify/releases/new`,
    upload `dist/muslimtify-X.Y.Z-setup.exe` as a release asset.
 
 2. **Generate and submit the winget manifest:**
@@ -772,7 +772,7 @@ This is a one-time process to register the package in the winget repository.
    GitHub release, e.g.:
 
    ```
-   https://github.com/<YOUR_USERNAME>/muslimtify/releases/download/vX.Y.Z/muslimtify-X.Y.Z-setup.exe
+   https://github.com/muslimtify-org/muslimtify/releases/download/vX.Y.Z/muslimtify-X.Y.Z-setup.exe
    ```
 
    `wingetcreate` will prompt you for:
@@ -802,14 +802,32 @@ This is a one-time process to register the package in the winget repository.
 
 For subsequent releases, use `wingetcreate update`:
 
+**Prerequisite:** your fork of `microsoft/winget-pkgs` must be in sync with upstream,
+or `wingetcreate --submit` fails with *"The forked repository could not be synced with
+the upstream commits."* Sync it first:
+
 ```powershell
-wingetcreate update rizukirr.muslimtify `
-  --version X.Y.Z `
-  --urls <NEW_INSTALLER_URL>|x64`
-  --submit `
+gh repo sync <YOUR_USERNAME>/winget-pkgs --source microsoft/winget-pkgs --branch master
 ```
 
-This automatically creates a PR with the updated manifest.
+Because the repo moved to `muslimtify-org` while the package identifier stayed
+`rizukirr.Muslimtify`, `wingetcreate` carries the *old* `rizukirr/muslimtify` URLs
+forward from the last published manifest. Generate first, fix the URLs, then submit:
+
+```powershell
+# 1. Generate into ./manifests without submitting
+wingetcreate update rizukirr.Muslimtify `
+  --version X.Y.Z `
+  --urls "https://github.com/muslimtify-org/muslimtify/releases/download/vX.Y.Z/muslimtify-X.Y.Z-setup-x64.exe" `
+         "https://github.com/muslimtify-org/muslimtify/releases/download/vX.Y.Z/muslimtify-X.Y.Z-setup-arm64.exe" `
+  --out .
+
+# 2. Confirm PackageUrl / PublisherSupportUrl / Wiki point at muslimtify-org
+Select-String -Path .\manifests\r\rizukirr\Muslimtify\X.Y.Z\*.yaml -Pattern 'rizukirr/muslimtify'
+
+# 3. Submit the reviewed manifest
+wingetcreate submit .\manifests\r\rizukirr\Muslimtify\X.Y.Z --token <PAT>
+```
 
 ### Alternative: manual manifest submission
 
@@ -824,7 +842,7 @@ PackageVersion: X.Y.Z
 InstallerType: inno
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/<YOUR_USERNAME>/muslimtify/releases/download/vX.Y.Z/muslimtify-X.Y.Z-setup.exe
+    InstallerUrl: https://github.com/muslimtify-org/muslimtify/releases/download/vX.Y.Z/muslimtify-X.Y.Z-setup.exe
     InstallerSha256: <SHA256_OF_INSTALLER>
     InstallerSwitches:
       Silent: /VERYSILENT /SUPPRESSMSGBOXES
@@ -842,7 +860,7 @@ Publisher: rizukirr
 PackageName: Muslimtify
 License: MIT
 ShortDescription: Prayer time notification daemon for Windows
-PackageUrl: https://github.com/<YOUR_USERNAME>/muslimtify
+PackageUrl: https://github.com/muslimtify-org/muslimtify
 ManifestType: defaultLocale
 ManifestVersion: 1.9.0
 ```
@@ -873,7 +891,10 @@ and submit a PR.
 [ ] Compile installer: ISCC.exe .packages/winget/muslimtify.iss
 [ ] Test installer (interactive + silent)
 [ ] Create GitHub release, upload installer
-[ ] Submit manifest: wingetcreate update rizukirr.muslimtify --version X.Y.Z --urls <URL> --submit --token <PAT>
+[ ] Sync fork: gh repo sync <YOUR_USERNAME>/winget-pkgs --source microsoft/winget-pkgs --branch master
+[ ] Generate manifest: wingetcreate update rizukirr.Muslimtify --version X.Y.Z --urls <X64_URL> <ARM64_URL> --out .
+[ ] Verify no rizukirr/muslimtify URLs remain in the generated manifest
+[ ] Submit manifest: wingetcreate submit .\manifests\r\rizukirr\Muslimtify\X.Y.Z --token <PAT>
 [ ] Track PR: https://github.com/microsoft/winget-pkgs/pulls
 ```
 
@@ -885,6 +906,10 @@ and submit a PR.
   Make sure the build succeeded first.
 - **`wingetcreate` validation fails:** Check that the installer URL is a direct download
   link (not a redirect to a HTML page). GitHub release asset URLs work.
+- **"The forked repository could not be synced with the upstream commits":** your
+  `winget-pkgs` fork has drifted from `microsoft/winget-pkgs`. Run
+  `gh repo sync <YOUR_USERNAME>/winget-pkgs --source microsoft/winget-pkgs --branch master`
+  and re-run the submit.
 - **winget PR rejected:** Read the review comments. Common issues: missing required fields,
   SHA256 mismatch, or installer URL not publicly accessible.
 - **Toast notifications don't work after install:** The Start Menu shortcut must have the
@@ -908,7 +933,7 @@ Complete walkthrough for publishing a new version to all four platforms.
 [ ] Update .packages/winget/muslimtify.iss (#define MyAppVersion "X.Y.Z")
 [ ] Commit all changes
 [ ] Tag and push: git tag vX.Y.Z && git push && git push --tags
-[ ] Create GitHub release from the tag at https://github.com/<YOUR_USERNAME>/muslimtify/releases/new
+[ ] Create GitHub release from the tag at https://github.com/muslimtify-org/muslimtify/releases/new
 ```
 
 ### 2. Publish to AUR

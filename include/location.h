@@ -131,7 +131,8 @@ bool location_is_stale(const Config *cfg, int64_t now);
 
 /**
  * CLI-facing wrapper around location preparation.
- * Preserves interactive status output when auto-detect runs.
+ * Prints status lines to stderr when auto-detect runs, so stdout stays clean
+ * for `show --json` and `--headless`.
  */
 int ensure_location(Config *cfg);
 

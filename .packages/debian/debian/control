@@ -5,7 +5,7 @@ Maintainer: Rizki Rakasiwi <rizkirr.xyz@gmail.com>
 Build-Depends: debhelper-compat (= 13), cmake, pkg-config,
  libnotify-dev, libcurl4-openssl-dev
 Standards-Version: 4.6.2
-Homepage: https://github.com/rizukirr/muslimtify
+Homepage: https://github.com/muslimtify-org/muslimtify
 Rules-Requires-Root: no
 
 Package: muslimtify

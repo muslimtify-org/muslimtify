@@ -15,7 +15,7 @@ AUR_DIR="$(cd "$(dirname "$0")/aur" && pwd)"
 cd "$AUR_DIR"
 
 PKGVER="$(grep -oP '^pkgver=\K[0-9.]+' PKGBUILD)"
-URL="https://github.com/rizukirr/muslimtify/archive/v${PKGVER}.tar.gz"
+URL="https://github.com/muslimtify-org/muslimtify/archive/v${PKGVER}.tar.gz"
 echo "==> Refreshing AUR sha256sums for v${PKGVER}"
 echo "    Source: ${URL}"
 

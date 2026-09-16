@@ -8,6 +8,8 @@
 #include "string_util.h"
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,6 +135,9 @@ Config config_default(void) {
   cfg.fajr_angle = 0;
   cfg.isha_angle = 0;
 
+  // Display defaults
+  cfg.time_format = 24;
+
   return cfg;
 }
 
@@ -177,7 +182,7 @@ static int write_json_file(FILE *f, const Config *cfg) {
     }
     fprintf(f, "],\n");
     fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
-    fprintf(f, "    }%s\n", i < 6 ? "," : "");
+    fprintf(f, "    }%s\n", i + 1 < PRAYER_COUNT ? "," : "");
   }
 
   fprintf(f, "  },\n");
@@ -214,6 +219,10 @@ static int write_json_file(FILE *f, const Config *cfg) {
   } else {
     fprintf(f, "\n");
   }
+  fprintf(f, "  },\n");
+
+  fprintf(f, "  \"display\": {\n");
+  fprintf(f, "    \"time_format\": %d\n", cfg->time_format);
   fprintf(f, "  }\n");
   fprintf(f, "}\n");
 
@@ -233,7 +242,9 @@ int config_save(const Config *cfg) {
     return -1;
   }
 
-  FILE *f = platform_file_open(tmp_path, "w");
+  // Owner-only from creation: the config records the user's coordinates, so
+  // keep it out of other local users' reach.
+  FILE *f = platform_file_create_private(tmp_path);
   if (!f) {
     int err = errno;
     char errbuf[128];
@@ -242,12 +253,16 @@ int config_save(const Config *cfg) {
     return -1;
   }
 
-  // Owner-only: the config records the user's coordinates; keep it out of
-  // other local users' reach. Set on the temp file before the atomic rename.
-  platform_restrict_to_owner(f);
-
-  if (write_json_file(f, cfg) != 0 || fflush(f) != 0 || fclose(f) != 0) {
-    int err = errno;
+  // Close the file on every path before deciding. A failed write used to skip
+  // fclose, leaking the stream, and Windows cannot delete a file still open.
+  // Sync before the rename, or a power cut can leave an empty config.
+  int write_err = write_json_file(f, cfg) != 0 || platform_file_sync(f) != 0;
+  int err = errno;
+  if (fclose(f) != 0 && !write_err) {
+    write_err = 1;
+    err = errno;
+  }
+  if (write_err) {
     char errbuf[128];
     errno_string(err, errbuf, sizeof(errbuf));
     fprintf(stderr, "Error: Failed to write config file: %s\n", errbuf);
@@ -256,7 +271,7 @@ int config_save(const Config *cfg) {
   }
 
   if (platform_atomic_rename(tmp_path, path) != 0) {
-    int err = errno;
+    err = errno;
     char errbuf[128];
     errno_string(err, errbuf, sizeof(errbuf));
     fprintf(stderr, "Error: Failed to save config file: %s\n", errbuf);
@@ -326,35 +341,37 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
     char *p = reminders_str + 1; // Skip '['
     pcfg->reminder_count = 0;
 
-    while (*p && *p != ']' && pcfg->reminder_count < MAX_REMINDERS) {
-      // Skip whitespace and commas
-      while (*p && (*p == ' ' || *p == ','))
+    while (pcfg->reminder_count < MAX_REMINDERS) {
+      // Skip whitespace and commas. Pretty printers split the array across
+      // lines, so newlines and tabs must be skipped too.
+      while (*p && (isspace((unsigned char)*p) || *p == ','))
         p++;
 
-      if (*p >= '0' && *p <= '9') {
-        int value = (int)strtol(p, NULL, 10);
-        if (value > 0) {
-          pcfg->reminders[pcfg->reminder_count++] = value;
-        }
-        // Skip to next number
-        while (*p && *p >= '0' && *p <= '9')
-          p++;
-      } else {
+      if (*p < '0' || *p > '9')
         break;
+
+      char *end = NULL;
+      long value = strtol(p, &end, 10);
+      // Range check the long before narrowing it, so a huge value cannot wrap
+      // into range. Same bounds as config_parse_reminders.
+      if (value > 0 && value <= 1440) {
+        pcfg->reminders[pcfg->reminder_count++] = (int)value;
       }
+      p = end;
     }
   }
 
   char *offset_str = get_value(ctx, "offset", prayer_obj);
   if (offset_str) {
-    int off = (int)strtol(offset_str, NULL, 10);
+    long off = strtol(offset_str, NULL, 10);
     // Clamp on load: config_validate is not run on the load path, so a
     // hand-edited/corrupted value must be bounded here to keep the invariant.
+    // Clamp the long before the cast so a huge value cannot wrap into range.
     if (off < PRAYER_OFFSET_MIN)
       off = PRAYER_OFFSET_MIN;
     else if (off > PRAYER_OFFSET_MAX)
       off = PRAYER_OFFSET_MAX;
-    pcfg->offset = off;
+    pcfg->offset = (int)off;
   }
 }
 
@@ -374,6 +391,19 @@ int config_load(Config *cfg) {
   char *content = read_file(path);
   if (!content) {
     fprintf(stderr, "Error: Cannot read config file\n");
+    return -1;
+  }
+
+  // Sections are looked up one by one and each one that fails keeps its
+  // defaults, so a cut-off file or a stray quote used to load "successfully" as
+  // mostly defaults, and the next save wrote those over the user's settings. A
+  // file that is not exactly one complete object is refused instead, which
+  // makes every caller stop before it can save.
+  const char *doc = skip_whitespace(content);
+  const char *doc_end = (*doc == '{') ? find_matching_bracket(doc, '{') : NULL;
+  if (!doc_end || *skip_whitespace(doc_end + 1) != '\0') {
+    fprintf(stderr, "Error: %s is not valid JSON, fix or delete it\n", path);
+    free(content);
     return -1;
   }
 
@@ -466,8 +496,15 @@ int config_load(Config *cfg) {
     char *sound_reminder_str = get_value(ctx, "sound_reminder", notification);
     char *icon_str = get_value(ctx, "icon", notification);
 
-    if (timeout_str)
-      cfg->notification_timeout = (int)strtol(timeout_str, NULL, 10);
+    if (timeout_str) {
+      // Saturate to the int range instead of letting the cast wrap.
+      long timeout = strtol(timeout_str, NULL, 10);
+      if (timeout > INT_MAX)
+        timeout = INT_MAX;
+      else if (timeout < INT_MIN)
+        timeout = INT_MIN;
+      cfg->notification_timeout = (int)timeout;
+    }
     if (urgency_str) {
       if (!copy_string(cfg->notification_urgency, sizeof(cfg->notification_urgency), urgency_str)) {
         log_truncation("notification_urgency");
@@ -524,10 +561,22 @@ int config_load(Config *cfg) {
     }
     char *fajr_angle_str = get_value(ctx, "fajr_angle", calculation);
     char *isha_angle_str = get_value(ctx, "isha_angle", calculation);
+    /* A failed conversion yields 0, which is the documented sentinel for
+     * falling back to the calculation method's own angle, so the result
+     * is never checked here. */
     if (fajr_angle_str)
-      cfg->fajr_angle = atof(fajr_angle_str);
+      cfg->fajr_angle = strtod(fajr_angle_str, NULL);
     if (isha_angle_str)
-      cfg->isha_angle = atof(isha_angle_str);
+      cfg->isha_angle = strtod(isha_angle_str, NULL);
+  }
+
+  char *display = get_value(ctx, "display", content);
+  if (display) {
+    char *time_format_str = get_value(ctx, "time_format", display);
+    /* Coerced rather than rejected: config_validate is not run on the load
+     * path, so a hand-edited value has to land on something printable. */
+    if (time_format_str)
+      cfg->time_format = (strtol(time_format_str, NULL, 10) == 12) ? 12 : 24;
   }
 
   json_end(ctx);
@@ -536,14 +585,30 @@ int config_load(Config *cfg) {
   return 0;
 }
 
+bool config_latitude_is_valid(double lat) {
+  return isfinite(lat) && lat >= -90.0 && lat <= 90.0;
+}
+
+bool config_longitude_is_valid(double lon) {
+  return isfinite(lon) && lon >= -180.0 && lon <= 180.0;
+}
+
+bool config_location_needs_detect(const Config *cfg) {
+  if (!cfg || !cfg->auto_detect)
+    return false;
+  if (!config_latitude_is_valid(cfg->latitude) || !config_longitude_is_valid(cfg->longitude))
+    return true;
+  return fabs(cfg->latitude) < 1e-6 && fabs(cfg->longitude) < 1e-6;
+}
+
 bool config_validate(const Config *cfg) {
   if (!cfg)
     return false;
 
   // Validate location
-  if (cfg->latitude < -90.0 || cfg->latitude > 90.0)
+  if (!config_latitude_is_valid(cfg->latitude))
     return false;
-  if (cfg->longitude < -180.0 || cfg->longitude > 180.0)
+  if (!config_longitude_is_valid(cfg->longitude))
     return false;
   if (cfg->timezone_offset < -12.0 || cfg->timezone_offset > 14.0)
     return false;
@@ -564,6 +629,10 @@ bool config_validate(const Config *cfg) {
       return false;
     }
   }
+
+  // Validate display
+  if (cfg->time_format != 12 && cfg->time_format != 24)
+    return false;
 
   return true;
 }
@@ -700,16 +769,6 @@ MethodParams method_params_from_config(const Config *cfg) {
   return params;
 }
 
-// Normalize an hour-of-day into [0, 24). An offset of at most +/-60 min shifts a
-// base time in [0, 24) into (-1, 25), so a single wrap suffices.
-static double offset_wrap_day(double hours) {
-  if (hours < 0.0)
-    return hours + 24.0;
-  if (hours >= 24.0)
-    return hours - 24.0;
-  return hours;
-}
-
 double effective_tz_offset(const Config *cfg, int year, int month, int day) {
   if (!timezone_exists(cfg->timezone))
     return cfg->timezone_offset;
@@ -721,18 +780,47 @@ double effective_tz_offset(const Config *cfg, int year, int month, int day) {
 }
 
 struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int month, int day) {
+  // An invalid coordinate must not reach calculate_prayer_times. It returns a
+  // finite schedule computed at the method's reference latitude, which reads
+  // as a real answer: a NaN latitude used to print fajr and isha at the same
+  // time as dhuhr. Reporting nothing is the honest result, and every consumer
+  // already handles it. cache_build_triggers skips non-finite times at
+  // cache.c:379 so no notification fires, prayer_next_from_days skips them at
+  // prayer_checker.c:75, and format_time_hm renders them as "--:--".
+  //
+  // The warning prints once per process. A `show --date` range calls this
+  // function once per day, and one `show` already calls it three times through
+  // prayer_get_next. It goes to stderr so that `show --json` and
+  // `show --headless` stay machine-readable.
+  if (!config_latitude_is_valid(cfg->latitude) || !config_longitude_is_valid(cfg->longitude)) {
+    static bool warned = false;
+    if (!warned) {
+      warned = true;
+      fprintf(stderr,
+              "Warning: invalid location in config (latitude %.6f, longitude %.6f), prayer times "
+              "unavailable. Run: muslimtify location set --lat=<latitude> --long=<longitude>\n",
+              cfg->latitude, cfg->longitude);
+    }
+    struct PrayerTimes unavailable = {
+        .fajr = NAN, .dhuhr = NAN, .asr = NAN, .maghrib = NAN, .isha = NAN};
+    return unavailable;
+  }
+
   MethodParams params = method_params_from_config(cfg);
   struct PrayerTimes t =
       calculate_prayer_times(year, month, day, cfg->latitude, cfg->longitude,
                              effective_tz_offset(cfg, year, month, day), &params);
 
-  // Apply each prayer's offset to the RESULT and re-normalize into [0, 24) so a
-  // prayer pushed across midnight stays a valid minute-of-day for the cache,
-  // the checker, and format_time_hm (they otherwise diverge on an unwrapped time).
+  // Apply each prayer's offset to the RESULT and keep the whole value. A value
+  // at or above 24 means the event falls on the next calendar day and one below
+  // 0 means the previous one, which is the only place that fact is carried.
+  // Reducing it here would discard the day, so the wrap lives in
+  // cache_build_triggers instead, which is the one consumer that needs a
+  // minute-of-day rather than an instant.
   double *fields[] = {&t.fajr, &t.dhuhr, &t.asr, &t.maghrib, &t.isha};
   const PrayerConfig *pcfgs[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    *fields[i] = offset_wrap_day(*fields[i] + pcfgs[i]->offset / 60.0);
+    *fields[i] += pcfgs[i]->offset / 60.0;
   }
 
   return t;

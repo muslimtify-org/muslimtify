@@ -67,22 +67,36 @@ static int removed_sound(int a, char **v) {
 // --- top-level dispatch table -----------------------
 
 static const CommandEntry top_commands[] = {
-    {"show", handle_show},       {"location", handle_location},
-    {"enable", removed_enable},  {"disable", removed_disable},
-    {"list", removed_list},      {"reminder", removed_reminder},
-    {"sound", removed_sound},    {"offset", handle_offset},
-    {"daemon", handle_daemon},   {"method", handle_method},
-    {"madzhab", handle_madzhab}, {"notification", handle_notification},
-    {"version", handle_version}, {"--version", handle_version},
-    {"-v", handle_version},      {"help", handle_help},
-    {"--help", handle_help},     {"-h", handle_help},
+    {"show", handle_show},
+    {"location", handle_location},
+    {"enable", removed_enable},
+    {"disable", removed_disable},
+    {"list", removed_list},
+    {"reminder", removed_reminder},
+    {"sound", removed_sound},
+    {"offset", handle_offset},
+    {"daemon", handle_daemon},
+    {"method", handle_method},
+    {"madzhab", handle_madzhab},
+    {"notification", handle_notification},
+    {"timeformat", handle_timeformat},
+    {"version", handle_version},
+    {"--version", handle_version},
+    {"-v", handle_version},
+    {"help", handle_help},
+    {"--help", handle_help},
+    {"-h", handle_help},
 };
 
 // --- version / help -----------------------
 
 int handle_version(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
+  if (cli_wants_help(argc, argv)) {
+    printf("Usage: muslimtify version\n");
+    return 0;
+  }
+  if (cli_reject_extra_args("version", argc, argv))
+    return 1;
 
   printf("Muslimtify v%s\n", MUSLIMTIFY_VERSION);
   printf("Prayer Time Notification Daemon\n\n");
@@ -102,8 +116,8 @@ int handle_version(int argc, char **argv) {
 }
 
 int handle_help(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
+  if (!cli_wants_help(argc, argv) && cli_reject_extra_args("help", argc, argv))
+    return 1;
 
   cli_print_help();
   return 0;
@@ -132,6 +146,7 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "      --headless", "Show next prayer as key=value");
   printf("  %-25s %s\n", "    --date <start> [end]",
          "Show prayer times for a date or inclusive range (yyyy-mm-dd)");
+  printf("  %-25s %s\n", "    --day-offset <days>", "Show prayer times <days> from today (+/-)");
 
   printf("\n");
 
@@ -183,6 +198,8 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "madzhab <shafi|hanafi>", "Set madzhab");
 
   printf("  %-25s %s\n", "    --list", "List madzhab options");
+  printf("  %-25s %s\n", "timeformat <12|24>", "Set clock format (12-hour or 24-hour)");
+  printf("  %-25s %s\n", "    --list", "List clock formats");
 
   printf("\n");
 
@@ -193,7 +210,7 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "notification", "Show notification settings");
   printf("  %-25s %s\n", "    enable|disable [prayer]", "Toggle prayer notifications");
   printf("  %-25s %s\n", "    --urgency <level>", "normal|critical|low");
-  printf("  %-25s %s\n", "    --reminder [--all] <prayer> <mins...>", "Pre-prayer reminders");
+  printf("  %-25s %s\n", "    --reminder <prayer|--all> <mins...>", "Pre-prayer reminders");
   printf("  %-25s %s\n", "    --adhan <enable|disable> <prayer>", "Per-prayer adhan");
   printf("  %-25s %s\n", "    --sound <adhan|default|off>", "Notification sound mode");
   printf("\n");

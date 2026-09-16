@@ -2,6 +2,7 @@
 #define CLI_INTERNAL_H
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
 typedef int (*HandlerFn)(int argc, char **argv);
@@ -36,6 +37,17 @@ static inline bool cli_wants_help(int argc, char **argv) {
   return false;
 }
 
+// Reject arguments a command does not take. `argc` and `argv` are what is left
+// after the arguments the command consumed, and argc may be zero or negative.
+// Prints an error naming the first leftover argument and returns 1, or returns
+// 0 when nothing is left.
+static inline int cli_reject_extra_args(const char *command, int argc, char **argv) {
+  if (argc <= 0)
+    return 0;
+  fprintf(stderr, "Error: unexpected argument '%s' for '%s'\n", argv[0], command);
+  return 1;
+}
+
 // Print an "Unknown prayer" error plus the list of valid prayer names; returns 1.
 int cli_unknown_prayer(const char *name);
 
@@ -46,6 +58,7 @@ int handle_daemon(int argc, char **argv);
 int handle_notification(int argc, char **argv);
 int handle_method(int argc, char **argv);
 int handle_madzhab(int argc, char **argv);
+int handle_timeformat(int argc, char **argv);
 int handle_version(int argc, char **argv);
 int handle_help(int argc, char **argv);
 

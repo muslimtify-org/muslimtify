@@ -132,10 +132,21 @@ int notify_init_once(const char *app_name) {
   return notify_init(app_name);
 }
 
+// Show a notification. A failure, such as no notification daemon on the session
+// bus, goes to stderr so it reaches the journal under the systemd user service.
+static void show_notification(NotifyNotification *n) {
+  GError *error = NULL;
+  if (!notify_notification_show(n, &error)) {
+    fprintf(stderr, "muslimtify: could not show notification: %s\n",
+            error ? error->message : "unknown error");
+    g_clear_error(&error);
+  }
+}
+
 void notify_send(const char *title, const char *message) {
   NotifyNotification *n = notify_notification_new(title, message, get_icon_path());
   notify_notification_set_timeout(n, 3000);
-  notify_notification_show(n, NULL);
+  show_notification(n);
   g_object_unref(G_OBJECT(n));
 }
 
@@ -176,13 +187,13 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
 
   // counldn't play -> show briefly, no loop
   if (audio_start(adhan_path) != 0) {
-    notify_notification_show(n, NULL);
+    show_notification(n);
     g_main_loop_unref(loop);
     g_object_unref(n);
     return;
   }
 
-  notify_notification_show(n, NULL);
+  show_notification(n);
   guint tick = g_timeout_add(200, adhan_poll_cb, loop);
 
   g_main_loop_run(loop);
@@ -246,7 +257,7 @@ void notify_prayer(const char *prayer_name, const char *time_str, int minutes_be
     }
   }
 
-  notify_notification_show(n, NULL);
+  show_notification(n);
   g_object_unref(G_OBJECT(n));
 }
 
@@ -263,5 +274,5 @@ int notify_adhan_stop(void) {
     audio_stop();
     return 0;
   }
-  return 1;
+  return -1;
 }

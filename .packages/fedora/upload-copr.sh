@@ -3,7 +3,7 @@
 set -euo pipefail
 
 COPR_PROJECT="rizukirr/muslimtify"
-GIT_URL="https://github.com/rizukirr/muslimtify"
+GIT_URL="https://github.com/muslimtify-org/muslimtify"
 
 # --- Check copr-cli ---
 if ! command -v copr-cli &>/dev/null; then

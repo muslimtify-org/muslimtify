@@ -1,9 +1,9 @@
 Name:           muslimtify
-Version:        0.4.1
+Version:        0.4.2
 Release:        1%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
 License:        MIT
-URL:            https://github.com/rizukirr/muslimtify
+URL:            https://github.com/muslimtify-org/muslimtify
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  cmake >= 3.22
@@ -48,6 +48,10 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
+* Sun Sep 13 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.2-1
+- Add show --day-offset to show the prayer times for a date relative to today
+- Fix config, location, CLI argument and DST countdown bugs
+
 * Thu Aug 20 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.1-1
 - Drop sunrise and dhuha, following libmuslim cutting struct PrayerTimes down to the five prescribed prayers; both were disabled by default, and a config file still carrying a prayers.sunrise or prayers.dhuha block keeps loading but the block no longer has any effect
 - Fix a bogus notification being scheduled for a prayer that does not occur; upstream now reports no asr where the Sun casts no shadow, and converting that non-finite time to an int wrapped a reminder to minute 2147483618

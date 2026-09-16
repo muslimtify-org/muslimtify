@@ -145,7 +145,7 @@ typedef struct JsonSlice {
 } JsonSlice;
 
 typedef struct JsonUtf8 {
-  unsigned char bytes[3];
+  unsigned char bytes[4];
   size_t length;
 } JsonUtf8;
 
@@ -218,10 +218,41 @@ static bool json_utf8_encode(uint32_t codepoint, JsonUtf8 *utf8) {
     return false;
   }
 
-  utf8->bytes[0] = (unsigned char)(0xE0 | (codepoint >> 12));
-  utf8->bytes[1] = (unsigned char)(0x80 | ((codepoint >> 6) & 0x3F));
-  utf8->bytes[2] = (unsigned char)(0x80 | (codepoint & 0x3F));
-  utf8->length = 3;
+  if (codepoint <= 0xFFFF) {
+    utf8->bytes[0] = (unsigned char)(0xE0 | (codepoint >> 12));
+    utf8->bytes[1] = (unsigned char)(0x80 | ((codepoint >> 6) & 0x3F));
+    utf8->bytes[2] = (unsigned char)(0x80 | (codepoint & 0x3F));
+    utf8->length = 3;
+    return true;
+  }
+
+  if (codepoint > 0x10FFFF) {
+    return false;
+  }
+
+  utf8->bytes[0] = (unsigned char)(0xF0 | (codepoint >> 18));
+  utf8->bytes[1] = (unsigned char)(0x80 | ((codepoint >> 12) & 0x3F));
+  utf8->bytes[2] = (unsigned char)(0x80 | ((codepoint >> 6) & 0x3F));
+  utf8->bytes[3] = (unsigned char)(0x80 | (codepoint & 0x3F));
+  utf8->length = 4;
+  return true;
+}
+
+// Reads exactly four hex digits from [p, end). Returns false when fewer than
+// four characters remain or any of them is not a hex digit.
+static bool json_read_hex4(const char *p, const char *end, uint32_t *out) {
+  if (end - p < 4) {
+    return false;
+  }
+  uint32_t value = 0;
+  for (int i = 0; i < 4; i++) {
+    int digit = json_hex_digit_value(p[i]);
+    if (digit < 0) {
+      return false;
+    }
+    value = (value << 4) | (uint32_t)digit;
+  }
+  *out = value;
   return true;
 }
 
@@ -604,15 +635,39 @@ static char *json_extract_value(JsonArena *JSON_RESTRICT arena,
         case 'f':
           *dst++ = '\f';
           break;
-        case 'u':
-          // \uXXXX — pass through as-is (6 chars)
-          *dst++ = '\\';
-          *dst++ = 'u';
-          for (int i = 0; i < 4 && src + 1 < scan; i++) {
-            src++;
-            *dst++ = *src;
+        case 'u': {
+          // Decode \uXXXX to UTF-8. The output never outgrows the input: six
+          // escape bytes give at most three UTF-8 bytes, and a twelve byte
+          // surrogate pair gives four.
+          uint32_t cp = 0;
+          if (!json_read_hex4(src + 1, scan, &cp)) {
+            // Not four hex digits. Keep the escape as-is, like an unknown one.
+            *dst++ = '\\';
+            *dst++ = 'u';
+            break;
           }
+          src += 4;
+          if (cp >= 0xD800 && cp <= 0xDBFF) {
+            uint32_t low = 0;
+            if (src + 2 < scan && src[1] == '\\' && src[2] == 'u' &&
+                json_read_hex4(src + 3, scan, &low) && low >= 0xDC00 && low <= 0xDFFF) {
+              cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
+              src += 6;
+            } else {
+              // A high surrogate without its low half cannot be encoded.
+              cp = 0xFFFD;
+            }
+          } else if ((cp >= 0xDC00 && cp <= 0xDFFF) || cp == 0) {
+            // A lone low surrogate cannot be encoded, and NUL would cut the
+            // C string short, so both become U+FFFD.
+            cp = 0xFFFD;
+          }
+          JsonUtf8 utf8;
+          json_utf8_encode(cp, &utf8);
+          memcpy(dst, utf8.bytes, utf8.length);
+          dst += utf8.length;
           break;
+        }
         default:
           // Unknown escape — keep as-is
           *dst++ = '\\';

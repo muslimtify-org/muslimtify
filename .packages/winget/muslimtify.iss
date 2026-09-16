@@ -3,13 +3,13 @@
 
 #define MyAppName "Muslimtify"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.4.1"
+  #define MyAppVersion "0.4.2"
 #endif
 #ifndef Arch
   #define Arch "x64"
 #endif
 #define MyAppPublisher "rizukirr"
-#define MyAppURL "https://github.com/rizukirr/muslimtify"
+#define MyAppURL "https://github.com/muslimtify-org/muslimtify"
 #define MyAppExeName "muslimtify.exe"
 #define StagingDir "..\..\installer\staging"
 

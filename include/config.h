@@ -65,6 +65,9 @@ typedef struct {
   char madhab[16];
   double fajr_angle; // custom method only (0 = use method default)
   double isha_angle; // custom method only (0 = use method default)
+
+  // Display
+  int time_format; // 12 or 24; anything else is coerced to 24 on load
 } Config;
 
 /**
@@ -94,6 +97,32 @@ const char *config_get_path(void);
  * Validate config structure
  */
 bool config_validate(const Config *cfg);
+
+/**
+ * True when latitude is finite and within [-90, 90].
+ *
+ * NaN fails here. A bare range comparison does not reject it, because both
+ * `lat < -90.0` and `lat > 90.0` are false for NaN, which is how a NaN
+ * latitude reached calculate_prayer_times and produced a believable schedule.
+ */
+bool config_latitude_is_valid(double lat);
+
+/**
+ * True when longitude is finite and within [-180, 180]. Same NaN reasoning as
+ * config_latitude_is_valid.
+ */
+bool config_longitude_is_valid(double lon);
+
+/**
+ * True when cfg wants auto-detection and has no usable location, either unset
+ * at 0,0 from config_default or invalid.
+ *
+ * The old test was `auto_detect && fabs(latitude) < 1e-6 && fabs(longitude) <
+ * 1e-6`, written out at three call sites. `fabs(nan) < 1e-6` is false, so a
+ * config holding a NaN coordinate never re-detected and stayed broken, while a
+ * fresh install with the same auto_detect setting repaired itself.
+ */
+bool config_location_needs_detect(const Config *cfg);
 
 /**
  * Get prayer config by name (case-insensitive)

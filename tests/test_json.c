@@ -183,13 +183,49 @@ static void test_escaped_keys(void) {
   json_end(ctx);
 }
 
-static void test_unicode_passthrough(void) {
-  printf("test_unicode_passthrough\n");
+// Each case is one string value. The decoded value must match and must never
+// be longer than the raw escaped text, since the output buffer is sized to it.
+static void check_unescape(const char *raw_value, const char *expected, const char *label) {
+  char json[256];
+  snprintf(json, sizeof(json), "{\"u\": \"%s\"}", raw_value);
   JsonContext *ctx = json_begin();
-  char json[] = "{\"u\": \"\\u0041\"}";
   char *val = get_value(ctx, "u", json);
-  check_str(val, "\\u0041", "unicode passthrough");
+  check_str(val, expected, label);
+  total++;
+  if (val && strlen(val) <= strlen(raw_value)) {
+    printf("  PASS: %s fits the raw length\n", label);
+  } else {
+    printf("  FAIL: %s does not fit the raw length\n", label);
+    failures++;
+  }
   json_end(ctx);
+}
+
+static void test_unicode_escapes(void) {
+  printf("test_unicode_escapes\n");
+  check_unescape("\\u0041", "A", "ascii escape decoded");
+  check_unescape("S\\u00e3o Paulo", "S\xC3\xA3o Paulo", "two byte escape decoded");
+  check_unescape("\\u20AC", "\xE2\x82\xAC", "three byte escape decoded");
+  check_unescape("\\ud83d\\ude00!", "\xF0\x9F\x98\x80!", "surrogate pair decoded");
+  check_unescape("a\\u0001b\\u001f",
+                 "a\x01"
+                 "b\x1f",
+                 "control character escape decoded");
+
+  // Malformed escapes. Too few or non-hex digits are kept as written. Lone
+  // surrogates and NUL, which cannot be stored, become U+FFFD.
+  check_unescape("\\u00G1x", "\\u00G1x", "non-hex escape kept as-is");
+  check_unescape("ab\\u12", "ab\\u12", "short escape at end kept as-is");
+  check_unescape("\\uD83Dx", "\xEF\xBF\xBDx", "lone high surrogate replaced");
+  check_unescape("\\uD83D", "\xEF\xBF\xBD", "high surrogate at end replaced");
+  check_unescape("\\uD83D\\u0041",
+                 "\xEF\xBF\xBD"
+                 "A",
+                 "high surrogate before non-low escape replaced");
+  check_unescape("\\uD83D\\uZZZZ", "\xEF\xBF\xBD\\uZZZZ",
+                 "high surrogate before bad escape replaced");
+  check_unescape("\\uDE00", "\xEF\xBF\xBD", "lone low surrogate replaced");
+  check_unescape("\\u0000x", "\xEF\xBF\xBDx", "NUL escape replaced");
 }
 
 static void test_string_trailing_backslash_no_oob(void) {
@@ -300,7 +336,7 @@ int main(void) {
   test_escaped_newline();
   test_escaped_tab();
   test_escaped_keys();
-  test_unicode_passthrough();
+  test_unicode_escapes();
   test_string_trailing_backslash_no_oob();
 
   test_key_inside_value();

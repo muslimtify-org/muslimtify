@@ -4,6 +4,7 @@
 #include "native_posix.h"
 #include "platform.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -118,7 +119,9 @@ int platform_mkdir_p(const char *path) {
       *p = '/';
     }
   }
-  if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
+  // The last component is the muslimtify directory itself, which holds the
+  // user's location, so it is owner-only. An existing directory is left alone.
+  if (mkdir(tmp, 0700) != 0 && errno != EEXIST)
     return -1;
 
   return 0;
@@ -130,6 +133,12 @@ int platform_file_exists(const char *path) {
 
 FILE *platform_file_open(const char *path, const char *mode) {
   return fopen(path, mode);
+}
+
+int platform_file_sync(FILE *f) {
+  if (fflush(f) != 0)
+    return -1;
+  return fsync(fileno(f)) == 0 ? 0 : -1;
 }
 
 int platform_file_delete(const char *path) {
@@ -173,6 +182,24 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
   return PATH_FILE_OK;
 }
 
-void platform_restrict_to_owner(FILE *f) {
-  (void)fchmod(fileno(f), S_IRUSR | S_IWUSR);
+FILE *platform_file_create_private(const char *path) {
+  // Pass the mode to open itself. fopen creates the file 0644 and a later
+  // chmod leaves a window where another user can open it and keep the fd.
+  int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, S_IRUSR | S_IWUSR);
+  if (fd < 0)
+    return NULL;
+
+  // The open mode only applies to a new file. A leftover regular file keeps
+  // its old mode, so narrow it as well.
+  struct stat st;
+  if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode))
+    (void)fchmod(fd, S_IRUSR | S_IWUSR);
+
+  FILE *f = fdopen(fd, "w");
+  if (!f) {
+    int err = errno;
+    close(fd);
+    errno = err;
+  }
+  return f;
 }

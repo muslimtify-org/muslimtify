@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: muslimtify
 Upstream-Contact: Rizki Rakasiwi <rizkirr.xyz@gmail.com>
-Source: https://github.com/rizukirr/muslimtify
+Source: https://github.com/muslimtify-org/muslimtify
 
 Files: *
 Copyright: 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com>

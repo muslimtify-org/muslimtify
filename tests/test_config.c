@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "config.h"
 #include "platform.h"
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -293,6 +294,18 @@ static void test_round_trip(void) {
   check_bool("save ok", config_save(&out) == 0);
   check_bool("config file exists", platform_file_exists(config_get_path()) == 1);
 
+  // The last prayer object must not be followed by a comma, or the saved file
+  // is not valid JSON for anything but our own lenient parser.
+  char saved[16384] = "";
+  FILE *sf = fopen(config_get_path(), "r");
+  if (sf) {
+    size_t n = fread(saved, 1, sizeof(saved) - 1, sf);
+    saved[n] = '\0';
+    fclose(sf);
+  }
+  check_bool("saved file read", saved[0] != '\0');
+  check_bool("no trailing comma after last prayer", strstr(saved, "},\n  },") == NULL);
+
   Config in;
   check_bool("load ok", config_load(&in) == 0);
 
@@ -348,8 +361,8 @@ static void test_offset_apply(void) {
   check_bool("offset dhuhr 0 identity", fabs(adj.dhuhr - raw.dhuhr) < 1e-9);
 }
 
-static void test_offset_wrap(void) {
-  printf("  offset midnight wrap...\n");
+static void test_offset_keeps_day(void) {
+  printf("  offset keeps day...\n");
 
   // London in June: high-latitude late Isha, near the midnight boundary.
   Config cfg = config_default();
@@ -366,16 +379,17 @@ static void test_offset_wrap(void) {
   cfg.isha.offset = 60; // push Isha up to an hour later
   struct PrayerTimes adj = prayer_times_for_config(&cfg, y, m, d);
 
+  // The wrap this test used to require moved out of prayer_times_for_config
+  // and into cache_build_triggers (task: move the wrap from the shared
+  // boundary into the cache), because only the trigger cache needs a
+  // minute-of-day. Every other consumer, including this function's result,
+  // now keeps the day the offset carried instead of losing it to a reduction.
   double expected = raw.isha + 1.0;
-  if (expected >= 24.0)
-    expected -= 24.0;
-  else if (expected < 0.0)
-    expected += 24.0;
 
-  // Every field must stay a valid minute-of-day so the cache/checker/formatter agree.
-  check_bool("wrap isha in [0,24)", adj.isha >= 0.0 && adj.isha < 24.0);
-  check_bool("wrap isha value", fabs(adj.isha - expected) < 1e-9);
-  check_bool("wrap fajr in [0,24)", adj.fajr >= 0.0 && adj.fajr < 24.0);
+  check_bool("isha keeps day: no reduction applied", fabs(adj.isha - expected) < 1e-9);
+  check_bool("isha allowed to sit at or above 24, not forced below it",
+             expected < 24.0 ? adj.isha < 24.0 : adj.isha >= 24.0);
+  check_bool("fajr untouched, no offset configured", fabs(adj.fajr - raw.fajr) < 1e-9);
 }
 
 static void test_offset_clamp_on_load(void) {
@@ -425,6 +439,15 @@ static void test_config_perms(void) {
   struct stat st;
   check_bool("perms: stat", stat(config_get_path(), &st) == 0);
   check_bool("perms: owner-only (0600)", (st.st_mode & 077) == 0);
+
+  // The muslimtify directory was created by config_save and must be 0700.
+  char dir[1024];
+  snprintf(dir, sizeof(dir), "%s", config_get_path());
+  char *slash = strrchr(dir, '/');
+  if (slash)
+    *slash = '\0';
+  check_bool("perms: dir stat", stat(dir, &st) == 0);
+  check_bool("perms: dir owner-only (0700)", (st.st_mode & 0777) == 0700);
 #else
   (void)0;
 #endif
@@ -577,12 +600,380 @@ static void test_config_escapes_adhan(void) {
 
 // -- main ---------------------------------------------------------------------
 
+static void write_config_text(const char *text) {
+  FILE *f = fopen(config_get_path(), "w");
+  if (f) {
+    fputs(text, f);
+    fclose(f);
+  }
+}
+
+// A file that is not one complete object must fail to load, so no caller saves
+// defaults over the settings it could not read.
+static void test_malformed_config_refused(void) {
+  printf("  malformed config refused...\n");
+  Config cfg = config_default();
+  config_save(&cfg);
+
+  const char *bad[][2] = {
+      {"stray quote", "{\n  \"location\": { \"city\": \"Lon\"don\", \"latitude\": 51.5 }\n}\n"},
+      {"cut off", "{\n  \"location\": { \"latitude\": 51.5 }\n"},
+      {"empty", ""},
+      {"junk after object", "{ \"location\": { \"latitude\": 51.5 } } junk"},
+      {"not an object", "[1, 2]"},
+  };
+  for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+    write_config_text(bad[i][1]);
+    Config loaded;
+    char name[64];
+    snprintf(name, sizeof(name), "malformed refused: %s", bad[i][0]);
+    check_bool(name, config_load(&loaded) == -1);
+  }
+
+  // A complete object with only some sections still loads, keeping defaults for the rest.
+  write_config_text("  { \"location\": { \"latitude\": 51.5 } }\n");
+  Config partial;
+  check_bool("partial object loads", config_load(&partial) == 0);
+  check_bool("partial object keeps value", fabs(partial.latitude - 51.5) < 0.001);
+
+  config_save(&cfg);
+}
+
+// jq and other pretty printers put each array element on its own line. Those
+// reminders used to load as empty, and the next save made the loss permanent.
+static void test_multiline_reminders(void) {
+  printf("  multi-line reminders...\n");
+  write_config_text("{\n  \"prayers\": {\n    \"fajr\": {\n      \"reminders\": [\n        45,\n"
+                    "\t\t25,\r\n        10\n      ]\n    },\n"
+                    "    \"asr\": { \"reminders\": [ 40 ,20 ] }\n  }\n}\n");
+  Config in;
+  check_bool("multi-line: load ok", config_load(&in) == 0);
+  check_bool("multi-line: fajr count", in.fajr.reminder_count == 3);
+  check_bool("multi-line: fajr values", in.fajr.reminders[0] == 45 && in.fajr.reminders[1] == 25 &&
+                                            in.fajr.reminders[2] == 10);
+  check_bool("multi-line: asr values",
+             in.asr.reminder_count == 2 && in.asr.reminders[0] == 40 && in.asr.reminders[1] == 20);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
+// 4294967306 is 2^32 + 10. Narrowing it to int before the range check turned
+// it into 10, which then passed the check.
+static void test_huge_values_not_wrapped(void) {
+  printf("  huge values not wrapped...\n");
+  write_config_text("{\n  \"prayers\": {\n"
+                    "    \"fajr\": { \"offset\": 4294967306, \"reminders\": [4294967306, 7] },\n"
+                    "    \"isha\": { \"offset\": -4294967306 }\n  },\n"
+                    "  \"notification\": { \"timeout\": 4294967306 }\n}\n");
+  Config in;
+  check_bool("huge: load ok", config_load(&in) == 0);
+  check_bool("huge: offset clamped to max", in.fajr.offset == PRAYER_OFFSET_MAX);
+  check_bool("huge: negative offset clamped to min", in.isha.offset == PRAYER_OFFSET_MIN);
+  check_bool("huge: reminder dropped, not wrapped",
+             in.fajr.reminder_count == 1 && in.fajr.reminders[0] == 7);
+  check_bool("huge: timeout not wrapped", in.notification_timeout == INT_MAX);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
+// A \u escape must load as the character it names. It used to stay literal,
+// so the city showed as "S\u00e3o Paulo" and the next save doubled the
+// backslash. Control characters are written as \u00XX and must come back too.
+static void test_unicode_escape_round_trip(void) {
+  printf("  unicode escape round trip...\n");
+  write_config_text("{\n  \"location\": { \"city\": \"S\\u00e3o Paulo\" }\n}\n");
+  Config in;
+  check_bool("unicode: load ok", config_load(&in) == 0);
+  check_bool("unicode: city decoded", strcmp(in.city, "S\xC3\xA3o Paulo") == 0);
+  check_bool("unicode: resave ok", config_save(&in) == 0);
+
+  char saved[16384] = "";
+  FILE *f = fopen(config_get_path(), "r");
+  if (f) {
+    size_t n = fread(saved, 1, sizeof(saved) - 1, f);
+    saved[n] = '\0';
+    fclose(f);
+  }
+  check_bool("unicode: saved as UTF-8", strstr(saved, "\"S\xC3\xA3o Paulo\"") != NULL);
+  check_bool("unicode: no literal escape saved", strstr(saved, "u00e3") == NULL);
+
+  Config out = config_default();
+  strcpy(out.country, "a\x01z\x1f");
+  check_bool("control: save ok", config_save(&out) == 0);
+  Config back;
+  check_bool("control: load ok", config_load(&back) == 0);
+  check_bool("control: country round trips", strcmp(back.country, "a\x01z\x1f") == 0);
+
+  Config cfg = config_default();
+  config_save(&cfg);
+}
+
+#ifdef __linux__
+// Lowest free descriptor number. If a save leaks a descriptor, the number
+// taken after the save differs from the one taken before it.
+static int lowest_free_fd(void) {
+  int fd = dup(0);
+  if (fd >= 0)
+    close(fd);
+  return fd;
+}
+#endif
+
+// When the write fails the temp file must still be closed before it is
+// deleted. The temp path is pointed at /dev/full so the flush fails with
+// ENOSPC, and a leaked descriptor shows up as a changed lowest free fd.
+static void test_failed_save_closes_file(void) {
+#ifdef __linux__
+  printf("  failed save closes file...\n");
+  if (geteuid() == 0) {
+    // As root the save could change the mode of /dev/full through the link.
+    printf("  SKIP: running as root\n");
+    return;
+  }
+  Config cfg = config_default();
+  check_bool("failed save: seed", config_save(&cfg) == 0);
+
+  char tmp_path[1024];
+  snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", config_get_path());
+  unlink(tmp_path);
+  if (symlink("/dev/full", tmp_path) != 0) {
+    printf("  SKIP: cannot create symlink\n");
+    return;
+  }
+
+  int before = lowest_free_fd();
+  check_bool("failed save: returns -1", config_save(&cfg) == -1);
+  int after = lowest_free_fd();
+  check_bool("failed save: no descriptor leaked", before == after);
+  check_bool("failed save: temp path removed", access(tmp_path, F_OK) != 0);
+  unlink(tmp_path);
+#else
+  (void)0;
+#endif
+}
+
+static void test_coordinate_helpers(void) {
+  printf("  coordinate helpers...\n");
+
+  check_bool("lat 0 valid", config_latitude_is_valid(0.0));
+  check_bool("lat 90 valid", config_latitude_is_valid(90.0));
+  check_bool("lat -90 valid", config_latitude_is_valid(-90.0));
+  check_bool("lat 91 invalid", !config_latitude_is_valid(91.0));
+  check_bool("lat -91 invalid", !config_latitude_is_valid(-91.0));
+  check_bool("lat NaN invalid", !config_latitude_is_valid(NAN));
+  check_bool("lat +inf invalid", !config_latitude_is_valid(INFINITY));
+  check_bool("lat -inf invalid", !config_latitude_is_valid(-INFINITY));
+
+  check_bool("lon 0 valid", config_longitude_is_valid(0.0));
+  check_bool("lon 180 valid", config_longitude_is_valid(180.0));
+  check_bool("lon -180 valid", config_longitude_is_valid(-180.0));
+  check_bool("lon 181 invalid", !config_longitude_is_valid(181.0));
+  check_bool("lon 200 invalid", !config_longitude_is_valid(200.0));
+  check_bool("lon NaN invalid", !config_longitude_is_valid(NAN));
+  check_bool("lon +inf invalid", !config_longitude_is_valid(INFINITY));
+  check_bool("lon -inf invalid", !config_longitude_is_valid(-INFINITY));
+}
+
+static void test_validate_rejects_nan(void) {
+  printf("  validate rejects NaN...\n");
+
+  Config cfg = config_default();
+  cfg.latitude = -6.2088;
+  cfg.longitude = 106.8456;
+  check_bool("validate valid coords", config_validate(&cfg));
+
+  cfg.latitude = NAN;
+  check_bool("validate NaN latitude", !config_validate(&cfg));
+
+  cfg.latitude = -6.2088;
+  cfg.longitude = NAN;
+  check_bool("validate NaN longitude", !config_validate(&cfg));
+}
+
+static bool all_five_nan(struct PrayerTimes t) {
+  return isnan(t.fajr) && isnan(t.dhuhr) && isnan(t.asr) && isnan(t.maghrib) && isnan(t.isha);
+}
+
+static void slurp_stream(FILE *f, char *buf, size_t cap) {
+  fflush(f);
+  fseek(f, 0, SEEK_SET);
+  size_t n = fread(buf, 1, cap - 1, f);
+  buf[n] = '\0';
+}
+
+// Mutation record. The guard's condition in prayer_times_for_config
+// (src/core/config.c) was replaced by hand with `if (0)`, built with
+// `cmake --build build -j8`, run against
+// `ctest --test-dir build -R config --output-on-failure`, then reverted.
+// git status --porcelain was confirmed empty after the revert. Caught. Output:
+//   FAIL [NaN latitude blanks all five]
+//   FAIL [second call also blanks]
+//   FAIL [warning went to stderr]
+//   FAIL [warning names the repair command]
+//   FAIL [infinite longitude blanks]
+//   FAIL [latitude 91 blanks]
+//   FAIL [longitude 200 blanks]
+//   Results: 201 passed, 7 failed
+static void test_invalid_location_blanks_times(void) {
+  printf("  invalid location blanks times...\n");
+
+  Config cfg = config_default();
+  cfg.auto_detect = false;
+  cfg.latitude = -6.2088;
+  cfg.longitude = 106.8456;
+  check_bool("valid config still computes",
+             !all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+
+  FILE *out = tmpfile();
+  FILE *err = tmpfile();
+  check_bool("capture streams open", out != NULL && err != NULL);
+  if (!out || !err)
+    return;
+
+  fflush(stdout);
+  fflush(stderr);
+  int saved_out = dup(STDOUT_FILENO);
+  int saved_err = dup(STDERR_FILENO);
+  dup2(fileno(out), STDOUT_FILENO);
+  dup2(fileno(err), STDERR_FILENO);
+
+  cfg.latitude = NAN;
+  struct PrayerTimes first = prayer_times_for_config(&cfg, 2026, 9, 16);
+  fflush(stdout);
+  fflush(stderr);
+
+  FILE *err2 = tmpfile();
+  if (err2)
+    dup2(fileno(err2), STDERR_FILENO);
+  struct PrayerTimes second = prayer_times_for_config(&cfg, 2026, 9, 16);
+  fflush(stderr);
+
+  dup2(saved_out, STDOUT_FILENO);
+  dup2(saved_err, STDERR_FILENO);
+  close(saved_out);
+  close(saved_err);
+
+  char out_buf[512];
+  char err_buf[512];
+  char err2_buf[512];
+  slurp_stream(out, out_buf, sizeof(out_buf));
+  slurp_stream(err, err_buf, sizeof(err_buf));
+  err2_buf[0] = '\0';
+  if (err2)
+    slurp_stream(err2, err2_buf, sizeof(err2_buf));
+
+  check_bool("NaN latitude blanks all five", all_five_nan(first));
+  check_bool("second call also blanks", all_five_nan(second));
+  check_bool("warning went to stderr", strstr(err_buf, "Warning:") != NULL);
+  check_bool("warning names the repair command", strstr(err_buf, "location set") != NULL);
+  check_bool("warning is one line", strchr(err_buf, '\n') == strrchr(err_buf, '\n'));
+  check_bool("stdout stayed clean", out_buf[0] == '\0');
+  check_bool("warning printed once per process", err2_buf[0] == '\0');
+
+  fclose(out);
+  fclose(err);
+  if (err2)
+    fclose(err2);
+
+  // The remaining invalid inputs reuse the same already-warned process.
+  cfg.latitude = -6.2088;
+  cfg.longitude = INFINITY;
+  check_bool("infinite longitude blanks", all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+
+  cfg.latitude = 91.0;
+  cfg.longitude = 106.8456;
+  check_bool("latitude 91 blanks", all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+
+  cfg.latitude = -6.2088;
+  cfg.longitude = 200.0;
+  check_bool("longitude 200 blanks", all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
+}
+
+static void test_location_needs_detect(void) {
+  printf("  location needs detect...\n");
+
+  Config cfg = config_default();
+  cfg.auto_detect = true;
+  cfg.latitude = 0.0;
+  cfg.longitude = 0.0;
+  check_bool("auto on, unset location detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = NAN;
+  cfg.longitude = 106.8456;
+  check_bool("auto on, NaN latitude detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = 91.0;
+  check_bool("auto on, out of range detects", config_location_needs_detect(&cfg));
+
+  cfg.latitude = -6.2088;
+  check_bool("auto on, valid location does not detect", !config_location_needs_detect(&cfg));
+
+  cfg.auto_detect = false;
+  cfg.latitude = NAN;
+  check_bool("auto off, NaN latitude does not detect", !config_location_needs_detect(&cfg));
+
+  check_bool("NULL does not detect", !config_location_needs_detect(NULL));
+}
+
+static void test_time_format(void) {
+  printf("  time format...\n");
+
+  Config cfg = config_default();
+  check_bool("default time_format is 24", cfg.time_format == 24);
+  check_bool("validate default time_format", config_validate(&cfg));
+
+  cfg.time_format = 12;
+  check_bool("validate time_format 12", config_validate(&cfg));
+  cfg.time_format = 13;
+  check_bool("validate time_format 13 invalid", !config_validate(&cfg));
+  cfg.time_format = 0;
+  check_bool("validate time_format 0 invalid", !config_validate(&cfg));
+
+  // Round trip: 12 survives save and load.
+  cfg = config_default();
+  cfg.time_format = 12;
+  check_bool("save time_format 12", config_save(&cfg) == 0);
+  Config loaded = config_default();
+  check_bool("load after save", config_load(&loaded) == 0);
+  check_bool("round trip time_format 12", loaded.time_format == 12);
+
+  // A config file written before this field existed loads as 24.
+  FILE *f = fopen(config_get_path(), "w");
+  check_bool("open config for legacy write", f != NULL);
+  if (f) {
+    fprintf(f, "{\n  \"calculation\": {\n    \"method\": \"kemenag\",\n"
+               "    \"madhab\": \"shafi\"\n  }\n}\n");
+    fclose(f);
+  }
+  Config legacy = config_default();
+  legacy.time_format = 12;
+  check_bool("load legacy config", config_load(&legacy) == 0);
+  check_bool("legacy config time_format is 24", legacy.time_format == 24);
+
+  // An out-of-range stored value is coerced on load, not propagated.
+  f = fopen(config_get_path(), "w");
+  check_bool("open config for bad write", f != NULL);
+  if (f) {
+    fprintf(f, "{\n  \"display\": {\n    \"time_format\": 13\n  }\n}\n");
+    fclose(f);
+  }
+  Config bad = config_default();
+  check_bool("load bad config", config_load(&bad) == 0);
+  check_bool("bad time_format coerced to 24", bad.time_format == 24);
+}
+
 int main(void) {
   setup();
 
   printf("Running config tests...\n");
   test_parse_reminders();
   test_validate();
+  test_coordinate_helpers();
+  test_validate_rejects_nan();
+  test_invalid_location_blanks_times();
+  test_location_needs_detect();
   test_get_prayer();
   test_format_reminders();
   test_default();
@@ -590,7 +981,7 @@ int main(void) {
   test_round_trip();
   test_sound_migration();
   test_offset_apply();
-  test_offset_wrap();
+  test_offset_keeps_day();
   test_offset_clamp_on_load();
   test_config_size_cap();
   test_config_perms();
@@ -598,6 +989,12 @@ int main(void) {
   test_effective_tz_offset();
   test_prayer_times_uses_dst_offset();
   test_config_escapes_adhan();
+  test_malformed_config_refused();
+  test_multiline_reminders();
+  test_huge_values_not_wrapped();
+  test_unicode_escape_round_trip();
+  test_failed_save_closes_file();
+  test_time_format();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();

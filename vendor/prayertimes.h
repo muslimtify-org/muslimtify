@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-/* prayertimes.h -- v0.2.1 -- single-header C/C++ prayer-time calculation library
+/* prayertimes.h -- v0.2.3 -- single-header C/C++ prayer-time calculation library
  *
  * The version above is this file's own. It is not the libmuslim release
  * tag, which is a calendar date such as 2026.08.18 and covers a snapshot
@@ -59,35 +59,86 @@
  * longitude -120, on 2025-12-17, against a pinned bound of 15.0 seconds
  * at tests/test_prayertimes_oracle.c:195.
  *
- * That 6.5966 second figure is not a global accuracy claim. The oracle
- * covers |latitude| <= 60 only. Beyond that the two solvers diverge
- * sharply, because near the polar circle the Sun crosses the horizon at
- * grazing incidence and a small altitude difference becomes a large time
- * difference. Measured with the current code, maximum absolute
- * difference by latitude:
+ * That 6.5966 second figure is not a global accuracy claim. The seconds
+ * grid covers |latitude| <= 60 only. Beyond that the two solvers diverge
+ * sharply in the time domain, because near the polar circle the Sun
+ * crosses the horizon at grazing incidence and a small altitude
+ * difference becomes a large time difference. Measured with the current
+ * code, maximum absolute difference by latitude:
  *
  *   lat +60   2.39 s     lat -60    6.60 s
  *   lat +66   9.58 s     lat -66  123.65 s
  *   lat +68  29.55 s     lat -68  104.44 s
  *   lat +70  33.37 s     lat -70   77.99 s
  *
- * Fajr and Isha are not asserted against any oracle, only by the
- * published-table fixtures. Asr is also
- * covered only by the published-table fixtures, refining it was measured
- * during this work and made results worse, so it was deliberately left
- * alone.
+ * The event solver bisects the true solar altitude between local noon and
+ * solar midnight rather than iterating a closed form from a guess. That
+ * tightened the twilight solved population from a mean of 0.0996 arcmin and
+ * a max of 0.7095 to 0.0426 and 0.2312, and the polar check from 0.7511 to
+ * 0.4680. No published-table comparison moved across any of this work, all
+ * 702 lines byte-identical.
  *
- * The published-table suite tests/test_prayertimes.c reports 756 checks.
+ * Above 60 degrees the same oracle is applied in the angle domain
+ * instead, which does not amplify at grazing incidence because nothing
+ * is converted back into a time. At the instant this header reports for
+ * maghrib, the DE440-validated solver is asked where the Sun is, and
+ * that is compared against where the same solver puts the Sun at its own
+ * sunset. Over |latitude| in {62, 66, 70, 75, 78}, longitudes -120, 0
+ * and 120, every day of 2025 and both hemispheres, 7278 comparable
+ * points agree to a mean of 0.1632 arcmin and a maximum of 0.4680
+ * arcmin, against a pinned bound of 1.5 arcmin. A further 169 points
+ * graze the sunset altitude and agree to 0.4556 arcmin, pinned at 1.5.
+ * The 35 first and last days of the polar period are excluded, because
+ * there the two solvers describe different events rather than
+ * disagreeing about one.
+ *
+ * Fajr and Isha are asserted the same way, against the depression angle
+ * each is defined by. hijri_sun_altitude returns a geometric altitude
+ * with no refraction term, which is exactly how this header defines
+ * them, so the two are directly comparable. Excluding days where the
+ * fallback supplied the value, and polar days where the schedule is
+ * solved at the reference latitude, the remainder splits by how far the
+ * Sun passes the required depression. 17668 points that clear it by at
+ * least half a degree agree to a mean of 0.0426 arcmin and a maximum of
+ * 0.2312 arcmin, against a pinned bound of 1.0. The 160 points that only
+ * graze it reach 0.1970 arcmin, pinned at 0.9.
+ *
+ * That grazing figure used to be 30.1964 arcmin, roughly 6 minutes, on
+ * 186 points. It was never a precision figure. This header decided
+ * whether an event exists from the declination at 0h UT and where it
+ * falls from a refinement at the event, two questions answered from two
+ * instants, and near the seasonal boundary they disagreed. 45 of those
+ * 186 points were days the Sun never reaches the angle at all: at
+ * latitude 70 on 2025-03-27 it reaches 16.9965 degrees against MWL's 17,
+ * so the 30 arcmin was the distance to an event that was not there.
+ * Those days now take the substitution. Issue #79.
+ *
+ * Existence is gated on both tests rather than on the solve alone,
+ * because the published tables this header reproduces were computed with
+ * the coarser one. At London on 2026-07-15 the Sun does reach 17 degrees,
+ * at 00:49, and the published table gives the substitution at 23:25.
+ * Whichever test declines wins. On grazing days that follows a published
+ * convention rather than the criterion's own definition, which is the
+ * right trade for this header and worth knowing about.
+ *
+ * Asr is covered only by the published-table fixtures. Refining it was
+ * measured during this work and made results worse, so it was
+ * deliberately left alone.
+ *
+ * The published-table suite tests/test_prayertimes.c reports 763 checks.
  * 702 of those compare a computed time against a published table at a
  * uniform tolerance of 2 minutes, with a residual distribution of 369
- * checks at 0 minutes, 326 at 1 and 7 at 2, which sums to the 702. The
- * remaining 54 carry no residual because they are not time comparisons:
+ * checks at 0 minutes, 326 at 1 and 7 at 2, which sums to the 702. That
+ * distribution is unchanged by issue #79. The remaining 61 carry no
+ * residual because they are not time comparisons:
  * 7 assert the test's own clock_diff_minutes helper, 8 assert the
  * civil-day converters, 15 assert the time formatters, 19 pin the
  * struct PrayerTimes field contract, including the per-method
  * high-latitude behaviour, the caller override for it and the asr
- * domain guard, and 5 assert that the five prescribed times stay in
- * order at five locations across every method.
+ * domain guard, 5 assert that the five prescribed times stay in order at
+ * five locations across every method, and 7 pin the day where the Sun
+ * never reaches the isha angle, so a time is reported as a substitution
+ * rather than as a crossing.
  *
  * These counts fell from 940 and 895 when sunrise and dhuha were removed
  * from the struct in v0.2.0. The fixtures behind them were the sunrise
@@ -624,20 +675,66 @@ static double hour_angle_safe(double lat, double decl, double angle,
   return ha * RAD_TO_DEG / 15.0;
 }
 
-/* Solve one hour-angle event with the Sun evaluated at the event's own
-   instant, one iteration from an initial guess. sign is -1 before local
-   noon and +1 after. Returns the refined local time in hours, or the guess
-   unchanged when the event does not occur at the refined instant. */
-static double refine_event(double jd, double latitude, double longitude,
-                           double timezone, double altitude, double sign,
-                           double guess) {
-  double d2, e2, n2, ha;
-  sun_position(jd + (guess - timezone) / 24.0, &d2, &e2);
-  n2 = 12.0 + timezone - (longitude / 15.0) - e2;
-  ha = hour_angle(latitude, d2, altitude);
-  if (isnan(ha))
-    return guess;
-  return n2 + sign * ha;
+/* True altitude of the Sun at local time t, with the Sun's position taken at
+   t rather than at 0h UT. This is the quantity every depression-angle event
+   is actually defined by. */
+static double solar_altitude(double jd, double lat, double lon, double tz,
+                             double t) {
+  double decl, eqt;
+  sun_position(jd + (t - tz) / 24.0, &decl, &eqt);
+  double noon = 12.0 + tz - (lon / 15.0) - eqt;
+  double H = 15.0 * (t - noon) * DEG_TO_RAD;
+  double phi = lat * DEG_TO_RAD;
+  double dec = decl * DEG_TO_RAD;
+  return asin(sin(phi) * sin(dec) + cos(phi) * cos(dec) * cos(H)) * RAD_TO_DEG;
+}
+
+/* Solve solar_altitude(t) = -angle on the morning branch (sign -1) or the
+   evening branch (sign +1). Returns NAN when the Sun never reaches that
+   depression, which is the honest answer and the signal the high-latitude
+   fallback already reads.
+
+   Altitude falls monotonically from its maximum at local noon to its minimum
+   at solar midnight, so one sign change across the bracket means exactly one
+   root and bisection cannot pick the wrong one.
+
+   vibekit: solar midnight is taken as noon + 12 rather than solved. The
+   equation of time drifts under a second across a day, so the true minimum
+   sits within about half a second of that, and the bracket's far endpoint is
+   wrong by the same amount. The only day it can change is one whose deepest
+   depression falls within half a second of the threshold, where the verdict
+   is a coin toss on any method. Upgrade path: solve for the instant where the
+   hour angle reaches 180 degrees, which costs another bracketed search per
+   event and buys nothing measurable at the tolerances above.
+
+   This replaces an iteration of the closed-form hour angle from a guess.
+   Near the seasonal boundary that formula stops having a root at the refined
+   instant even when the event happens, so the iteration returned the last
+   value that solved. See issue #79. */
+static double solve_event(double jd, double lat, double lon, double tz,
+                          double angle, double sign) {
+  double decl, eqt;
+  sun_position(jd, &decl, &eqt);
+  double noon = 12.0 + tz - (lon / 15.0) - eqt;
+  double midnight = noon + sign * 12.0;
+  double target = -angle;
+
+  if (solar_altitude(jd, lat, lon, tz, midnight) > target)
+    return NAN;
+  if (solar_altitude(jd, lat, lon, tz, noon) <= target)
+    return NAN;
+
+  double lo = noon, hi = midnight;
+  for (int i = 0; i < 60; i++) {
+    double mid = 0.5 * (lo + hi);
+    if (fabs(hi - lo) < 1.0e-7) /* 0.36 ms, far inside any reported minute */
+      break;
+    if (solar_altitude(jd, lat, lon, tz, mid) > target)
+      lo = mid;
+    else
+      hi = mid;
+  }
+  return 0.5 * (lo + hi);
 }
 
 /* Reduce an hour value onto the 24-hour clock face before it is decomposed
@@ -782,10 +879,23 @@ calculate_prayer_times(int year, int month, int day, double latitude,
 
   double noon = 12.0 + timezone - (longitude / 15.0) - eqt;
 
-  /* Sunrise & sunset (always use refraction correction) */
+  /* Sunrise & sunset (always use refraction correction).
+
+     Two tests again, as for fajr and isha below. The 0h UT hour angle is the
+     coarse one, and solve_event asks at the event's own instant. At
+     Longyearbyen on 2025-04-18 the first says the Sun sets and the second
+     says its lowest point of the day is -0.6082 degrees, above the -0.833
+     that defines sunset, so it does not. That is the first day of the
+     midnight sun and the library used to report a maghrib for it. */
   double ha_sunrise = hour_angle(latitude, decl, REFRACTION_CORRECTION);
-  double sunrise = noon - ha_sunrise;
-  double sunset = noon + ha_sunrise;
+  double sunrise = NAN;
+  double sunset = NAN;
+  if (!isnan(ha_sunrise)) {
+    sunrise = solve_event(jd, latitude, longitude, timezone,
+                          REFRACTION_CORRECTION, -1.0);
+    sunset = solve_event(jd, latitude, longitude, timezone,
+                         REFRACTION_CORRECTION, +1.0);
+  }
 
   /* Inside the polar circle the Sun does not cross the horizon, so there is no
      sunrise or sunset to refine and no night to measure a substitution
@@ -802,7 +912,7 @@ calculate_prayer_times(int year, int month, int day, double latitude,
      below. */
   int polar = 0;
   double solve_lat = latitude;
-  if (isnan(ha_sunrise)) {
+  if (isnan(sunrise) || isnan(sunset)) {
     if (params->high_lat_ref > 0.0) {
       polar = 1;
       solve_lat = params->high_lat_ref;
@@ -811,29 +921,46 @@ calculate_prayer_times(int year, int month, int day, double latitude,
       sunset = reference_event(solve_lat, decl, noon,
                                REFRACTION_CORRECTION, 1.0);
     }
-  } else {
-    sunrise = refine_event(jd, latitude, longitude, timezone,
-                           REFRACTION_CORRECTION, -1.0, sunrise);
-    sunset = refine_event(jd, latitude, longitude, timezone,
-                          REFRACTION_CORRECTION, +1.0, sunset);
   }
 
   /* Night duration for high-latitude fallback */
   double night = (24.0 - sunset) + sunrise;
 
-  /* Fajr */
-  bool fajr_failed = false;
-  double ha_fajr =
-      hour_angle_safe(solve_lat, decl, params->fajr_angle, &fajr_failed);
-  double fajr = noon - ha_fajr;
-  if (fajr_failed) {
+  /* Fajr. Two tests must agree that the event happens before a time is
+     reported for it.
+
+     hour_angle_safe asks at 0h UT, which is the test the published sources
+     this library reproduces also use. solve_event asks at the event's own
+     instant. Near the seasonal boundary they disagree, and either saying no
+     sends the day to the substitution.
+
+     Trusting only the 0h UT test reported an isha that does not occur: at
+     latitude 70 on 2025-03-27 the Sun reaches 16.9965 degrees of depression
+     against MWL's 17. Trusting only the instant test broke published-table
+     agreement the other way: at London on 2026-07-15 the Sun does reach 17
+     degrees, at 00:49, while the published table gives the angle-based
+     substitution at 23:25. Deferring to whichever test declines is what keeps
+     both right. See issue #79. */
+  double fajr;
+  if (polar) {
+    /* A borrowed day is solved at the reference latitude and left alone,
+       because re-solving at the true location would undo the transplant. */
+    bool fajr_failed = false;
+    double ha_fajr =
+        hour_angle_safe(solve_lat, decl, params->fajr_angle, &fajr_failed);
+    fajr = fajr_failed ? NAN : noon - ha_fajr;
+  } else {
+    bool fajr_failed = false;
+    /* Called for the flag, not the angle: solve_event supplies the
+       instant. */
+    (void)hour_angle_safe(latitude, decl, params->fajr_angle, &fajr_failed);
+    fajr = fajr_failed ? NAN
+                       : solve_event(jd, latitude, longitude, timezone,
+                                     params->fajr_angle, -1.0);
+  }
+  if (isnan(fajr)) {
     fajr = high_lat_substitute(params, decl, noon, sunrise, sunset, night,
                                params->fajr_angle, -1.0);
-  } else if (!polar) {
-    /* refine_event re-solves at the true location, which would undo the
-       transplant, so a borrowed day is left unrefined. */
-    fajr = refine_event(jd, latitude, longitude, timezone, params->fajr_angle,
-                        -1.0, fajr);
   }
 
   /* Maghrib */
@@ -845,16 +972,23 @@ calculate_prayer_times(int year, int month, int day, double latitude,
   /* Isha */
   double isha;
   if (params->isha_angle > 0.0) {
-    bool isha_failed = false;
-    double ha_isha =
-        hour_angle_safe(solve_lat, decl, params->isha_angle, &isha_failed);
-    isha = noon + ha_isha;
-    if (isha_failed) {
+    if (polar) {
+      bool isha_failed = false;
+      double ha_isha =
+          hour_angle_safe(solve_lat, decl, params->isha_angle, &isha_failed);
+      isha = isha_failed ? NAN : noon + ha_isha;
+    } else {
+      bool isha_failed = false;
+      /* Called for the flag, not the angle: solve_event supplies the
+       instant. */
+    (void)hour_angle_safe(latitude, decl, params->isha_angle, &isha_failed);
+      isha = isha_failed ? NAN
+                         : solve_event(jd, latitude, longitude, timezone,
+                                       params->isha_angle, +1.0);
+    }
+    if (isnan(isha)) {
       isha = high_lat_substitute(params, decl, noon, sunrise, maghrib, night,
                                  params->isha_angle, 1.0);
-    } else if (!polar) {
-      isha = refine_event(jd, latitude, longitude, timezone, params->isha_angle,
-                          +1.0, isha);
     }
   } else {
     /* Interval-based (e.g. Makkah 90 min after maghrib) */

@@ -234,12 +234,13 @@ static int register_aumid(void) {
   if (rc != ERROR_SUCCESS)
     return -1;
 
-  RegSetValueExW(hk, L"CustomActivator", 0, REG_SZ, (const BYTE *)clsid_str,
-                 (DWORD)((wcslen(clsid_str) + 1) * sizeof(wchar_t)));
-  RegSetValueExW(hk, L"DisplayName", 0, REG_SZ, (const BYTE *)display_name,
-                 (DWORD)sizeof(display_name));
+  rc = RegSetValueExW(hk, L"CustomActivator", 0, REG_SZ, (const BYTE *)clsid_str,
+                      (DWORD)((wcslen(clsid_str) + 1) * sizeof(wchar_t)));
+  if (rc == ERROR_SUCCESS)
+    rc = RegSetValueExW(hk, L"DisplayName", 0, REG_SZ, (const BYTE *)display_name,
+                        (DWORD)sizeof(display_name));
   RegCloseKey(hk);
-  return 0;
+  return (rc == ERROR_SUCCESS) ? 0 : -1;
 }
 
 /* Register the class object in the running process, so a toast click is

@@ -59,6 +59,8 @@ void platform_reset_cached_paths(void);
 
 /**
  * Recursively create directories (like mkdir -p). Returns 0 on success, -1 on failure.
+ * On POSIX the last directory is created owner-only (0700) and missing parents
+ * 0755. Directories that already exist keep their mode.
  */
 int platform_mkdir_p(const char *path);
 
@@ -71,6 +73,13 @@ int platform_file_exists(const char *path);
  * Open a file using a UTF-8 path on all platforms.
  */
 FILE *platform_file_open(const char *path, const char *mode);
+
+/**
+ * Flush a stream and make the OS write its data to disk (fsync on POSIX,
+ * _commit on Windows), so a rename that follows cannot leave an empty file
+ * after a power loss. Returns 0 on success, -1 on failure.
+ */
+int platform_file_sync(FILE *f);
 
 /**
  * Delete a file. Returns 0 on success, -1 on failure.
@@ -115,11 +124,14 @@ typedef enum {
 PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t out_size);
 
 /**
- * Restrict a freshly-created file to owner-only access. On POSIX this is
- * chmod 0600; on Windows it is a no-op (the per-user %APPDATA% /
- * %LOCALAPPDATA% roots are already user-scoped by their default ACL).
+ * Create or truncate a file for writing with owner-only access from the start.
+ * On POSIX it is opened with mode 0600, so no other local user can open it
+ * before its mode is narrowed, and a leftover regular file is set to 0600 too.
+ * On Windows it is a plain open, since the per-user %APPDATA% and
+ * %LOCALAPPDATA% roots are already user-scoped by their default ACL.
+ * Returns NULL on failure.
  */
-void platform_restrict_to_owner(FILE *f);
+FILE *platform_file_create_private(const char *path);
 
 /**
  * A geographic coordinate in decimal degrees.

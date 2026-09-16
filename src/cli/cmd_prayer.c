@@ -33,6 +33,8 @@ int handle_offset(int argc, char **argv) {
     print_offset_help();
     return 1;
   }
+  if (cli_reject_extra_args("offset", argc - 2, argv + 2))
+    return 1;
 
   const char *prayer_name = argv[0];
   const char *value_str = argv[1];
