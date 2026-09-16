@@ -917,6 +917,53 @@ static void test_location_needs_detect(void) {
   check_bool("NULL does not detect", !config_location_needs_detect(NULL));
 }
 
+static void test_time_format(void) {
+  printf("  time format...\n");
+
+  Config cfg = config_default();
+  check_bool("default time_format is 24", cfg.time_format == 24);
+  check_bool("validate default time_format", config_validate(&cfg));
+
+  cfg.time_format = 12;
+  check_bool("validate time_format 12", config_validate(&cfg));
+  cfg.time_format = 13;
+  check_bool("validate time_format 13 invalid", !config_validate(&cfg));
+  cfg.time_format = 0;
+  check_bool("validate time_format 0 invalid", !config_validate(&cfg));
+
+  // Round trip: 12 survives save and load.
+  cfg = config_default();
+  cfg.time_format = 12;
+  check_bool("save time_format 12", config_save(&cfg) == 0);
+  Config loaded = config_default();
+  check_bool("load after save", config_load(&loaded) == 0);
+  check_bool("round trip time_format 12", loaded.time_format == 12);
+
+  // A config file written before this field existed loads as 24.
+  FILE *f = fopen(config_get_path(), "w");
+  check_bool("open config for legacy write", f != NULL);
+  if (f) {
+    fprintf(f, "{\n  \"calculation\": {\n    \"method\": \"kemenag\",\n"
+               "    \"madhab\": \"shafi\"\n  }\n}\n");
+    fclose(f);
+  }
+  Config legacy = config_default();
+  legacy.time_format = 12;
+  check_bool("load legacy config", config_load(&legacy) == 0);
+  check_bool("legacy config time_format is 24", legacy.time_format == 24);
+
+  // An out-of-range stored value is coerced on load, not propagated.
+  f = fopen(config_get_path(), "w");
+  check_bool("open config for bad write", f != NULL);
+  if (f) {
+    fprintf(f, "{\n  \"display\": {\n    \"time_format\": 13\n  }\n}\n");
+    fclose(f);
+  }
+  Config bad = config_default();
+  check_bool("load bad config", config_load(&bad) == 0);
+  check_bool("bad time_format coerced to 24", bad.time_format == 24);
+}
+
 int main(void) {
   setup();
 
@@ -947,6 +994,7 @@ int main(void) {
   test_huge_values_not_wrapped();
   test_unicode_escape_round_trip();
   test_failed_save_closes_file();
+  test_time_format();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);
   teardown();
