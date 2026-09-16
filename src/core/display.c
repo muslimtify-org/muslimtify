@@ -139,6 +139,8 @@ void format_time_cfg(const Config *cfg, double hours, char *out, size_t cap) {
   if (hour12 == 0)
     hour12 = 12;
   char out12[9];
+  // The modulo is redundant on a 1-12 value: it is what lets GCC's range
+  // analysis bound the field width and drop -Wformat-truncation.
   snprintf(out12, sizeof(out12), "%02u:%c%c %s", (unsigned)hour12 % 100u, hm[3], hm[4], meridiem);
   snprintf(out, cap, "%s", out12);
 }
