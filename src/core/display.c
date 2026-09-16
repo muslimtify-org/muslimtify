@@ -122,9 +122,28 @@ int prayer_time_day_offset(double hours) {
   return 0;
 }
 
-void format_time_hm_day(double hours, char *outBuffer, size_t bufSize) {
+void format_time_cfg(const Config *cfg, double hours, char *out, size_t cap) {
   char hm[6];
   format_time_hm(hours, hm, sizeof(hm));
+
+  // "--:--" has no hour to convert, and 24-hour mode is already what
+  // format_time_hm produced.
+  if (!cfg || cfg->time_format != 12 || hm[0] == '-') {
+    snprintf(out, cap, "%s", hm);
+    return;
+  }
+
+  int hour = (hm[0] - '0') * 10 + (hm[1] - '0');
+  const char *meridiem = hour < 12 ? "AM" : "PM";
+  int hour12 = hour % 12;
+  if (hour12 == 0)
+    hour12 = 12;
+  snprintf(out, cap, "%02d:%c%c %s", hour12, hm[3], hm[4], meridiem);
+}
+
+void format_time_hm_day(const Config *cfg, double hours, char *outBuffer, size_t bufSize) {
+  char hm[9];
+  format_time_cfg(cfg, hours, hm, sizeof(hm));
   int day = prayer_time_day_offset(hours);
   snprintf(outBuffer, bufSize, "%s%s", hm, day > 0 ? "+" : (day < 0 ? "-" : ""));
 }
@@ -179,7 +198,7 @@ void display_prayer_times_table(const struct PrayerTimes *times, const Config *c
   for (int i = 0; i < PRAYER_COUNT; i++) {
     double prayer_time = prayer_get_time(times, types[i]);
     char time_str[16];
-    format_time_hm(prayer_time, time_str, sizeof(time_str));
+    format_time_cfg(cfg, prayer_time, time_str, sizeof(time_str));
 
     // The Date column carries the day a prayer actually falls on, so the time needs no marker.
     int y, m, d;
@@ -265,7 +284,7 @@ void display_prayer_times_plain(const struct PrayerTimes *times, const Config *c
 
     double prayer_time = prayer_get_time(times, types[i]);
     char time_str[16];
-    format_time_hm(prayer_time, time_str, sizeof(time_str));
+    format_time_cfg(cfg, prayer_time, time_str, sizeof(time_str));
 
     if (i == next_idx) {
       printf("%s%s%s=%s%s\n", C(COL_BOLD COL_YELLOW), prayer_names[i],
@@ -292,7 +311,7 @@ static void print_prayer_entries(const struct PrayerTimes *times, const Config *
   for (int i = 0; i < PRAYER_COUNT; i++) {
     double prayer_time = prayer_get_time(times, types[i]);
     char time_str[16];
-    format_time_hm(prayer_time, time_str, sizeof(time_str));
+    format_time_cfg(cfg, prayer_time, time_str, sizeof(time_str));
 
     const PrayerConfig *pcfg = prayer_get_config(cfg, types[i]);
 
@@ -365,7 +384,7 @@ void display_prayer_times_range_plain(const Config *cfg, int sy, int sm, int sd,
         continue;
       double prayer_time = prayer_get_time(&t, types[i]);
       char time_str[16];
-      format_time_hm(prayer_time, time_str, sizeof(time_str));
+      format_time_cfg(cfg, prayer_time, time_str, sizeof(time_str));
       printf("%s=%s\n", prayer_names[i], time_str);
 
       int day = prayer_time_day_offset(prayer_time);
@@ -425,7 +444,9 @@ void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd,
   // Column widths: Date is "YYYY-MM-DD" (10); each prayer is max(name, "HH:MM"=5,
   // or 6 when a day marker can appear in this range).
   const int date_w = 10;
-  const int min_col_w = has_marker ? 6 : 5;
+  // A clock cell is "HH:MM" (5) or "hh:MM AM" (8), plus one for a day marker.
+  const int clock_w = (cfg->time_format == 12) ? 8 : 5;
+  const int min_col_w = has_marker ? clock_w + 1 : clock_w;
   int col_w[PRAYER_COUNT];
   for (int c = 0; c < ncol; c++) {
     int len = (int)strlen(prayer_names[col[c]]);
@@ -454,7 +475,7 @@ void display_prayer_times_range_table(const Config *cfg, int sy, int sm, int sd,
     printf("| %04d-%02d-%02d ", y, m, d);
     for (int c = 0; c < ncol; c++) {
       char time_str[16];
-      format_time_hm_day(prayer_get_time(&t, types[col[c]]), time_str, sizeof(time_str));
+      format_time_hm_day(cfg, prayer_get_time(&t, types[col[c]]), time_str, sizeof(time_str));
       printf("| %-*s ", col_w[c], time_str);
     }
     printf("|\n");
@@ -486,7 +507,7 @@ static bool next_prayer_info(const struct PrayerTimes *times, const Config *cfg,
   mt_civil_from_days(day, &dy, &dm, &dd);
   snprintf(date_str, date_cap, "%04d-%02d-%02d", dy, dm, dd);
 
-  format_time_hm(next.time, time_str, time_cap);
+  format_time_cfg(cfg, next.time, time_str, time_cap);
   snprintf(remaining, rem_cap, "%02d:%02d", next.minutes_until / 60, next.minutes_until % 60);
   return true;
 }

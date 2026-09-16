@@ -51,7 +51,7 @@ static int notification_test(int argc, char **argv) {
   }
 
   char time_str[16];
-  format_time_hm(next.time, time_str, sizeof(time_str));
+  format_time_cfg(&cfg, next.time, time_str, sizeof(time_str));
   const char *sound_preset =
       strcmp(cfg.notification_sound, "off") != 0 ? cfg.notification_sound_alarm : NULL;
   if (argc > 0 && strcmp(argv[0], "--adhan") == 0) {
