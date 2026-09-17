@@ -12,7 +12,9 @@ MuslimtifyThemes get_themes(bool isDark) {
       .error = ColorHex(COLOR_ERROR),
       .on_error = ColorHex(COLOR_ON_ERROR),
       .border = ColorHex(COLOR_BORDER),
-      .outline = ColorHex(COLOR_BORDER_ALPHA)
+      .outline = ColorHex(COLOR_BORDER_ALPHA),
+      .disabled = ColorHex(COLOR_DISABLED),
+      .on_disabled = ColorHex(COLOR_ON_DISABLED),
   };
 
   MuslimtifyThemes dark_theme = {
@@ -25,7 +27,9 @@ MuslimtifyThemes get_themes(bool isDark) {
       .error = ColorHex(COLOR_ERROR_DARK),
       .on_error = ColorHex(COLOR_ON_ERROR_DARK),
       .border = ColorHex(COLOR_BORDER_DARK),
-      .outline = ColorHex(COLOR_BORDER_ALPHA_DARK)
+      .outline = ColorHex(COLOR_BORDER_ALPHA_DARK),
+      .disabled = ColorHex(COLOR_DISABLED_DARK),
+      .on_disabled = ColorHex(COLOR_ON_DISABLED_DARK),
   };
 
   return isDark ? dark_theme : light_theme;
