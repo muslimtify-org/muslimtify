@@ -1,10 +1,13 @@
 #include "fonts.h"
+#include "gui_config.h"
 #include "themes.h"
 #include "widgets.h"
 #include <ccompose.h>
 
 int main(void) {
-  MuslimtifyThemes themes = get_themes(false);
+  GuiConfig cfg;
+  gui_config_load(&cfg);
+  MuslimtifyThemes themes = get_themes(cfg.prefer_dark);
 
   CC_SetWindow(960, 640, "Hello");
   CC_SetBackground(themes.surface);
@@ -22,7 +25,10 @@ int main(void) {
             .sizing = {Grow(), Grow()},
         },
     ) {
-      muslimtify_widget_header(&themes);
+      if (muslimtify_widget_header(&themes, &cfg)) {
+        themes = get_themes(cfg.prefer_dark);
+        CC_SetBackground(themes.surface);
+      }
       Text("Hello, world!", .textColor = Color(255, 255, 255, 255), .fontSize = 32);
     }
     CC_End();

@@ -4,10 +4,11 @@
 #include <assert.h>
 #include <ccompose.h>
 
-void muslimtify_widget_toggle(MuslimtifyThemes *themes, bool *is_active) {
+bool muslimtify_widget_toggle(MuslimtifyThemes *themes, bool *is_active) {
   assert(themes != NULL);
 
-  if (CC_Clicked("muslimtify_widget_toggle_circle"))
+  bool flipped = CC_Clicked("muslimtify_widget_toggle_circle");
+  if (flipped)
     *is_active = !*is_active;
 
   Box("muslimtify_widget_toggle_box",
@@ -27,12 +28,15 @@ void muslimtify_widget_toggle(MuslimtifyThemes *themes, bool *is_active) {
             .sizing = {.width = Fixed(18), .height = Fixed(18)},
         }) {}
   }
+
+  return flipped;
 }
 
-void muslimtify_widget_header(MuslimtifyThemes *themes) {
+bool muslimtify_widget_header(MuslimtifyThemes *themes, GuiConfig *cfg) {
   assert(themes != NULL);
+  assert(cfg != NULL);
 
-  static bool is_dark = false;
+  bool changed = false;
 
   Column("muslimtify_widget_header_parent", .layout = {.sizing = {.width = Grow()}}) {
     Row("muslimtify_widget_header",
@@ -54,8 +58,13 @@ void muslimtify_widget_header(MuslimtifyThemes *themes) {
       Spacer(.width = Fixed(8));
       Text(MUSLIMTIFY_VERSION, .fontSize = FONT_SIZE_CAPTION_LARGE, .textColor = themes->border);
       CC_HSpacer();
-      muslimtify_widget_toggle(themes, &is_dark);
+      if (muslimtify_widget_toggle(themes, &cfg->prefer_dark)) {
+        gui_config_save(cfg);
+        changed = true;
+      }
     }
   }
   HDivider(.color = themes->outline);
+
+  return changed;
 }
