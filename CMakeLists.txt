@@ -293,6 +293,13 @@ if(BUILD_TESTING)
         muslimtify_set_target_defaults(test_daemon_loop)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)
         add_test(NAME daemon_loop COMMAND test_daemon_loop)
+
+        add_executable(test_gui_config tests/test_gui_config.c gui/src/gui_config.c)
+        muslimtify_set_target_defaults(test_gui_config)
+        target_include_directories(test_gui_config PRIVATE
+            ${CMAKE_SOURCE_DIR}/gui/include ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_gui_config muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        add_test(NAME gui_config COMMAND test_gui_config)
     endif()
 
     # test_location is cross-platform; its parse_timezone_offset target lives
