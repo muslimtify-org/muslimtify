@@ -4,6 +4,7 @@ add_library(muslimtify_gui_lib OBJECT
     ${CMAKE_SOURCE_DIR}/gui/src/fonts.c
     ${CMAKE_SOURCE_DIR}/gui/src/themes.c
     ${CMAKE_SOURCE_DIR}/gui/src/widgets.c
+    ${CMAKE_SOURCE_DIR}/gui/src/header.c
     ${CMAKE_SOURCE_DIR}/gui/src/gui_config.c
 )
 muslimtify_set_target_defaults(muslimtify_gui_lib)
