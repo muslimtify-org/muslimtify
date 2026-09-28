@@ -1,8 +1,28 @@
 #include "fonts.h"
+#include "themes.h"
 #include "version.h"
 #include "widgets.h"
 #include <assert.h>
 #include <ccompose.h>
+
+static void muslimtify_button_donation(MuslimtifyThemes *themes) {
+  Button(
+      "muslimtify_button_donation",
+      .backgroundColor = themes->primary,
+      .cornerRadius = RadiusAll(16),
+      .layout = {
+          .childAlignment = {.x = AlignXEnd()},
+          .padding = PadSymmetric(16, 8),
+      }
+  ) {
+    Text(
+        "Donate",
+        .textColor = themes->on_primary,
+        .fontSize = FONT_SIZE_BODY_MEDIUM,
+        .fontId = FONT_MANROPE_BOLD
+    );
+  }
+}
 
 bool muslimtify_widget_header(MuslimtifyThemes *themes, GuiConfig *cfg) {
   assert(themes != NULL);
@@ -12,12 +32,11 @@ bool muslimtify_widget_header(MuslimtifyThemes *themes, GuiConfig *cfg) {
 
   Column("muslimtify_widget_header_parent", .layout = {.sizing = {.width = Grow()}}) {
     Row("muslimtify_widget_header",
-        .backgroundColor = themes->surface,
+        .backgroundColor = themes->surface_alt,
         .layout = {
             .childAlignment = {.y = AlignYCenter()},
-            .padding = PadSymmetric(16, 8),
+            .padding = PadSymmetric(16, 12),
             .sizing = {
-                .height = Fixed(56),
                 .width = Grow(),
             },
         }) {
@@ -34,7 +53,11 @@ bool muslimtify_widget_header(MuslimtifyThemes *themes, GuiConfig *cfg) {
             .fontSize = FONT_SIZE_TITLE_SMALL
         );
         Spacer(.width = Fixed(8));
-        Text(MUSLIMTIFY_VERSION, .fontSize = FONT_SIZE_CAPTION_LARGE, .textColor = themes->border);
+        Text(
+            MUSLIMTIFY_VERSION,
+            .fontSize = FONT_SIZE_CAPTION_LARGE,
+            .textColor = themes->on_surface_alt
+        );
       }
       CC_HSpacer();
       Text("dark theme", .textColor = themes->on_surface, .fontSize = FONT_SIZE_BODY_MEDIUM);
@@ -43,9 +66,10 @@ bool muslimtify_widget_header(MuslimtifyThemes *themes, GuiConfig *cfg) {
         gui_config_save(cfg);
         changed = true;
       }
+      Spacer(.width = 8);
+      muslimtify_button_donation(themes);
     }
   }
-  HDivider(.color = themes->on_surface);
 
   return changed;
 }

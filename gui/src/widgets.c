@@ -20,7 +20,7 @@ bool muslimtify_widget_toggle(MuslimtifyThemes *themes, bool *is_active) {
           },
       }) {
     Box("muslimtify_widget_toggle_circle",
-        .backgroundColor = *is_active ? themes->on_primary : themes->on_disabled,
+        .backgroundColor = *is_active ? themes->on_primary : themes->surface,
         .cornerRadius = RadiusAll(25),
         .layout = {
             .sizing = {.width = Fixed(18), .height = Fixed(18)},

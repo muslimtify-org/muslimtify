@@ -51,3 +51,4 @@ docs/security/
 CLAUDE.md
 /package-lock.json
 /package.json
+/.cache/neocmakelsp

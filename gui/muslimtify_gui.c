@@ -29,7 +29,7 @@ int main(void) {
         themes = get_themes(cfg.prefer_dark);
         CC_SetBackground(themes.surface);
       }
-      Text("Hello, world!", .textColor = Color(255, 255, 255, 255), .fontSize = 32);
+      muslimtify_widget_content(&themes, &cfg);
     }
     CC_End();
   }
