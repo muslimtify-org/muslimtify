@@ -3,7 +3,7 @@
 
 #define MyAppName "Muslimtify"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.4.2"
+  #define MyAppVersion "0.4.3"
 #endif
 #ifndef Arch
   #define Arch "x64"
