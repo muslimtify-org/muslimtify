@@ -6,7 +6,7 @@ Playbook for agents working in Muslimtify — a C11 CLI that calculates prayer t
 - **C11**, no compiler extensions (`CMAKE_C_STANDARD 11`, `CMAKE_C_EXTENSIONS OFF`). GCC/Clang on Linux, MSVC (`/W4`) on Windows.
 - **CMake 3.22+**. Two OBJECT libraries: `muslimtify_core` (`src/core/` + platform abstraction) and `muslimtify_cli` (`src/cli/`); the `muslimtify` binary is `src/muslimtify.c`.
 - **Notifications:** libnotify (Linux), WinRT toast (Windows). **HTTP:** libcurl (system lib on Linux, FetchContent-vendored on Windows).
-- **Daemon:** a long-running `Type=simple` systemd *user* service that runs `muslimtify daemon run` — a self-scheduling loop (`src/core/daemon_loop.c`). There is no timer. `muslimtify check` is the one-shot cycle (`src/core/check_cycle.c`).
+- **Daemon:** a long-running `Type=simple` systemd *user* service that runs `muslimtify daemon run` — a self-scheduling loop (`src/core/daemon_loop.c`). There is no timer. The one-shot cycle is `run_check_cycle()` (`src/core/check_cycle.c`), which the loop calls once per minute and the Windows service (`src/platform/windows/muslimtify_service_win.c`) also calls. It has no CLI command of its own.
 
 ## Build & test
 ```
