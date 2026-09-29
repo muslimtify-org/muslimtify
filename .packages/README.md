@@ -391,6 +391,14 @@ Users then add the PPA and install with `apt`.
    sudo .packages/debian/upload-ppa.sh
    ```
 
+   The signing key is the secret key in your keyring whose email matches the maintainer
+   of the top changelog entry. It must be the key registered on Launchpad. If several
+   keys match, or you want a different one, pass its fingerprint:
+
+   ```bash
+   sudo GPG_KEY=<YOUR_FINGERPRINT> .packages/debian/upload-ppa.sh
+   ```
+
    This script will:
    - Create/reuse a debootstrap chroot at `~/.cache/muslimtify-deb-chroot`
    - Mount the project directory into the chroot
