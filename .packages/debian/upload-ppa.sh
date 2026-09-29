@@ -10,13 +10,48 @@ PKG_FULL_VERSION="$(grep -oP '\(\K[^)]+' "$PROJECT_DIR/.packages/debian/debian/c
 PKG_VERSION="$(echo "$PKG_FULL_VERSION" | cut -d- -f1)"
 PKG_DEBIAN_REV="$(echo "$PKG_FULL_VERSION" | cut -d- -f2)"
 PKG_NAME="muslimtify"
-# Must match the OpenPGP key registered & confirmed on Launchpad
-# (launchpad.net/~rizukirr/+editpgpkeys). Full fingerprint is unambiguous.
-GPG_KEY="0918EF57B66E6636BD2AA90449026E8CED45A563"
 PPA="ppa:rizukirr/muslimtify"
 OUTPUT_DIR="$PROJECT_DIR/.packages/debian"
+DPUT_CF="$OUTPUT_DIR/dput.cf"
+DPUT_HOST="muslimtify-ppa"
+
+# The script runs under sudo, but signing uses the invoking user's keyring
+REAL_USER="${SUDO_USER:-$(whoami)}"
+REAL_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
+if [ -z "$REAL_HOME" ]; then
+    echo "Error: could not find the home directory of ${REAL_USER}" >&2
+    exit 1
+fi
+
+# --- Resolve the signing key ---
+# The key must be registered & confirmed on Launchpad
+# (launchpad.net/~rizukirr/+editpgpkeys). Set GPG_KEY to pick one explicitly
+# (sudo GPG_KEY=<fingerprint> ./upload-ppa.sh), otherwise use the secret key
+# whose uid matches the maintainer email of the top changelog entry.
+if [ -z "${GPG_KEY:-}" ]; then
+    MAINTAINER_EMAIL="$(grep -m1 -oP '^ -- .*<\K[^>]+' "$PROJECT_DIR/.packages/debian/debian/changelog")"
+    # Primary keys with signing capability, one fingerprint per line
+    mapfile -t SIGNING_KEYS < <(
+        sudo -u "$REAL_USER" env HOME="$REAL_HOME" \
+            gpg --batch --with-colons --list-secret-keys "<${MAINTAINER_EMAIL}>" 2>/dev/null |
+            awk -F: '/^sec/ { want = ($12 ~ /S/); next } /^ssb/ { want = 0 } /^fpr/ && want { print $10; want = 0 }'
+    )
+    if [ "${#SIGNING_KEYS[@]}" -eq 0 ]; then
+        echo "Error: no secret signing key for <${MAINTAINER_EMAIL}> in ${REAL_USER}'s keyring" >&2
+        echo "       Import the key registered on Launchpad, or set GPG_KEY=<fingerprint>" >&2
+        exit 1
+    fi
+    if [ "${#SIGNING_KEYS[@]}" -gt 1 ]; then
+        echo "Error: several secret keys match <${MAINTAINER_EMAIL}>:" >&2
+        printf '         %s\n' "${SIGNING_KEYS[@]}" >&2
+        echo "       Pick the one registered on Launchpad with GPG_KEY=<fingerprint>" >&2
+        exit 1
+    fi
+    GPG_KEY="${SIGNING_KEYS[0]}"
+fi
 
 echo "==> Building source package ${PKG_NAME}_${PKG_VERSION} for ${DISTRO}"
+echo "==> Will sign with ${GPG_KEY}"
 echo "==> Will upload to ${PPA}"
 
 # --- Ensure chroot exists ---
@@ -126,12 +161,6 @@ ls -lh /tmp/${PKG_NAME}_${PKG_VERSION}*
 "
 
 # --- Sign on host as the real user ---
-REAL_USER="${SUDO_USER:-$(whoami)}"
-REAL_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
-if [ -z "$REAL_HOME" ]; then
-    echo "Error: could not find the home directory of ${REAL_USER}" >&2
-    exit 1
-fi
 DSC_FILE="${OUTPUT_DIR}/${PKG_NAME}_${PKG_FULL_VERSION}.dsc"
 CHANGES_FILE="${OUTPUT_DIR}/${PKG_NAME}_${PKG_FULL_VERSION}_source.changes"
 
@@ -182,12 +211,13 @@ echo "==> All files signed successfully"
 
 echo ""
 echo "==> Upload with:"
-echo "  dput ppa:rizukirr/muslimtify ${CHANGES_FILE}"
+echo "  dput -c ${DPUT_CF} ${DPUT_HOST} ${CHANGES_FILE}"
 echo ""
 read -p "Upload now? [y/N] " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    dput "${PPA}" "${CHANGES_FILE}"
+    # As the real user: dput verifies the signature against their keyring
+    sudo -u "$REAL_USER" env HOME="$REAL_HOME" dput -c "${DPUT_CF}" "${DPUT_HOST}" "${CHANGES_FILE}"
     echo "==> Upload complete! Check build status at:"
     echo "    https://launchpad.net/~rizukirr/+archive/ubuntu/muslimtify/+packages"
 fi

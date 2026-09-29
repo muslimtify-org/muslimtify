@@ -1,0 +1,9 @@
+# dput config for ppa:rizukirr/muslimtify, used by upload-ppa.sh
+# Upstream dput has no "ppa:" shorthand, so name the upload queue directly:
+#   dput -c .packages/debian/dput.cf muslimtify-ppa <file>_source.changes
+[muslimtify-ppa]
+fqdn = ppa.launchpad.net
+method = ftp
+incoming = ~rizukirr/ubuntu/muslimtify/
+login = anonymous
+allow_unsigned_uploads = 0
