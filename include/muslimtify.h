@@ -21,7 +21,25 @@ typedef enum {
   MUSLIMTIFY_ERR_NO_LOCATION,
   MUSLIMTIFY_ERR_INVALID_DATE,
   MUSLIMTIFY_ERR_DATE_ORDER,
-  MUSLIMTIFY_ERR_RANGE_TOO_LONG
+  MUSLIMTIFY_ERR_RANGE_TOO_LONG,
+  MUSLIMTIFY_ERR_CONFIG_SAVE,
+  MUSLIMTIFY_ERR_INVALID_VALUE,
+  MUSLIMTIFY_ERR_VALUE_TOO_LONG,
+  MUSLIMTIFY_ERR_INVALID_LATITUDE,
+  MUSLIMTIFY_ERR_INVALID_LONGITUDE,
+  MUSLIMTIFY_ERR_UNKNOWN_TIMEZONE,
+  MUSLIMTIFY_ERR_INVALID_COUNTRY,
+  MUSLIMTIFY_ERR_INVALID_REFRESH_INTERVAL,
+  MUSLIMTIFY_ERR_UNKNOWN_METHOD,
+  MUSLIMTIFY_ERR_UNKNOWN_PRAYER,
+  MUSLIMTIFY_ERR_INVALID_OFFSET,
+  MUSLIMTIFY_ERR_INVALID_REMINDER,
+  MUSLIMTIFY_ERR_TOO_MANY_REMINDERS,
+  MUSLIMTIFY_ERR_FILE_NOT_FOUND,
+  MUSLIMTIFY_ERR_FILE_NOT_REGULAR,
+  MUSLIMTIFY_ERR_FILE_IS_SYMLINK,
+  MUSLIMTIFY_ERR_FILE_NOT_READABLE,
+  MUSLIMTIFY_ERR_FILE_RESOLVE
 } MuslimtifyError;
 
 typedef enum {
@@ -33,9 +51,27 @@ typedef enum {
   MUSLIMTIFY_PRAYER_COUNT
 } MuslimtifyPrayerType;
 
+typedef enum { MUSLIMTIFY_MADHAB_SHAFI, MUSLIMTIFY_MADHAB_HANAFI } MuslimtifyMadhab;
+
+typedef enum {
+  MUSLIMTIFY_URGENCY_LOW,
+  MUSLIMTIFY_URGENCY_NORMAL,
+  MUSLIMTIFY_URGENCY_CRITICAL
+} MuslimtifyUrgency;
+
+typedef enum {
+  MUSLIMTIFY_SOUND_ADHAN,
+  MUSLIMTIFY_SOUND_DEFAULT,
+  MUSLIMTIFY_SOUND_OFF
+} MuslimtifySoundMode;
+
 #define MUSLIMTIFY_MAX_REMINDERS 10
 #define MUSLIMTIFY_MAX_RANGE_DAYS 366
 #define MUSLIMTIFY_TIME_STR_SIZE 9
+#define MUSLIMTIFY_TIMEZONE_SIZE 64
+#define MUSLIMTIFY_CITY_SIZE 128
+#define MUSLIMTIFY_COUNTRY_SIZE 64
+#define MUSLIMTIFY_PATH_SIZE 512
 
 typedef struct {
   int year;       /* calendar day this time falls on */
@@ -71,15 +107,68 @@ typedef struct {
   int minutes_until;
 } MuslimtifyNext;
 
+typedef struct {
+  bool is_set; /* false when there is no usable location */
+  double latitude;
+  double longitude;
+  char timezone[MUSLIMTIFY_TIMEZONE_SIZE];
+  double utc_offset; /* hours in effect today, follows DST */
+  char city[MUSLIMTIFY_CITY_SIZE];
+  char country[MUSLIMTIFY_COUNTRY_SIZE];
+  bool auto_detect;
+  bool gps;
+  long long refresh_interval; /* seconds, 0 means disabled */
+} MuslimtifyLocation;
+
+typedef struct {
+  bool enabled;
+  bool adhan_enabled;
+  int offset; /* minutes added to the calculated time */
+  int reminders[MUSLIMTIFY_MAX_REMINDERS];
+  int reminder_count;
+  char adhan_file[MUSLIMTIFY_PATH_SIZE]; /* "" means the bundled adhan */
+} MuslimtifyPrayerSettings;
+
+typedef struct {
+  MuslimtifyUrgency urgency;
+  MuslimtifySoundMode sound_mode;
+  MuslimtifyPrayerSettings prayers[MUSLIMTIFY_PRAYER_COUNT];
+} MuslimtifyNotification;
+
+typedef struct {
+  const char *key;  /* such as "kemenag" */
+  const char *name; /* display name, "" when the method has none */
+} MuslimtifyMethodInfo;
+
+/* -- Handle lifecycle ------------------------------------------------------ */
+
 /**
- * Load the user's config into a new handle. Performs no network access.
- * Returns MUSLIMTIFY_ERR_NO_LOCATION when no usable location is configured.
- * On error *out is NULL. Free the handle with muslimtify_close.
+ * Load the user's config into a new handle. Performs no network access and
+ * succeeds even when no location is configured. On error *out is NULL. Free
+ * the handle with muslimtify_close.
  */
 MuslimtifyError muslimtify_open(Muslimtify **out);
 
-/** Free a handle. NULL is a no-op. */
+/**
+ * Reread the config file into the handle, dropping unsaved changes. On failure
+ * the handle keeps its contents. A long-lived frontend calls this before
+ * showing a settings screen, because the daemon rewrites the config when it
+ * refreshes the location.
+ */
+MuslimtifyError muslimtify_reload(Muslimtify *mt);
+
+/**
+ * Write the handle's settings to the config file and invalidate the daemon's
+ * trigger cache. Setters change the handle in memory only until this is called.
+ */
+MuslimtifyError muslimtify_save(Muslimtify *mt);
+
+/** Free a handle, discarding unsaved changes. NULL is a no-op. */
 void muslimtify_close(Muslimtify *mt);
+
+/* -- Prayer time queries ---------------------------------------------------- */
+/* The functions that take a handle return MUSLIMTIFY_ERR_NO_LOCATION while it
+   has no location. */
 
 /**
  * Validate an inclusive date range without a handle. Years are 1-9999 and the
@@ -110,11 +199,107 @@ MuslimtifyError muslimtify_range(const Muslimtify *mt, int start_year, int start
  */
 MuslimtifyError muslimtify_next(const Muslimtify *mt, MuslimtifyNext *out);
 
-/** Capitalized prayer name such as "Fajr". Static, never NULL. */
-const char *muslimtify_prayer_name(MuslimtifyPrayerType type);
+/* -- Settings: read --------------------------------------------------------- */
+
+MuslimtifyError muslimtify_get_location(const Muslimtify *mt, MuslimtifyLocation *out);
+MuslimtifyError muslimtify_get_notification(const Muslimtify *mt, MuslimtifyNotification *out);
+
+/**
+ * The configured calculation method. out->key points into the handle and is
+ * valid until the next setter, reload or close. out->name is static.
+ */
+MuslimtifyError muslimtify_get_method(const Muslimtify *mt, MuslimtifyMethodInfo *out);
+
+/** The configured madhab. A NULL handle or an unknown stored word gives shafi. */
+MuslimtifyMadhab muslimtify_get_madhab(const Muslimtify *mt);
 
 /** The configured display format, 12 or 24. A NULL handle gives 24. */
 int muslimtify_time_format(const Muslimtify *mt);
+
+/** Number of selectable calculation methods. */
+size_t muslimtify_method_count(void);
+
+/** The method at index, with static strings. index must be below the count. */
+MuslimtifyError muslimtify_method_at(size_t index, MuslimtifyMethodInfo *out);
+
+/* -- Settings: write -------------------------------------------------------- */
+/* Every setter validates before it writes, so a failed call changes nothing.
+   Changes stay in memory until muslimtify_save. */
+
+/**
+ * Set both coordinates. Moving the location also turns auto-detect off, clears
+ * the city and country, and sets the timezone from the system timezone. Call
+ * muslimtify_set_city, muslimtify_set_country and muslimtify_set_timezone
+ * after this, not before.
+ */
+MuslimtifyError muslimtify_set_coordinates(Muslimtify *mt, double latitude, double longitude);
+
+/** Set the IANA timezone. It must exist on this system. */
+MuslimtifyError muslimtify_set_timezone(Muslimtify *mt, const char *iana_name);
+
+/** Set the city label. A name longer than the field is truncated. */
+MuslimtifyError muslimtify_set_city(Muslimtify *mt, const char *city);
+
+/** Set the country as an ISO 3166-1 alpha-2 code. Stored uppercased. */
+MuslimtifyError muslimtify_set_country(Muslimtify *mt, const char *iso2);
+
+/** Set the location auto-refresh interval: 0 to disable, otherwise at least 3600. */
+MuslimtifyError muslimtify_set_refresh_interval(Muslimtify *mt, long long seconds);
+
+/** Set the calculation method by a key from the method list. */
+MuslimtifyError muslimtify_set_method(Muslimtify *mt, const char *key);
+
+MuslimtifyError muslimtify_set_madhab(Muslimtify *mt, MuslimtifyMadhab madhab);
+
+/** Set the display format, 12 or 24. */
+MuslimtifyError muslimtify_set_time_format(Muslimtify *mt, int time_format);
+
+MuslimtifyError muslimtify_set_prayer_enabled(Muslimtify *mt, MuslimtifyPrayerType prayer,
+                                              bool enabled);
+
+/** Shift one prayer's time by -60 to 60 minutes. */
+MuslimtifyError muslimtify_set_prayer_offset(Muslimtify *mt, MuslimtifyPrayerType prayer,
+                                             int minutes);
+
+/**
+ * Set one prayer's reminders: at most MUSLIMTIFY_MAX_REMINDERS values, each
+ * 1 to 1440 minutes before the prayer. A count of 0 clears them, and minutes
+ * may then be NULL.
+ */
+MuslimtifyError muslimtify_set_prayer_reminders(Muslimtify *mt, MuslimtifyPrayerType prayer,
+                                                const int *minutes, size_t count);
+
+MuslimtifyError muslimtify_set_prayer_adhan(Muslimtify *mt, MuslimtifyPrayerType prayer,
+                                            bool enabled);
+
+/**
+ * Set one prayer's adhan audio file. The path must name an existing, readable,
+ * regular file that is not a symlink. Its canonical path is stored.
+ */
+MuslimtifyError muslimtify_set_prayer_adhan_file(Muslimtify *mt, MuslimtifyPrayerType prayer,
+                                                 const char *path);
+
+MuslimtifyError muslimtify_set_urgency(Muslimtify *mt, MuslimtifyUrgency urgency);
+MuslimtifyError muslimtify_set_sound_mode(Muslimtify *mt, MuslimtifySoundMode mode);
+
+/* -- Names, parsing and formatting ------------------------------------------ */
+/* Returned strings are static and never NULL. */
+
+/** Capitalized prayer name such as "Fajr". */
+const char *muslimtify_prayer_name(MuslimtifyPrayerType type);
+
+const char *muslimtify_madhab_key(MuslimtifyMadhab madhab);      /* "shafi", "hanafi" */
+const char *muslimtify_madhab_name(MuslimtifyMadhab madhab);     /* "Shafi'i", "Hanafi" */
+const char *muslimtify_urgency_key(MuslimtifyUrgency urgency);   /* "low", "normal", "critical" */
+const char *muslimtify_sound_mode_key(MuslimtifySoundMode mode); /* "adhan", "default", "off" */
+
+/** Case-insensitive. MUSLIMTIFY_ERR_UNKNOWN_PRAYER when nothing matches. */
+MuslimtifyError muslimtify_parse_prayer(const char *name, MuslimtifyPrayerType *out);
+
+/* Case-sensitive. MUSLIMTIFY_ERR_INVALID_VALUE when nothing matches. */
+MuslimtifyError muslimtify_parse_madhab(const char *key, MuslimtifyMadhab *out);
+MuslimtifyError muslimtify_parse_urgency(const char *key, MuslimtifyUrgency *out);
+MuslimtifyError muslimtify_parse_sound_mode(const char *key, MuslimtifySoundMode *out);
 
 /**
  * Write "HH:MM" (time_format other than 12) or "hh:MM AM" / "hh:MM PM"
@@ -123,7 +308,7 @@ int muslimtify_time_format(const Muslimtify *mt);
  */
 void muslimtify_format_time(const MuslimtifyTime *time, int time_format, char *out, size_t cap);
 
-/** Message for an error code. Static, never NULL. */
+/** Message for an error code. */
 const char *muslimtify_get_error(MuslimtifyError err);
 
 #ifdef __cplusplus

@@ -17,10 +17,6 @@ _Static_assert(MUSLIMTIFY_MAX_REMINDERS == MAX_REMINDERS, "reminder capacity mus
 // which keeps the day serial far from overflowing.
 #define MAX_DAY_SHIFT (9999L * 366L)
 
-struct Muslimtify {
-  Config cfg;
-};
-
 const char *muslimtify_get_error(MuslimtifyError err) {
   switch (err) {
   case MUSLIMTIFY_OK:
@@ -39,6 +35,42 @@ const char *muslimtify_get_error(MuslimtifyError err) {
     return "End date is before start date";
   case MUSLIMTIFY_ERR_RANGE_TOO_LONG:
     return "Date range too long (maximum 366 days)";
+  case MUSLIMTIFY_ERR_CONFIG_SAVE:
+    return "Failed to save config";
+  case MUSLIMTIFY_ERR_INVALID_VALUE:
+    return "Invalid value";
+  case MUSLIMTIFY_ERR_VALUE_TOO_LONG:
+    return "Value is too long";
+  case MUSLIMTIFY_ERR_INVALID_LATITUDE:
+    return "Invalid latitude";
+  case MUSLIMTIFY_ERR_INVALID_LONGITUDE:
+    return "Invalid longitude";
+  case MUSLIMTIFY_ERR_UNKNOWN_TIMEZONE:
+    return "Unknown timezone";
+  case MUSLIMTIFY_ERR_INVALID_COUNTRY:
+    return "Invalid country code";
+  case MUSLIMTIFY_ERR_INVALID_REFRESH_INTERVAL:
+    return "Refresh interval must be 0 or at least 3600 seconds";
+  case MUSLIMTIFY_ERR_UNKNOWN_METHOD:
+    return "Unknown method";
+  case MUSLIMTIFY_ERR_UNKNOWN_PRAYER:
+    return "Unknown prayer";
+  case MUSLIMTIFY_ERR_INVALID_OFFSET:
+    return "Offset must be from -60 to 60 minutes";
+  case MUSLIMTIFY_ERR_INVALID_REMINDER:
+    return "Reminder minutes must be from 1 to 1440";
+  case MUSLIMTIFY_ERR_TOO_MANY_REMINDERS:
+    return "At most 10 reminder values are allowed";
+  case MUSLIMTIFY_ERR_FILE_NOT_FOUND:
+    return "File not found";
+  case MUSLIMTIFY_ERR_FILE_NOT_REGULAR:
+    return "Not a regular file";
+  case MUSLIMTIFY_ERR_FILE_IS_SYMLINK:
+    return "File must not be a symlink";
+  case MUSLIMTIFY_ERR_FILE_NOT_READABLE:
+    return "File is not readable";
+  case MUSLIMTIFY_ERR_FILE_RESOLVE:
+    return "Cannot resolve file path";
   default:
     return "Unknown error";
   }
@@ -90,15 +122,18 @@ MuslimtifyError muslimtify_check_range(int start_year, int start_month, int star
   return MUSLIMTIFY_OK;
 }
 
+bool muslimtify_has_location(const Muslimtify *mt) {
+  const Config *cfg = &mt->cfg;
+  return !config_location_needs_detect(cfg) && config_latitude_is_valid(cfg->latitude) &&
+         config_longitude_is_valid(cfg->longitude);
+}
+
 MuslimtifyError muslimtify_open_config(const Config *cfg, Muslimtify **out) {
   if (!out)
     return MUSLIMTIFY_ERR_INVALID_ARG;
   *out = NULL;
   if (!cfg)
     return MUSLIMTIFY_ERR_INVALID_ARG;
-  if (config_location_needs_detect(cfg) || !config_latitude_is_valid(cfg->latitude) ||
-      !config_longitude_is_valid(cfg->longitude))
-    return MUSLIMTIFY_ERR_NO_LOCATION;
 
   Muslimtify *mt = malloc(sizeof(*mt));
   if (!mt)
@@ -159,6 +194,8 @@ MuslimtifyError muslimtify_day_at(const Muslimtify *mt, const struct tm *now, in
   MuslimtifyError err = muslimtify_check_range(year, month, day, year, month, day, NULL);
   if (err != MUSLIMTIFY_OK)
     return err;
+  if (!muslimtify_has_location(mt))
+    return MUSLIMTIFY_ERR_NO_LOCATION;
 
   const Config *cfg = &mt->cfg;
   struct PrayerTimes times = prayer_times_for_config(cfg, year, month, day);
@@ -248,6 +285,8 @@ MuslimtifyError muslimtify_next_at(const Muslimtify *mt, const struct tm *now,
                                    MuslimtifyNext *out) {
   if (!mt || !now || !out)
     return MUSLIMTIFY_ERR_INVALID_ARG;
+  if (!muslimtify_has_location(mt))
+    return MUSLIMTIFY_ERR_NO_LOCATION;
 
   const Config *cfg = &mt->cfg;
   int year = now->tm_year + 1900;
