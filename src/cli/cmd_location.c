@@ -61,6 +61,99 @@ static void print_location_set_help(void) {
   printf("  %-25s %s\n", "muslimtify location set --auto", "# Detect from IP");
 }
 
+// What a manual `location set` asks for. A NULL string means the flag was not
+// given. The numbers are valid only when their string is set.
+typedef struct {
+  const char *lat_str;
+  const char *lon_str;
+  const char *tz;
+  const char *city;
+  const char *country;
+  bool has_refresh;
+  double lat;
+  double lon;
+  long long refresh;
+} LocationSetArgs;
+
+// Apply a manual `location set` to the handle, save, and print what changed.
+static int location_set_run(Muslimtify *mt, const LocationSetArgs *a) {
+  MuslimtifyLocation loc;
+  MuslimtifyError err = muslimtify_get_location(mt, &loc);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  // Coordinates go first: moving them resets the city, the country and the
+  // timezone, which the setters below then override.
+  bool coords_changed = a->lat_str || a->lon_str;
+  if (coords_changed) {
+    err = muslimtify_set_coordinates(mt, a->lat_str ? a->lat : loc.latitude,
+                                     a->lon_str ? a->lon : loc.longitude);
+    if (err == MUSLIMTIFY_ERR_INVALID_LATITUDE && a->lat_str)
+      return cli_fail_value(err, a->lat_str);
+    if (err == MUSLIMTIFY_ERR_INVALID_LONGITUDE && a->lon_str)
+      return cli_fail_value(err, a->lon_str);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail(err);
+  }
+  if (a->city) {
+    err = muslimtify_set_city(mt, a->city);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail(err);
+  }
+  if (a->country) {
+    err = muslimtify_set_country(mt, a->country);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail_value(err, a->country);
+  }
+  if (a->has_refresh) {
+    err = muslimtify_set_refresh_interval(mt, a->refresh);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail(err);
+  }
+  if (a->tz) {
+    err = muslimtify_set_timezone(mt, a->tz);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail_value(err, a->tz);
+  }
+
+  err = muslimtify_save(mt);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_get_location(mt, &loc);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  // Concise confirmation: report only the fields the user actually changed.
+  if (coords_changed)
+    printf("Coordinates updated to %.4f, %.4f\n", loc.latitude, loc.longitude);
+  if (a->city)
+    printf("City updated to %s\n", loc.city);
+  if (a->country)
+    printf("Country updated to %s\n", loc.country);
+  if (a->tz)
+    printf("Timezone updated to %s (UTC%+.1f)\n", loc.timezone, loc.utc_offset);
+  else if (coords_changed)
+    printf("Timezone updated to %s (UTC%+.1f) from system timezone\n", loc.timezone,
+           loc.utc_offset);
+  if (a->has_refresh) {
+    if (loc.refresh_interval == 0)
+      printf("Auto-refresh disabled\n");
+    else
+      printf("Refresh interval updated to %llds\n", loc.refresh_interval);
+  }
+
+  // Coordinates and timezone jointly determine the prayer times, so prompt the
+  // user to sanity-check whichever of the pair they did not just set.
+  if (coords_changed && !a->tz)
+    printf("  Hint: make sure the timezone is correct (currently %s); it affects prayer time "
+           "calculation.\n",
+           loc.timezone);
+  else if (a->tz && !coords_changed)
+    printf("  Hint: make sure your coordinates are correct (currently %.4f, %.4f); they affect "
+           "prayer time calculation.\n",
+           loc.latitude, loc.longitude);
+  return 0;
+}
+
 static int location_set_handler(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
     print_location_set_help();
@@ -210,141 +303,49 @@ static int location_set_handler(int argc, char **argv) {
     return 1;
   }
 
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
+  // Text that is not a number is the CLI's error. Whether the number is an
+  // acceptable value is the library's.
+  LocationSetArgs args = {0};
+  args.lat_str = override_lat;
+  args.lon_str = override_lon;
+  args.tz = override_tz;
+  args.city = override_city;
+  args.country = override_country;
+  args.has_refresh = override_refresh != NULL;
 
   if (override_lat) {
     char *end_lat;
     errno = 0;
-    double lat = strtod(override_lat, &end_lat);
-    if (end_lat == override_lat || *end_lat != '\0' || errno == ERANGE ||
-        !config_latitude_is_valid(lat)) {
-      fprintf(stderr, "Error: Invalid latitude '%s'\n", override_lat);
-      return 1;
-    }
-    cfg.latitude = lat;
-    cfg.auto_detect = false;
+    args.lat = strtod(override_lat, &end_lat);
+    if (end_lat == override_lat || *end_lat != '\0' || errno == ERANGE)
+      return cli_fail_value(MUSLIMTIFY_ERR_INVALID_LATITUDE, override_lat);
   }
-
   if (override_lon) {
     char *end_lon;
     errno = 0;
-    double lon = strtod(override_lon, &end_lon);
-    if (end_lon == override_lon || *end_lon != '\0' || errno == ERANGE ||
-        !config_longitude_is_valid(lon)) {
-      fprintf(stderr, "Error: Invalid longitude '%s'\n", override_lon);
-      return 1;
-    }
-    cfg.longitude = lon;
-    cfg.auto_detect = false;
+    args.lon = strtod(override_lon, &end_lon);
+    if (end_lon == override_lon || *end_lon != '\0' || errno == ERANGE)
+      return cli_fail_value(MUSLIMTIFY_ERR_INVALID_LONGITUDE, override_lon);
   }
-
-  // If the user moved the coordinates, the previously cached city/country no
-  // longer apply — clear them. (A timezone- or label-only update leaves the
-  // existing labels intact.) Then write the user's --city/--country overrides.
-  if (override_lat || override_lon) {
-    cfg.city[0] = '\0';
-    cfg.country[0] = '\0';
-  }
-  if (override_city)
-    set_city(&cfg, override_city);
-  if (override_country) {
-    if (!country_is_valid_alpha2(override_country)) {
-      fprintf(stderr, "Error: Invalid country code '%s' (expected ISO 3166-1 alpha-2, e.g. ID)\n",
-              override_country);
-      return 1;
-    }
-    set_country(&cfg, override_country);
-  }
-
   if (override_refresh) {
     char *end_ri;
     errno = 0;
-    long long ri = strtoll(override_refresh, &end_ri, 10);
-    if (end_ri == override_refresh || *end_ri != '\0' || errno == ERANGE || ri < 0) {
+    args.refresh = strtoll(override_refresh, &end_ri, 10);
+    if (end_ri == override_refresh || *end_ri != '\0' || errno == ERANGE || args.refresh < 0) {
       fprintf(stderr,
               "Error: Invalid --refresh-interval '%s' (expected a non-negative "
               "integer number of seconds)\n",
               override_refresh);
       return 1;
     }
-    if (ri > 0 && ri < LOCATION_MIN_REFRESH_SECONDS) {
-      fprintf(stderr, "Error: --refresh-interval must be 0 (disabled) or at least %d seconds\n",
-              LOCATION_MIN_REFRESH_SECONDS);
-      return 1;
-    }
-    cfg.refresh_interval = (int64_t)ri;
   }
 
-  if (override_tz) {
-    // Explicit override — reject a name that does not resolve on this system,
-    // so we never persist a nonexistent zone (which would silently compute as
-    // UTC). timezone_exists correctly accepts real UTC+0 zones (e.g.
-    // Africa/Abidjan) that the old offset==0 heuristic wrongly rejected.
-    if (!timezone_exists(override_tz)) {
-      fprintf(stderr, "Error: Unknown timezone '%s'\n", override_tz);
-      return 1;
-    }
-    double off = parse_timezone_offset(override_tz, time(NULL));
-    size_t tz_len = strlen(override_tz);
-    if (tz_len + 1 > sizeof(cfg.timezone)) {
-      fprintf(stderr, "Error: Timezone name too long\n");
-      return 1;
-    }
-    memcpy(cfg.timezone, override_tz, tz_len + 1);
-    cfg.timezone_offset = off;
-  } else if (override_lat || override_lon) {
-    // Coordinates changed without an explicit timezone: re-derive from the host
-    // OS so the offset stays correct (avoids inheriting a stale ipinfo zone).
-    // A label-only update (city/country) leaves the timezone untouched.
-    if (get_system_timezone(cfg.timezone, sizeof(cfg.timezone)) != 0) {
-      fprintf(stderr, "Warning: could not detect system timezone, defaulting to %s\n",
-              cfg.timezone);
-    }
-    cfg.timezone_offset = parse_timezone_offset(cfg.timezone, time(NULL));
-  }
-
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
     return 1;
-  }
-
-  cache_invalidate();
-
-  // Concise confirmation: report only the fields the user actually changed.
-  bool coords_changed = override_lat || override_lon;
-  if (coords_changed)
-    printf("Coordinates updated to %.4f, %.4f\n", cfg.latitude, cfg.longitude);
-  if (override_city)
-    printf("City updated to %s\n", cfg.city);
-  if (override_country)
-    printf("Country updated to %s\n", cfg.country);
-  if (override_tz)
-    printf("Timezone updated to %s (UTC%+.1f)\n", cfg.timezone, cfg.timezone_offset);
-  else if (coords_changed)
-    printf("Timezone updated to %s (UTC%+.1f) from system timezone\n", cfg.timezone,
-           cfg.timezone_offset);
-  if (override_refresh) {
-    if (cfg.refresh_interval == 0)
-      printf("Auto-refresh disabled\n");
-    else
-      printf("Refresh interval updated to %llds\n", (long long)cfg.refresh_interval);
-  }
-
-  // Coordinates and timezone jointly determine the prayer times, so prompt the
-  // user to sanity-check whichever of the pair they did not just set.
-  if (coords_changed && !override_tz)
-    printf("  Hint: make sure the timezone is correct (currently %s); it affects prayer time "
-           "calculation.\n",
-           cfg.timezone);
-  else if (override_tz && !coords_changed)
-    printf("  Hint: make sure your coordinates are correct (currently %.4f, %.4f); they affect "
-           "prayer time calculation.\n",
-           cfg.latitude, cfg.longitude);
-  return 0;
+  int ret = location_set_run(mt, &args);
+  muslimtify_close(mt);
+  return ret;
 }
 
 static void print_location_gps_help(void) {

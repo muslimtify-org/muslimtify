@@ -1621,7 +1621,7 @@ static void test_reminder_args(void) {
   run(16, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
                      "8", "9", "10", "11", "abc", NULL});
   check_ret("reminder args eleven plus junk ret", 1);
-  check_contains("reminder args eleven plus junk msg", "at most 10 reminder values");
+  check_contains("reminder args eleven plus junk msg", "At most 10 reminder values");
   check_bool("reminder args eleven plus junk keeps fajr", fajr_reminder_count() == 2);
 
   run(15, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
