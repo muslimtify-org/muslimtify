@@ -1,7 +1,6 @@
 #include "cli.h"
 #include "cli_internal.h"
 #include "config.h"
-#include "prayertimes.h"
 #include "util.h"
 #include "version.h"
 #include <stdbool.h>

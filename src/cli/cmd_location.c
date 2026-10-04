@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 // Copy `name` into cfg->city with NUL-termination, truncating on overflow.
 static void set_city(Config *cfg, const char *name) {
