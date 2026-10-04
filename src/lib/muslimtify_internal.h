@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "muslimtify.h"
+#include "platform.h"
 #include <stdbool.h>
 #include <time.h>
 
@@ -32,6 +33,15 @@ MuslimtifyError muslimtify_day_at(const Muslimtify *mt, const struct tm *now, in
 
 /** muslimtify_next with the current local time supplied. */
 MuslimtifyError muslimtify_next_at(const Muslimtify *mt, const struct tm *now, MuslimtifyNext *out);
+
+/** muslimtify_detect_location with the detection source supplied. */
+MuslimtifyError muslimtify_detect_location_with(Muslimtify *mt,
+                                                int (*detect)(Config *, GpsStatus *),
+                                                MuslimtifyDetection *out);
+
+/** muslimtify_set_gps with the receiver probe supplied. */
+MuslimtifyError muslimtify_set_gps_with(Muslimtify *mt, bool enabled, GpsStatus (*probe)(Config *),
+                                        bool *has_fix);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "cache.h"
 #include "config.h"
+#include "country.h"
 #include "lib/muslimtify_internal.h"
 #include "location.h"
 #include "muslimtify.h"
@@ -609,6 +610,266 @@ static void test_unknown_words(void) {
   muslimtify_close(mt);
 }
 
+// -- Location detection -------------------------------------------------------
+
+// Stand-ins for the receiver and the network. The GPS stub returns whatever
+// status the test sets, and the detect stub runs the real fallback rule in
+// location_fetch_core over the two of them.
+static GpsStatus stub_gps_status;
+static int stub_gps_calls;
+
+static GpsStatus stub_gps(Config *cfg) {
+  stub_gps_calls++;
+  if (stub_gps_status == GPS_OK) {
+    cfg->latitude = 1.5;
+    cfg->longitude = 2.5;
+  }
+  return stub_gps_status;
+}
+
+static int stub_ipinfo(Config *cfg) {
+  cfg->latitude = -7.25;
+  cfg->longitude = 112.75;
+  snprintf(cfg->timezone, sizeof(cfg->timezone), "Asia/Jakarta");
+  snprintf(cfg->city, sizeof(cfg->city), "Surabaya");
+  snprintf(cfg->country, sizeof(cfg->country), "ID");
+  return 0;
+}
+
+static int stub_detect(Config *cfg, GpsStatus *status) {
+  return location_fetch_core(cfg, stub_gps, stub_ipinfo, status);
+}
+
+// Scribbles on the config before failing, as a lookup that died half way would.
+static int stub_detect_fail(Config *cfg, GpsStatus *status) {
+  cfg->latitude = 55.0;
+  cfg->use_gps = false;
+  snprintf(cfg->city, sizeof(cfg->city), "Nowhere");
+  *status = GPS_NO_DAEMON;
+  return -1;
+}
+
+static void test_needs_detect(void) {
+  printf("  needs detect...\n");
+
+  Config fresh = config_default();
+  Muslimtify *mt = NULL;
+  check_bool("opens", muslimtify_open_config(&fresh, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+  check_bool("fresh config needs detection", muslimtify_location_needs_detect(mt));
+  check_bool("set coordinates", muslimtify_set_coordinates(mt, -6.2, 106.8) == MUSLIMTIFY_OK);
+  check_bool("a set location does not", !muslimtify_location_needs_detect(mt));
+  muslimtify_close(mt);
+
+  // Auto-detect off at 0,0 is a location the user chose.
+  Config manual = config_default();
+  manual.auto_detect = false;
+  check_bool("opens manual", muslimtify_open_config(&manual, &mt) == MUSLIMTIFY_OK);
+  check_bool("auto-detect off does not", !muslimtify_location_needs_detect(mt));
+  muslimtify_close(mt);
+
+  check_bool("NULL does not", !muslimtify_location_needs_detect(NULL));
+}
+
+static void test_detect_location(void) {
+  printf("  detect location...\n");
+
+  Config cfg = jakarta_config();
+  Muslimtify *mt = NULL;
+  check_bool("opens", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+
+  MuslimtifyLocation before;
+  MuslimtifyLocation loc;
+  MuslimtifyDetection detection;
+  check_bool("read before", muslimtify_get_location(mt, &before) == MUSLIMTIFY_OK);
+  check_bool("starts with auto-detect off", !before.auto_detect);
+
+  // A failed lookup changes nothing, whatever it did to its working copy.
+  memset(&detection, 0x5a, sizeof(detection));
+  check_bool("failure is reported",
+             muslimtify_detect_location_with(mt, stub_detect_fail, &detection) ==
+                 MUSLIMTIFY_ERR_DETECT_FAILED);
+  check_bool("failure leaves the result alone", all_bytes(&detection, sizeof(detection), 0x5a));
+  check_bool("read after failure", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("failure leaves the location alone", same_location(&before, &loc));
+
+  // A successful lookup commits and turns auto-detect on.
+  check_bool("success",
+             muslimtify_detect_location_with(mt, stub_detect, &detection) == MUSLIMTIFY_OK);
+  check_bool("read after success", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("coordinates committed", loc.latitude == -7.25 && loc.longitude == 112.75);
+  check_bool("labels committed",
+             strcmp(loc.city, "Surabaya") == 0 && strcmp(loc.country, "ID") == 0);
+  check_bool("auto-detect on", loc.auto_detect);
+  check_bool("source is the IP lookup", detection.source == MUSLIMTIFY_SOURCE_IP);
+  check_bool("no GPS problem", detection.gps == MUSLIMTIFY_OK && !detection.gps_disabled);
+
+  check_bool("result is optional",
+             muslimtify_detect_location_with(mt, stub_detect, NULL) == MUSLIMTIFY_OK);
+  check_bool("NULL handle",
+             muslimtify_detect_location(NULL, &detection) == MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("NULL source",
+             muslimtify_detect_location_with(mt, NULL, &detection) == MUSLIMTIFY_ERR_INVALID_ARG);
+  muslimtify_close(mt);
+}
+
+// Every GPS outcome, with GPS enabled on the handle.
+static void test_detect_gps_matrix(void) {
+  printf("  detect with GPS enabled...\n");
+
+  const struct {
+    GpsStatus status;
+    MuslimtifyLocationSource source;
+    MuslimtifyError gps;
+    bool disabled;
+  } cases[] = {
+      {GPS_OK, MUSLIMTIFY_SOURCE_GPS, MUSLIMTIFY_OK, false},
+      {GPS_NO_FIX, MUSLIMTIFY_SOURCE_IP, MUSLIMTIFY_OK, false},
+      {GPS_NO_DAEMON, MUSLIMTIFY_SOURCE_IP, MUSLIMTIFY_ERR_GPS_NO_DAEMON, true},
+      {GPS_NO_DEVICE, MUSLIMTIFY_SOURCE_IP, MUSLIMTIFY_ERR_GPS_NO_DEVICE, true},
+      {GPS_UNAVAILABLE, MUSLIMTIFY_SOURCE_IP, MUSLIMTIFY_ERR_GPS_UNAVAILABLE, true},
+      {GPS_NO_PERMISSION, MUSLIMTIFY_SOURCE_IP, MUSLIMTIFY_ERR_GPS_NO_PERMISSION, false},
+  };
+
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    Config cfg = jakarta_config();
+    cfg.use_gps = true;
+    Muslimtify *mt = NULL;
+    MuslimtifyDetection detection;
+    MuslimtifyLocation loc;
+    if (muslimtify_open_config(&cfg, &mt) != MUSLIMTIFY_OK) {
+      check_bool("opens", false);
+      continue;
+    }
+    stub_gps_status = cases[i].status;
+    check_bool("detects",
+               muslimtify_detect_location_with(mt, stub_detect, &detection) == MUSLIMTIFY_OK);
+    check_bool("source", detection.source == cases[i].source);
+    check_bool("gps code", detection.gps == cases[i].gps);
+    check_bool("gps disabled", detection.gps_disabled == cases[i].disabled);
+    check_bool("read", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+    check_bool("stored GPS flag", loc.gps == !cases[i].disabled);
+    check_bool("coordinates follow the source",
+               loc.latitude == (cases[i].source == MUSLIMTIFY_SOURCE_GPS ? 1.5 : -7.25));
+    muslimtify_close(mt);
+  }
+
+  // With GPS off the receiver is never asked.
+  Config off = jakarta_config();
+  Muslimtify *mt = NULL;
+  MuslimtifyDetection detection;
+  check_bool("opens with GPS off", muslimtify_open_config(&off, &mt) == MUSLIMTIFY_OK);
+  stub_gps_status = GPS_NO_DAEMON;
+  stub_gps_calls = 0;
+  check_bool("detects with GPS off",
+             muslimtify_detect_location_with(mt, stub_detect, &detection) == MUSLIMTIFY_OK);
+  check_bool("receiver not asked", stub_gps_calls == 0);
+  check_bool("nothing to report", detection.gps == MUSLIMTIFY_OK && !detection.gps_disabled &&
+                                      detection.source == MUSLIMTIFY_SOURCE_IP);
+  muslimtify_close(mt);
+}
+
+static void test_set_gps(void) {
+  printf("  GPS toggle...\n");
+
+  Config cfg = jakarta_config();
+  Muslimtify *mt = NULL;
+  check_bool("opens", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+
+  MuslimtifyLocation before;
+  MuslimtifyLocation loc;
+  bool has_fix = true;
+  check_bool("read before", muslimtify_get_location(mt, &before) == MUSLIMTIFY_OK);
+
+  // Each structural problem refuses to enable and changes nothing.
+  const struct {
+    GpsStatus status;
+    MuslimtifyError err;
+  } failures[] = {
+      {GPS_NO_DAEMON, MUSLIMTIFY_ERR_GPS_NO_DAEMON},
+      {GPS_NO_DEVICE, MUSLIMTIFY_ERR_GPS_NO_DEVICE},
+      {GPS_NO_PERMISSION, MUSLIMTIFY_ERR_GPS_NO_PERMISSION},
+      {GPS_UNAVAILABLE, MUSLIMTIFY_ERR_GPS_UNAVAILABLE},
+  };
+  for (size_t i = 0; i < sizeof(failures) / sizeof(failures[0]); i++) {
+    stub_gps_status = failures[i].status;
+    check_bool("enable is refused",
+               muslimtify_set_gps_with(mt, true, stub_gps, &has_fix) == failures[i].err);
+    check_bool("read after refusal", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+    check_bool("refusal changes nothing", same_location(&before, &loc));
+  }
+
+  // A receiver with no fix yet still enables, and keeps the stored coordinates.
+  stub_gps_status = GPS_NO_FIX;
+  has_fix = true;
+  check_bool("enable without a fix",
+             muslimtify_set_gps_with(mt, true, stub_gps, &has_fix) == MUSLIMTIFY_OK);
+  check_bool("no fix reported", !has_fix);
+  check_bool("read", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("GPS on, coordinates kept", loc.gps && loc.latitude == before.latitude);
+
+  // Turning it off never asks the receiver.
+  stub_gps_calls = 0;
+  has_fix = true;
+  check_bool("disable", muslimtify_set_gps_with(mt, false, stub_gps, &has_fix) == MUSLIMTIFY_OK);
+  check_bool("disable does not probe", stub_gps_calls == 0 && !has_fix);
+  check_bool("read off", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK && !loc.gps);
+
+  // A fix enables and stores where the receiver says it is.
+  stub_gps_status = GPS_OK;
+  has_fix = false;
+  check_bool("enable with a fix",
+             muslimtify_set_gps_with(mt, true, stub_gps, &has_fix) == MUSLIMTIFY_OK);
+  check_bool("fix reported", has_fix);
+  check_bool("read fix", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("GPS on with the fix stored", loc.gps && loc.latitude == 1.5 && loc.longitude == 2.5);
+
+  check_bool("has_fix is optional",
+             muslimtify_set_gps_with(mt, true, stub_gps, NULL) == MUSLIMTIFY_OK);
+  check_bool("NULL handle", muslimtify_set_gps(NULL, true, NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+  muslimtify_close(mt);
+}
+
+static void test_method_from_country(void) {
+  printf("  method from country...\n");
+
+  Config cfg = jakarta_config();
+  snprintf(cfg.country, sizeof(cfg.country), "ID");
+  Muslimtify *mt = NULL;
+  MuslimtifyMethodInfo info;
+  check_bool("opens", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+  check_bool("from a country", muslimtify_set_method_from_country(mt) == MUSLIMTIFY_OK);
+  check_bool("read", muslimtify_get_method(mt, &info) == MUSLIMTIFY_OK);
+  check_bool("the country's default",
+             strcmp(info.key, method_to_string(country_default_method("ID"))) == 0);
+  muslimtify_close(mt);
+
+  // No country falls back to the engine's default, as method --auto relies on.
+  cfg.country[0] = '\0';
+  check_bool("opens without a country", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  check_bool("from no country", muslimtify_set_method_from_country(mt) == MUSLIMTIFY_OK);
+  check_bool("read fallback", muslimtify_get_method(mt, &info) == MUSLIMTIFY_OK);
+  check_bool("the fallback method",
+             strcmp(info.key, method_to_string(country_default_method(""))) == 0);
+  muslimtify_close(mt);
+
+  check_bool("NULL handle", muslimtify_set_method_from_country(NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+
+  check_bool("uppercase code", muslimtify_check_country("ID") == MUSLIMTIFY_OK);
+  check_bool("lowercase code", muslimtify_check_country("id") == MUSLIMTIFY_OK);
+  check_bool("three letters", muslimtify_check_country("ZZZ") == MUSLIMTIFY_ERR_INVALID_COUNTRY);
+  check_bool("one character", muslimtify_check_country("1") == MUSLIMTIFY_ERR_INVALID_COUNTRY);
+  check_bool("empty", muslimtify_check_country("") == MUSLIMTIFY_ERR_INVALID_COUNTRY);
+  check_bool("NULL code", muslimtify_check_country(NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+}
+
 // -- Agreement with the engine ------------------------------------------------
 
 // Walk every site through every day of 2026. Each valid time must print the
@@ -890,7 +1151,7 @@ static void test_next(void) {
 static void test_strings(void) {
   printf("  strings...\n");
 
-  for (int e = MUSLIMTIFY_OK; e <= MUSLIMTIFY_ERR_FILE_RESOLVE; e++) {
+  for (int e = MUSLIMTIFY_OK; e <= MUSLIMTIFY_ERR_GPS_UNAVAILABLE; e++) {
     const char *msg = muslimtify_get_error((MuslimtifyError)e);
     check_bool("error message exists", msg != NULL && msg[0] != '\0');
     check_bool("error message is specific", strcmp(msg, "Unknown error") != 0);
@@ -950,6 +1211,11 @@ int main(void) {
   test_adhan_file();
   test_names_and_parsing();
   test_unknown_words();
+  test_needs_detect();
+  test_detect_location();
+  test_detect_gps_matrix();
+  test_set_gps();
+  test_method_from_country();
   test_engine_agreement();
   test_instant();
   test_errors();

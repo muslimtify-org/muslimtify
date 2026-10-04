@@ -287,36 +287,47 @@ GpsStatus location_fetch_gps(Config *cfg) {
   return GPS_OK; // country intentionally left unchanged
 }
 
-int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *)) {
+int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *),
+                        GpsStatus *gps_status) {
   if (!cfg)
     return -1;
 
+  GpsStatus st = GPS_OK;
   if (cfg->use_gps) {
-    GpsStatus st = gps(cfg);
-    if (st == GPS_OK)
+    st = gps(cfg);
+    if (st == GPS_OK) {
+      if (gps_status)
+        *gps_status = st;
       return 0; // GPS fix wins
+    }
 
     // Structural failure: the daemon or hardware is genuinely gone and will not
-    // come back on its own. Warn once and auto-disable so we stop paying the
-    // probe cost every cycle; whoever saves *cfg persists use_gps.
-    if (st == GPS_NO_DAEMON || st == GPS_NO_DEVICE || st == GPS_UNAVAILABLE) {
-      fprintf(stderr, "%s\n", gps_status_message(st));
+    // come back on its own. Auto-disable so we stop paying the probe cost every
+    // cycle; whoever saves *cfg persists use_gps.
+    if (st == GPS_NO_DAEMON || st == GPS_NO_DEVICE || st == GPS_UNAVAILABLE)
       cfg->use_gps = false;
-    } else if (st == GPS_NO_PERMISSION) {
-      // Fixable by the user in OS settings, so warn but stay enabled: the next
-      // fetch after they grant access succeeds with no further action. Cheap to
-      // retry — a denied Windows lookup fails in roughly 50ms.
-      fprintf(stderr, "%s\n", gps_status_message(st));
-    }
-    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled and silent, and fall
-    // through to ipinfo for this cycle; GPS is retried on the next fetch.
+    // GPS_NO_PERMISSION: fixable by the user in OS settings, so stay enabled:
+    // the next fetch after they grant access succeeds with no further action.
+    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled, and fall through to
+    // ipinfo for this cycle; GPS is retried on the next fetch.
   }
 
+  if (gps_status)
+    *gps_status = st;
   return ipinfo(cfg);
 }
 
+int location_detect(Config *cfg, GpsStatus *gps_status) {
+  return location_fetch_core(cfg, location_fetch_gps, location_fetch_ipinfo, gps_status);
+}
+
 int location_fetch(Config *cfg) {
-  return location_fetch_core(cfg, location_fetch_gps, location_fetch_ipinfo);
+  GpsStatus st = GPS_OK;
+  int rc = location_detect(cfg, &st);
+  const char *message = gps_status_message(st);
+  if (message)
+    fprintf(stderr, "%s\n", message);
+  return rc;
 }
 
 int config_auto_detect(Config *cfg) {

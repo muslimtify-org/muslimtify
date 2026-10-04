@@ -51,7 +51,8 @@ bool timezone_exists(const char *tz_name);
 int get_system_timezone(char *buf, size_t cap);
 
 /**
- * Fetch location information from ipinfo.io and update config.
+ * location_detect, plus the gps_status_message warning on stderr when GPS had
+ * a problem worth telling the user about.
  * Returns: 0 on success, -1 on failure.
  */
 int location_fetch(Config *cfg);
@@ -82,14 +83,26 @@ const char *gps_status_message(GpsStatus st);
  * the returned status selects one of four behaviors:
  *   - GPS_OK: return immediately; ipinfo is not called.
  *   - GPS_NO_DAEMON / GPS_NO_DEVICE / GPS_UNAVAILABLE: structural failure.
- *     Warn on stderr and set use_gps=false so the next fetch stops trying.
- *   - GPS_NO_PERMISSION: warn on stderr but leave use_gps set, since the user
- *     can grant access in OS settings and have the next fetch succeed.
- *   - GPS_NO_FIX: transient. Silent, and use_gps stays set.
+ *     Set use_gps=false so the next fetch stops trying.
+ *   - GPS_NO_PERMISSION: leave use_gps set, since the user can grant access in
+ *     OS settings and have the next fetch succeed.
+ *   - GPS_NO_FIX: transient. use_gps stays set.
  * Any non-OK outcome falls through to ipinfo(). Returns the 0/-1 of the source
  * that produced the result.
+ *
+ * Prints nothing. The status gps() returned is written to *gps_status when it
+ * is not NULL, and GPS_OK is written when use_gps is off, since GPS was not
+ * tried. The caller decides what to tell the user, see gps_status_message.
  */
-int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *));
+int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *),
+                        GpsStatus *gps_status);
+
+/**
+ * location_fetch_core bound to the real GPS and ipinfo.io sources. Prints
+ * nothing about GPS: the outcome is reported through *gps_status.
+ * Returns: 0 on success, -1 on failure.
+ */
+int location_detect(Config *cfg, GpsStatus *gps_status);
 
 /**
  * Quiet helper that ensures location data exists.

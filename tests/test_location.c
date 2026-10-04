@@ -546,64 +546,85 @@ static void test_gps_status_message(void) {
 static void test_location_fetch_core(void) {
   printf("\n-- location_fetch_core --\n");
 
-  // use_gps off: ipinfo is the only source.
+  // use_gps off: ipinfo is the only source, and GPS reports nothing.
   core_ipinfo_calls = 0;
   Config a = config_default();
   a.use_gps = false;
-  int rc_a = location_fetch_core(&a, stub_gps_ok, stub_ipinfo);
+  GpsStatus st_a = GPS_NO_DAEMON;
+  int rc_a = location_fetch_core(&a, stub_gps_ok, stub_ipinfo, &st_a);
   expect(rc_a == 0 && core_ipinfo_calls == 1 && fabs(a.latitude - (-6.2)) < 1e-9,
          "use_gps off -> ipinfo only");
+  expect(st_a == GPS_OK, "use_gps off reports GPS_OK");
 
   // use_gps on + GPS fix: GPS wins, ipinfo untouched, flag stays on.
   core_ipinfo_calls = 0;
   Config b = config_default();
   b.use_gps = true;
-  int rc_b = location_fetch_core(&b, stub_gps_ok, stub_ipinfo);
+  GpsStatus st_b = GPS_NO_DAEMON;
+  int rc_b = location_fetch_core(&b, stub_gps_ok, stub_ipinfo, &st_b);
   expect(rc_b == 0 && core_ipinfo_calls == 0 && fabs(b.latitude - 1.5) < 1e-9 && b.use_gps,
          "GPS fix wins, use_gps stays on");
+  expect(st_b == GPS_OK, "GPS fix reports GPS_OK");
 
   // use_gps on + no fix (transient): fall back to ipinfo, keep GPS on.
   core_ipinfo_calls = 0;
   Config c = config_default();
   c.use_gps = true;
-  int rc_c = location_fetch_core(&c, stub_gps_nofix, stub_ipinfo);
+  GpsStatus st_c = GPS_OK;
+  int rc_c = location_fetch_core(&c, stub_gps_nofix, stub_ipinfo, &st_c);
   expect(rc_c == 0 && core_ipinfo_calls == 1 && c.use_gps,
          "no-fix falls back to ipinfo, use_gps stays on");
+  expect(st_c == GPS_NO_FIX, "no-fix reports GPS_NO_FIX");
 
   // use_gps on + structural failures: fall back AND auto-disable.
   core_ipinfo_calls = 0;
   Config d = config_default();
   d.use_gps = true;
-  int rc_d = location_fetch_core(&d, stub_gps_nodaemon, stub_ipinfo);
+  GpsStatus st_d = GPS_OK;
+  int rc_d = location_fetch_core(&d, stub_gps_nodaemon, stub_ipinfo, &st_d);
   expect(rc_d == 0 && core_ipinfo_calls == 1 && !d.use_gps, "no-daemon auto-disables use_gps");
+  expect(st_d == GPS_NO_DAEMON, "no-daemon reports GPS_NO_DAEMON");
 
   core_ipinfo_calls = 0;
   Config e = config_default();
   e.use_gps = true;
-  location_fetch_core(&e, stub_gps_nodevice, stub_ipinfo);
+  GpsStatus st_e = GPS_OK;
+  location_fetch_core(&e, stub_gps_nodevice, stub_ipinfo, &st_e);
   expect(core_ipinfo_calls == 1 && !e.use_gps, "no-device auto-disables use_gps");
+  expect(st_e == GPS_NO_DEVICE, "no-device reports GPS_NO_DEVICE");
 
   core_ipinfo_calls = 0;
   Config f = config_default();
   f.use_gps = true;
-  location_fetch_core(&f, stub_gps_unavailable, stub_ipinfo);
+  GpsStatus st_f = GPS_OK;
+  location_fetch_core(&f, stub_gps_unavailable, stub_ipinfo, &st_f);
   expect(core_ipinfo_calls == 1 && !f.use_gps, "unavailable auto-disables use_gps");
+  expect(st_f == GPS_UNAVAILABLE, "unavailable reports GPS_UNAVAILABLE");
 
   // use_gps on + permission denied: fall back to ipinfo for this cycle but
   // STAY enabled, unlike every other structural failure. The user can grant
   // access in OS settings and have the next fetch succeed untouched.
   //
-  // Asserting use_gps alone would be a vacuous test — an unrecognised status
-  // already skips the disable branch — so also assert that a message exists
-  // for this status, which is the part that distinguishes warn-and-retry from
-  // the pre-existing silent-and-retry path used by GPS_NO_FIX.
+  // Asserting use_gps alone would be a vacuous test, since an unrecognised
+  // status already skips the disable branch, so also assert the status that is
+  // reported and that a message exists for it. That is what distinguishes
+  // warn-and-retry from the silent-and-retry path used by GPS_NO_FIX.
   core_ipinfo_calls = 0;
   Config g = config_default();
   g.use_gps = true;
-  location_fetch_core(&g, stub_gps_nopermission, stub_ipinfo);
+  GpsStatus st_g = GPS_OK;
+  location_fetch_core(&g, stub_gps_nopermission, stub_ipinfo, &st_g);
   expect(core_ipinfo_calls == 1 && g.use_gps && gps_status_message(GPS_NO_PERMISSION) != NULL,
          "no-permission warns but keeps use_gps on");
+  expect(st_g == GPS_NO_PERMISSION, "no-permission reports GPS_NO_PERMISSION");
   expect(gps_status_message(GPS_NO_FIX) == NULL, "no-fix stays silent, unlike no-permission");
+
+  // The status pointer is optional.
+  core_ipinfo_calls = 0;
+  Config h = config_default();
+  h.use_gps = true;
+  int rc_h = location_fetch_core(&h, stub_gps_nodaemon, stub_ipinfo, NULL);
+  expect(rc_h == 0 && core_ipinfo_calls == 1 && !h.use_gps, "NULL status pointer is accepted");
 }
 
 #ifndef _WIN32

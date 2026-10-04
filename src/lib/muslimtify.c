@@ -71,6 +71,16 @@ const char *muslimtify_get_error(MuslimtifyError err) {
     return "File is not readable";
   case MUSLIMTIFY_ERR_FILE_RESOLVE:
     return "Cannot resolve file path";
+  case MUSLIMTIFY_ERR_DETECT_FAILED:
+    return "Failed to detect location";
+  case MUSLIMTIFY_ERR_GPS_NO_DAEMON:
+    return "Cannot reach gpsd";
+  case MUSLIMTIFY_ERR_GPS_NO_DEVICE:
+    return "No GPS device detected";
+  case MUSLIMTIFY_ERR_GPS_NO_PERMISSION:
+    return "Location access is turned off";
+  case MUSLIMTIFY_ERR_GPS_UNAVAILABLE:
+    return "GPS is not available in this build";
   default:
     return "Unknown error";
   }

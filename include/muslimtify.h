@@ -39,7 +39,12 @@ typedef enum {
   MUSLIMTIFY_ERR_FILE_NOT_REGULAR,
   MUSLIMTIFY_ERR_FILE_IS_SYMLINK,
   MUSLIMTIFY_ERR_FILE_NOT_READABLE,
-  MUSLIMTIFY_ERR_FILE_RESOLVE
+  MUSLIMTIFY_ERR_FILE_RESOLVE,
+  MUSLIMTIFY_ERR_DETECT_FAILED,
+  MUSLIMTIFY_ERR_GPS_NO_DAEMON,
+  MUSLIMTIFY_ERR_GPS_NO_DEVICE,
+  MUSLIMTIFY_ERR_GPS_NO_PERMISSION,
+  MUSLIMTIFY_ERR_GPS_UNAVAILABLE
 } MuslimtifyError;
 
 typedef enum {
@@ -64,6 +69,8 @@ typedef enum {
   MUSLIMTIFY_SOUND_DEFAULT,
   MUSLIMTIFY_SOUND_OFF
 } MuslimtifySoundMode;
+
+typedef enum { MUSLIMTIFY_SOURCE_IP, MUSLIMTIFY_SOURCE_GPS } MuslimtifyLocationSource;
 
 #define MUSLIMTIFY_MAX_REMINDERS 10
 #define MUSLIMTIFY_MAX_RANGE_DAYS 366
@@ -139,6 +146,13 @@ typedef struct {
   const char *key;  /* such as "kemenag" */
   const char *name; /* display name, "" when the method has none */
 } MuslimtifyMethodInfo;
+
+/* What muslimtify_detect_location did. */
+typedef struct {
+  MuslimtifyLocationSource source; /* where the stored coordinates came from */
+  MuslimtifyError gps;             /* MUSLIMTIFY_OK, or why GPS was not used */
+  bool gps_disabled;               /* true when detection switched GPS off */
+} MuslimtifyDetection;
 
 /* -- Handle lifecycle ------------------------------------------------------ */
 
@@ -281,6 +295,45 @@ MuslimtifyError muslimtify_set_prayer_adhan_file(Muslimtify *mt, MuslimtifyPraye
 
 MuslimtifyError muslimtify_set_urgency(Muslimtify *mt, MuslimtifyUrgency urgency);
 MuslimtifyError muslimtify_set_sound_mode(Muslimtify *mt, MuslimtifySoundMode mode);
+
+/* -- Location detection ----------------------------------------------------- */
+/* Like the setters, these change the handle in memory until muslimtify_save. */
+
+/**
+ * True when no usable location is stored and auto-detect is on, so a frontend
+ * should call muslimtify_detect_location. Does no I/O.
+ */
+bool muslimtify_location_needs_detect(const Muslimtify *mt);
+
+/**
+ * Detect the location: GPS first when it is enabled, then an IP lookup. Blocks
+ * on device and network I/O, so a frontend shows its own progress around it.
+ * On failure returns MUSLIMTIFY_ERR_DETECT_FAILED and changes nothing. On
+ * success auto-detect is on and *out, when not NULL, says where the location
+ * came from and what happened with GPS. A GPS problem that cannot fix itself
+ * switches GPS off, reported in out->gps_disabled.
+ */
+MuslimtifyError muslimtify_detect_location(Muslimtify *mt, MuslimtifyDetection *out);
+
+/**
+ * Turn the GPS location source on or off. Turning it on probes the receiver
+ * first: a fix stores its coordinates and sets *has_fix, a receiver with no fix
+ * yet still enables, and any other outcome returns a MUSLIMTIFY_ERR_GPS_* code
+ * and changes nothing. has_fix may be NULL.
+ */
+MuslimtifyError muslimtify_set_gps(Muslimtify *mt, bool enabled, bool *has_fix);
+
+/**
+ * Set the calculation method to the default for the stored country. An empty
+ * or unknown country gives the engine's fallback method.
+ */
+MuslimtifyError muslimtify_set_method_from_country(Muslimtify *mt);
+
+/**
+ * Check an ISO 3166-1 alpha-2 country code without a handle. Either case is
+ * accepted. Returns MUSLIMTIFY_ERR_INVALID_COUNTRY for anything else.
+ */
+MuslimtifyError muslimtify_check_country(const char *iso2);
 
 /* -- Names, parsing and formatting ------------------------------------------ */
 /* Returned strings are static and never NULL. */
