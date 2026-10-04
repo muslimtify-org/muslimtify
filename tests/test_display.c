@@ -85,7 +85,6 @@
 #include "cache.h"
 #include "config.h"
 #include "prayer_checker.h"
-#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -119,7 +118,6 @@ static const Site SITES[] = {
     {"Murmansk", 68.9585, 33.0827, 3.0},
     {"Tromso", 69.6492, 18.9553, 1.0},
 };
-#define SITE_COUNT (sizeof(SITES) / sizeof(SITES[0]))
 
 static Config site_config(const Site *s) {
   Config cfg = config_default();

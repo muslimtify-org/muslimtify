@@ -1440,7 +1440,7 @@ static void test_location_set_timezone_validation(void) {
 // `git checkout -- <path>` before the next one. git status --porcelain was
 // confirmed empty after each revert. All three were caught.
 //
-// Mutant 1: src/cli/display.c:315, inside print_prayer_entries, changed
+// Mutant 1: src/cli/display.c, inside print_prayer_entries, changed
 // `i + 1 < PRAYER_COUNT` back to `i < 6`. Caught by the show and show --date
 // checks for both fixtures. Output:
 //   FAIL [jakarta show json no trailing comma]
@@ -1449,7 +1449,7 @@ static void test_location_set_timezone_validation(void) {
 //   FAIL [reykjavik show date json no trailing comma]
 //   Results: 357 passed, 4 failed
 //
-// Mutant 2: src/cli/display.c:727, inside
+// Mutant 2: src/cli/display.c, inside
 // display_notification_settings_json, changed `i + 1 < PRAYER_COUNT` back to
 // `i < 6`, leaving mutant 1's site fixed. A scan covering only the show
 // commands would have passed this mutant. Caught by the notification check
