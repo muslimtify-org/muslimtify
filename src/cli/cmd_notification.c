@@ -439,20 +439,24 @@ int handle_notification(int argc, char **argv) {
   if (cli_parse_output_mode(argc, argv, &mode) != 0)
     return 1;
 
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
     return 1;
-  }
+  MuslimtifyNotification settings;
+  MuslimtifyError err = muslimtify_get_notification(mt, &settings);
+  muslimtify_close(mt);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
   switch (mode) {
   case OUTPUT_JSON:
-    display_notification_settings_json(&cfg);
+    display_notification_settings_json(&settings);
     break;
   case OUTPUT_HEADLESS:
-    display_notification_settings_headless(&cfg);
+    display_notification_settings_headless(&settings);
     break;
   default:
-    display_notification_settings(&cfg);
+    display_notification_settings(&settings);
     break;
   }
   return 0;

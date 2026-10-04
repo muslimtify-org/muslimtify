@@ -508,21 +508,24 @@ int handle_location(int argc, char **argv) {
   if (cli_parse_output_mode(argc, argv, &mode) != 0)
     return 1;
 
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
     return 1;
-  }
+  MuslimtifyLocation loc;
+  MuslimtifyError err = muslimtify_get_location(mt, &loc);
+  muslimtify_close(mt);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
 
   switch (mode) {
   case OUTPUT_JSON:
-    display_location_json(&cfg);
+    display_location_json(&loc);
     break;
   case OUTPUT_HEADLESS:
-    display_location_headless(&cfg);
+    display_location_headless(&loc);
     break;
   default:
-    display_location(&cfg);
+    display_location(&loc);
     break;
   }
   return 0;

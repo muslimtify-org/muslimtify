@@ -30,6 +30,21 @@ int cli_unknown_prayer(const char *name) {
   return 1;
 }
 
+int cli_fail(MuslimtifyError err) {
+  fprintf(stderr, "Error: %s\n", muslimtify_get_error(err));
+  return 1;
+}
+
+int cli_fail_value(MuslimtifyError err, const char *value) {
+  fprintf(stderr, "Error: %s '%s'\n", muslimtify_get_error(err), value);
+  return 1;
+}
+
+int cli_open(Muslimtify **mt) {
+  MuslimtifyError err = muslimtify_open(mt);
+  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
+}
+
 // --- migration stubs for removed top-level commands -----------------------
 
 static int removed_enable(int a, char **v) {
