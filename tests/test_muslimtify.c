@@ -25,6 +25,17 @@ static void check_bool(const char *test, bool cond) {
   }
 }
 
+// True when every byte of the object still holds the fill value, which is how
+// the tests prove a function left its out parameter alone.
+static bool all_bytes(const void *p, size_t n, unsigned char v) {
+  const unsigned char *b = p;
+  for (size_t i = 0; i < n; i++) {
+    if (b[i] != v)
+      return false;
+  }
+  return true;
+}
+
 static void setup(void) {
   snprintf(tmpdir, sizeof(tmpdir), "/tmp/mt_libtest_XXXXXX");
   if (!mkdtemp(tmpdir)) {
@@ -273,7 +284,6 @@ static void test_errors(void) {
 
   MuslimtifyDay day;
   memset(&day, 0x5a, sizeof(day));
-  MuslimtifyDay before = day;
 
   check_bool("day NULL handle",
              muslimtify_day(NULL, 2026, 1, 1, &day) == MUSLIMTIFY_ERR_INVALID_ARG);
@@ -289,7 +299,7 @@ static void test_errors(void) {
                muslimtify_check_range(bad[i][0], bad[i][1], bad[i][2], bad[i][0], bad[i][1],
                                       bad[i][2], NULL) == MUSLIMTIFY_ERR_INVALID_DATE);
   }
-  check_bool("out untouched on error", memcmp(&day, &before, sizeof(day)) == 0);
+  check_bool("out untouched on error", all_bytes(&day, sizeof(day), 0x5a));
 
   check_bool("leap day is valid",
              muslimtify_check_range(2024, 2, 29, 2024, 2, 29, NULL) == MUSLIMTIFY_OK);
@@ -297,7 +307,7 @@ static void test_errors(void) {
              muslimtify_today(mt, 9999L * 366L + 1, &day) == MUSLIMTIFY_ERR_INVALID_DATE);
   check_bool("today shift before year 1",
              muslimtify_today(mt, -9999L * 366L, &day) == MUSLIMTIFY_ERR_INVALID_DATE);
-  check_bool("out untouched after today errors", memcmp(&day, &before, sizeof(day)) == 0);
+  check_bool("out untouched after today errors", all_bytes(&day, sizeof(day), 0x5a));
 
   size_t days = 99;
   check_bool("reversed range",

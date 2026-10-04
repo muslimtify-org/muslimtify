@@ -9,8 +9,10 @@
 extern "C" {
 #endif
 
-/* Test seams. The public functions in muslimtify.h are wrappers over these,
-   with the config read from disk and the time read from the system clock. */
+/* Not public. The functions in muslimtify.h are wrappers over these, with the
+   config read from disk and the time read from the system clock. Tests use
+   them to supply both, and cmd_show.c uses muslimtify_open_config until
+   location detection moves into muslimtify_open. */
 
 /** muslimtify_open with the config supplied from memory. */
 MuslimtifyError muslimtify_open_config(const Config *cfg, Muslimtify **out);
