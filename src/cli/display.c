@@ -445,35 +445,26 @@ static void json_str(const char *s) {
   putchar('"');
 }
 
-// The location display shows the offset in effect for TODAY, so it tracks DST
-// rather than the value frozen in the config when the location was last set.
-static double display_current_offset(const Config *cfg) {
-  time_t now_t = time(NULL);
-  struct tm lt;
-  platform_localtime(&now_t, &lt);
-  return effective_tz_offset(cfg, lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday);
-}
-
-void display_location(const Config *cfg) {
+void display_location(const MuslimtifyLocation *loc) {
   char coords[32], gmt[16];
-  snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
-  snprintf(gmt, sizeof(gmt), "UTC%+.1f", display_current_offset(cfg));
+  snprintf(coords, sizeof(coords), "%.4f,%.4f", loc->latitude, loc->longitude);
+  snprintf(gmt, sizeof(gmt), "UTC%+.1f", loc->utc_offset);
 
   // "disabled" when 0, else "<n>s".
   char refresh[24];
-  if (cfg->refresh_interval <= 0)
+  if (loc->refresh_interval <= 0)
     snprintf(refresh, sizeof(refresh), "disabled");
   else
-    snprintf(refresh, sizeof(refresh), "%llds", (long long)cfg->refresh_interval);
+    snprintf(refresh, sizeof(refresh), "%llds", loc->refresh_interval);
 
   const char *rows[][2] = {
       {"coordinates", coords},
-      {"city", cfg->city},
-      {"country", cfg->country},
-      {"timezone", cfg->timezone},
+      {"city", loc->city},
+      {"country", loc->country},
+      {"timezone", loc->timezone},
       {"gmt", gmt},
       {"refresh_interval", refresh},
-      {"gps", cfg->use_gps ? "enabled" : "disabled"},
+      {"gps", loc->gps ? "enabled" : "disabled"},
   };
 
   int nw = (int)strlen("Name"), vw = (int)strlen("Value");
@@ -494,97 +485,112 @@ void display_location(const Config *cfg) {
   loc_border(nw, vw);
 }
 
-void display_location_headless(const Config *cfg) {
-  printf("coordinates=%.4f,%.4f\n", cfg->latitude, cfg->longitude);
-  printf("city=%s\n", cfg->city);
-  printf("country=%s\n", cfg->country);
-  printf("timezone=%s\n", cfg->timezone);
-  printf("gmt=UTC%+.1f\n", display_current_offset(cfg));
-  printf("gps=%s\n", cfg->use_gps ? "true" : "false");
-  printf("refresh_interval=%lld\n", (long long)cfg->refresh_interval);
+void display_location_headless(const MuslimtifyLocation *loc) {
+  printf("coordinates=%.4f,%.4f\n", loc->latitude, loc->longitude);
+  printf("city=%s\n", loc->city);
+  printf("country=%s\n", loc->country);
+  printf("timezone=%s\n", loc->timezone);
+  printf("gmt=UTC%+.1f\n", loc->utc_offset);
+  printf("gps=%s\n", loc->gps ? "true" : "false");
+  printf("refresh_interval=%lld\n", loc->refresh_interval);
 }
 
-void display_location_json(const Config *cfg) {
+void display_location_json(const MuslimtifyLocation *loc) {
   char coords[32], gmt[16];
-  snprintf(coords, sizeof(coords), "%.4f,%.4f", cfg->latitude, cfg->longitude);
-  snprintf(gmt, sizeof(gmt), "UTC%+.1f", display_current_offset(cfg));
+  snprintf(coords, sizeof(coords), "%.4f,%.4f", loc->latitude, loc->longitude);
+  snprintf(gmt, sizeof(gmt), "UTC%+.1f", loc->utc_offset);
 
   printf("{\n");
   printf("  \"coordinates\": ");
   json_str(coords);
   printf(",\n");
   printf("  \"city\": ");
-  json_str(cfg->city);
+  json_str(loc->city);
   printf(",\n");
   printf("  \"country\": ");
-  json_str(cfg->country);
+  json_str(loc->country);
   printf(",\n");
   printf("  \"timezone\": ");
-  json_str(cfg->timezone);
+  json_str(loc->timezone);
   printf(",\n");
   printf("  \"gmt\": ");
   json_str(gmt);
   printf(",\n");
-  printf("  \"gps\": %s,\n", cfg->use_gps ? "true" : "false");
-  printf("  \"refresh_interval\": %lld\n", (long long)cfg->refresh_interval);
+  printf("  \"gps\": %s,\n", loc->gps ? "true" : "false");
+  printf("  \"refresh_interval\": %lld\n", loc->refresh_interval);
   printf("}\n");
 }
 
-void display_notification_settings(const Config *cfg) {
-  const char *names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
+// "none" when there are no reminders, else the minutes joined by commas.
+static void format_reminders(const MuslimtifyPrayerSettings *p, char *out, size_t cap) {
+  if (p->reminder_count == 0) {
+    snprintf(out, cap, "none");
+    return;
+  }
+  size_t pos = 0;
+  out[0] = '\0';
+  for (int i = 0; i < p->reminder_count; i++) {
+    int written = snprintf(out + pos, cap - pos, "%s%d", i > 0 ? "," : "", p->reminders[i]);
+    if (written < 0 || (size_t)written >= cap - pos)
+      break;
+    pos += (size_t)written;
+  }
+}
 
+void display_notification_settings(const MuslimtifyNotification *n) {
   printf("+---------+---------+---------------+-------+\n");
   printf("| %-7s | %-7s | %-13s | %-5s |\n", "Prayer", "Enabled", "Reminders", "Adhan");
   printf("+---------+---------+---------------+-------+\n");
   for (int i = 0; i < MUSLIMTIFY_PRAYER_COUNT; i++) {
+    const MuslimtifyPrayerSettings *p = &n->prayers[i];
+    char key[16];
+    prayer_key(i, key, sizeof(key));
     char reminders[64];
-    config_format_reminders(pc[i], reminders, sizeof(reminders));
-    printf("| %-7s | %-7s | %-13s | %-5s |\n", names[i], pc[i]->enabled ? "yes" : "no", reminders,
-           pc[i]->adhan_enabled ? "on" : "off");
+    format_reminders(p, reminders, sizeof(reminders));
+    printf("| %-7s | %-7s | %-13s | %-5s |\n", key, p->enabled ? "yes" : "no", reminders,
+           p->adhan_enabled ? "on" : "off");
   }
   printf("+---------+---------+---------------+-------+\n");
-  printf("sound: %s\n", cfg->notification_sound);
-  printf("urgency: %s\n", cfg->notification_urgency);
+  printf("sound: %s\n", muslimtify_sound_mode_key(n->sound_mode));
+  printf("urgency: %s\n", muslimtify_urgency_key(n->urgency));
 }
 
-void display_notification_settings_headless(const Config *cfg) {
-  const char *names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
-
-  printf("sound=%s\n", cfg->notification_sound);
-  printf("urgency=%s\n", cfg->notification_urgency);
+void display_notification_settings_headless(const MuslimtifyNotification *n) {
+  printf("sound=%s\n", muslimtify_sound_mode_key(n->sound_mode));
+  printf("urgency=%s\n", muslimtify_urgency_key(n->urgency));
   for (int i = 0; i < MUSLIMTIFY_PRAYER_COUNT; i++) {
+    const MuslimtifyPrayerSettings *p = &n->prayers[i];
+    char key[16];
+    prayer_key(i, key, sizeof(key));
     char reminders[64];
-    config_format_reminders(pc[i], reminders, sizeof(reminders));
-    printf("%s.enabled=%s\n", names[i], pc[i]->enabled ? "true" : "false");
-    printf("%s.reminders=%s\n", names[i], reminders);
-    printf("%s.adhan=%s\n", names[i], pc[i]->adhan_enabled ? "true" : "false");
+    format_reminders(p, reminders, sizeof(reminders));
+    printf("%s.enabled=%s\n", key, p->enabled ? "true" : "false");
+    printf("%s.reminders=%s\n", key, reminders);
+    printf("%s.adhan=%s\n", key, p->adhan_enabled ? "true" : "false");
   }
 }
 
-void display_notification_settings_json(const Config *cfg) {
-  const char *names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *pc[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
-
+void display_notification_settings_json(const MuslimtifyNotification *n) {
   printf("{\n");
   printf("  \"sound\": ");
-  json_str(cfg->notification_sound);
+  json_str(muslimtify_sound_mode_key(n->sound_mode));
   printf(",\n");
   printf("  \"urgency\": ");
-  json_str(cfg->notification_urgency);
+  json_str(muslimtify_urgency_key(n->urgency));
   printf(",\n");
   printf("  \"prayers\": {\n");
   for (int i = 0; i < MUSLIMTIFY_PRAYER_COUNT; i++) {
-    printf("    \"%s\": { \"enabled\": %s, \"reminders\": [", names[i],
-           pc[i]->enabled ? "true" : "false");
-    for (int j = 0; j < pc[i]->reminder_count; j++) {
-      printf("%d", pc[i]->reminders[j]);
-      if (j < pc[i]->reminder_count - 1)
+    const MuslimtifyPrayerSettings *p = &n->prayers[i];
+    char key[16];
+    prayer_key(i, key, sizeof(key));
+    printf("    \"%s\": { \"enabled\": %s, \"reminders\": [", key, p->enabled ? "true" : "false");
+    for (int j = 0; j < p->reminder_count; j++) {
+      printf("%d", p->reminders[j]);
+      if (j < p->reminder_count - 1)
         printf(", ");
     }
     /* Separator derives from the loop bound, not a literal, for the same reason as above. */
-    printf("], \"adhan\": %s }%s\n", pc[i]->adhan_enabled ? "true" : "false",
+    printf("], \"adhan\": %s }%s\n", p->adhan_enabled ? "true" : "false",
            i + 1 < MUSLIMTIFY_PRAYER_COUNT ? "," : "");
   }
   printf("  }\n");

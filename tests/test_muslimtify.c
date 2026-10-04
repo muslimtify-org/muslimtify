@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include "cache.h"
 #include "config.h"
 #include "lib/muslimtify_internal.h"
 #include "location.h"
@@ -43,6 +44,7 @@ static void setup(void) {
     exit(1);
   }
   setenv("XDG_CONFIG_HOME", tmpdir, 1);
+  setenv("XDG_CACHE_HOME", tmpdir, 1);
 }
 
 static void teardown(void) {
@@ -103,25 +105,130 @@ static struct tm far_now(void) {
   return now;
 }
 
+static bool same_location(const MuslimtifyLocation *a, const MuslimtifyLocation *b) {
+  return a->is_set == b->is_set && a->latitude == b->latitude && a->longitude == b->longitude &&
+         strcmp(a->timezone, b->timezone) == 0 && a->utc_offset == b->utc_offset &&
+         strcmp(a->city, b->city) == 0 && strcmp(a->country, b->country) == 0 &&
+         a->auto_detect == b->auto_detect && a->gps == b->gps &&
+         a->refresh_interval == b->refresh_interval;
+}
+
+static bool same_notification(const MuslimtifyNotification *a, const MuslimtifyNotification *b) {
+  if (a->urgency != b->urgency || a->sound_mode != b->sound_mode)
+    return false;
+  for (int i = 0; i < MUSLIMTIFY_PRAYER_COUNT; i++) {
+    const MuslimtifyPrayerSettings *x = &a->prayers[i];
+    const MuslimtifyPrayerSettings *y = &b->prayers[i];
+    if (x->enabled != y->enabled || x->adhan_enabled != y->adhan_enabled ||
+        x->offset != y->offset || x->reminder_count != y->reminder_count ||
+        strcmp(x->adhan_file, y->adhan_file) != 0)
+      return false;
+    for (int j = 0; j < x->reminder_count; j++) {
+      if (x->reminders[j] != y->reminders[j])
+        return false;
+    }
+  }
+  return true;
+}
+
 // -- muslimtify_open ----------------------------------------------------------
 
-// Must run first: config_get_path resolves XDG_CONFIG_HOME once per process.
+// Must run first: the config and cache paths are resolved once per process.
+// A fresh config is auto_detect at 0,0. The handle opens, the queries report
+// that there is no location, and setting one on the handle makes them work.
 static void test_open_from_disk(void) {
   printf("  open from disk...\n");
 
-  // A fresh config is auto_detect at 0,0, which has no usable location.
-  Muslimtify *mt = (Muslimtify *)tmpdir;
-  check_bool("fresh config has no location", muslimtify_open(&mt) == MUSLIMTIFY_ERR_NO_LOCATION);
-  check_bool("handle is NULL on error", mt == NULL);
+  Muslimtify *mt = NULL;
+  check_bool("fresh config opens", muslimtify_open(&mt) == MUSLIMTIFY_OK && mt != NULL);
+  if (!mt)
+    return;
 
-  Config cfg = jakarta_config();
-  check_bool("save jakarta config", config_save(&cfg) == 0);
-  check_bool("open succeeds with a location", muslimtify_open(&mt) == MUSLIMTIFY_OK);
-  check_bool("handle is set", mt != NULL);
+  MuslimtifyLocation loc;
+  check_bool("location reads", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("fresh config has no location", !loc.is_set);
+
+  MuslimtifyDay day;
+  MuslimtifyDay week[2];
+  size_t count = 0;
+  MuslimtifyNext next;
+  check_bool("day without location",
+             muslimtify_day(mt, 2026, 3, 10, &day) == MUSLIMTIFY_ERR_NO_LOCATION);
+  check_bool("today without location", muslimtify_today(mt, 0, &day) == MUSLIMTIFY_ERR_NO_LOCATION);
+  check_bool("range without location", muslimtify_range(mt, 2026, 3, 10, 2026, 3, 11, week, 2,
+                                                        &count) == MUSLIMTIFY_ERR_NO_LOCATION);
+  check_bool("next without location", muslimtify_next(mt, &next) == MUSLIMTIFY_ERR_NO_LOCATION);
+
+  check_bool("set coordinates", muslimtify_set_coordinates(mt, -6.2088, 106.8456) == MUSLIMTIFY_OK);
+  check_bool("location reads again", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("location is set", loc.is_set);
+  check_bool("day with location", muslimtify_day(mt, 2026, 3, 10, &day) == MUSLIMTIFY_OK);
+  check_bool("today with location", muslimtify_today(mt, 0, &day) == MUSLIMTIFY_OK);
+  check_bool("range with location",
+             muslimtify_range(mt, 2026, 3, 10, 2026, 3, 11, week, 2, &count) == MUSLIMTIFY_OK);
+  check_bool("next with location", muslimtify_next(mt, &next) == MUSLIMTIFY_OK);
   muslimtify_close(mt);
 
   check_bool("open rejects NULL out", muslimtify_open(NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
   muslimtify_close(NULL);
+}
+
+// Setters change memory only until muslimtify_save, and muslimtify_reload
+// drops what was not saved.
+static void test_save_reload(void) {
+  printf("  save and reload...\n");
+
+  Muslimtify *a = NULL;
+  Muslimtify *b = NULL;
+  check_bool("open a", muslimtify_open(&a) == MUSLIMTIFY_OK);
+  if (!a)
+    return;
+  check_bool("starts at 24", muslimtify_time_format(a) == 24);
+  check_bool("set 12", muslimtify_set_time_format(a, 12) == MUSLIMTIFY_OK);
+  check_bool("handle sees its own change", muslimtify_time_format(a) == 12);
+
+  check_bool("open b before save", muslimtify_open(&b) == MUSLIMTIFY_OK);
+  check_bool("unsaved change is not on disk", muslimtify_time_format(b) == 24);
+  muslimtify_close(b);
+
+  check_bool("save", muslimtify_save(a) == MUSLIMTIFY_OK);
+  check_bool("open b after save", muslimtify_open(&b) == MUSLIMTIFY_OK);
+  check_bool("saved change is on disk", muslimtify_time_format(b) == 12);
+  muslimtify_close(b);
+
+  check_bool("set 24 without saving", muslimtify_set_time_format(a, 24) == MUSLIMTIFY_OK);
+  check_bool("reload", muslimtify_reload(a) == MUSLIMTIFY_OK);
+  check_bool("reload drops the unsaved change", muslimtify_time_format(a) == 12);
+
+  check_bool("restore 24", muslimtify_set_time_format(a, 24) == MUSLIMTIFY_OK &&
+                               muslimtify_save(a) == MUSLIMTIFY_OK);
+  muslimtify_close(a);
+
+  check_bool("reload NULL", muslimtify_reload(NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("save NULL", muslimtify_save(NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+}
+
+static void test_save_invalidates_cache(void) {
+  printf("  save invalidates the trigger cache...\n");
+
+  static PrayerCache cache;
+  memset(&cache, 0, sizeof(cache));
+  snprintf(cache.date, sizeof(cache.date), "2026-01-01");
+  check_bool("cache written", cache_save(&cache) == 0);
+  FILE *f = fopen(cache_get_path(), "r");
+  check_bool("cache file exists", f != NULL);
+  if (f)
+    fclose(f);
+
+  Muslimtify *mt = NULL;
+  check_bool("open", muslimtify_open(&mt) == MUSLIMTIFY_OK);
+  check_bool("save", muslimtify_save(mt) == MUSLIMTIFY_OK);
+  muslimtify_close(mt);
+
+  f = fopen(cache_get_path(), "r");
+  check_bool("cache file is gone", f == NULL);
+  if (f)
+    fclose(f);
 }
 
 static void test_open_config(void) {
@@ -132,11 +239,18 @@ static void test_open_config(void) {
   check_bool("NULL config", muslimtify_open_config(NULL, &mt) == MUSLIMTIFY_ERR_INVALID_ARG);
   check_bool("NULL out", muslimtify_open_config(&cfg, NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
 
+  // An unusable coordinate still opens. The queries are what refuse it.
   Config bad = jakarta_config();
   bad.latitude = NAN;
+  struct tm now = far_now();
+  MuslimtifyDay day;
+  MuslimtifyLocation loc;
+  check_bool("NaN latitude opens", muslimtify_open_config(&bad, &mt) == MUSLIMTIFY_OK);
   check_bool("NaN latitude has no location",
-             muslimtify_open_config(&bad, &mt) == MUSLIMTIFY_ERR_NO_LOCATION);
-  check_bool("handle NULL for NaN latitude", mt == NULL);
+             muslimtify_day_at(mt, &now, 2026, 3, 10, &day) == MUSLIMTIFY_ERR_NO_LOCATION);
+  check_bool("NaN latitude is not set",
+             muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK && !loc.is_set);
+  muslimtify_close(mt);
 
   check_bool("24 by default", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK &&
                                   muslimtify_time_format(mt) == 24);
@@ -146,6 +260,353 @@ static void test_open_config(void) {
                                        muslimtify_time_format(mt) == 12);
   muslimtify_close(mt);
   check_bool("NULL handle is 24", muslimtify_time_format(NULL) == 24);
+}
+
+// -- Settings -----------------------------------------------------------------
+
+static void test_location_setters(void) {
+  printf("  location setters...\n");
+
+  Config cfg = jakarta_config();
+  cfg.auto_detect = true;
+  snprintf(cfg.city, sizeof(cfg.city), "Jakarta");
+  snprintf(cfg.country, sizeof(cfg.country), "ID");
+  Muslimtify *mt = NULL;
+  check_bool("opens", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+
+  MuslimtifyLocation before;
+  MuslimtifyLocation loc;
+  check_bool("read before", muslimtify_get_location(mt, &before) == MUSLIMTIFY_OK);
+  check_bool("city and country read back",
+             strcmp(before.city, "Jakarta") == 0 && strcmp(before.country, "ID") == 0);
+
+  check_bool("latitude over 90",
+             muslimtify_set_coordinates(mt, 91.0, 0.0) == MUSLIMTIFY_ERR_INVALID_LATITUDE);
+  check_bool("latitude NaN",
+             muslimtify_set_coordinates(mt, NAN, 0.0) == MUSLIMTIFY_ERR_INVALID_LATITUDE);
+  check_bool("longitude over 180",
+             muslimtify_set_coordinates(mt, 0.0, 181.0) == MUSLIMTIFY_ERR_INVALID_LONGITUDE);
+  check_bool("longitude NaN",
+             muslimtify_set_coordinates(mt, 0.0, NAN) == MUSLIMTIFY_ERR_INVALID_LONGITUDE);
+  check_bool("unknown timezone",
+             muslimtify_set_timezone(mt, "No/Such_Zone") == MUSLIMTIFY_ERR_UNKNOWN_TIMEZONE);
+  check_bool("NULL timezone", muslimtify_set_timezone(mt, NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("three letter country",
+             muslimtify_set_country(mt, "ZZZ") == MUSLIMTIFY_ERR_INVALID_COUNTRY);
+  check_bool("one character country",
+             muslimtify_set_country(mt, "1") == MUSLIMTIFY_ERR_INVALID_COUNTRY);
+  check_bool("NULL country", muslimtify_set_country(mt, NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("refresh below the minimum",
+             muslimtify_set_refresh_interval(mt, 10) == MUSLIMTIFY_ERR_INVALID_REFRESH_INTERVAL);
+  check_bool("negative refresh",
+             muslimtify_set_refresh_interval(mt, -1) == MUSLIMTIFY_ERR_INVALID_REFRESH_INTERVAL);
+  check_bool("NULL city", muslimtify_set_city(mt, NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("read after rejections", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("rejections changed nothing", same_location(&before, &loc));
+
+  // Moving the coordinates makes the labels and the zone stale.
+  check_bool("set coordinates", muslimtify_set_coordinates(mt, -6.9, 107.6) == MUSLIMTIFY_OK);
+  check_bool("read moved", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("coordinates stored", loc.latitude == -6.9 && loc.longitude == 107.6);
+  check_bool("labels cleared", loc.city[0] == '\0' && loc.country[0] == '\0');
+  check_bool("auto detect off", !loc.auto_detect);
+  check_bool("a timezone is set", loc.timezone[0] != '\0');
+
+  check_bool("set city", muslimtify_set_city(mt, "Bandung") == MUSLIMTIFY_OK);
+  check_bool("set country lowercase", muslimtify_set_country(mt, "id") == MUSLIMTIFY_OK);
+  check_bool("refresh disabled", muslimtify_set_refresh_interval(mt, 0) == MUSLIMTIFY_OK);
+  check_bool("read labels", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("city stored", strcmp(loc.city, "Bandung") == 0);
+  check_bool("country uppercased", strcmp(loc.country, "ID") == 0);
+  check_bool("refresh is 0", loc.refresh_interval == 0);
+  check_bool("refresh 7200", muslimtify_set_refresh_interval(mt, 7200) == MUSLIMTIFY_OK &&
+                                 muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK &&
+                                 loc.refresh_interval == 7200);
+
+  char long_city[200];
+  memset(long_city, 'a', sizeof(long_city) - 1);
+  long_city[sizeof(long_city) - 1] = '\0';
+  check_bool("long city is accepted", muslimtify_set_city(mt, long_city) == MUSLIMTIFY_OK);
+  check_bool("long city is truncated", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK &&
+                                           strlen(loc.city) == MUSLIMTIFY_CITY_SIZE - 1);
+
+  // Central Indonesia Time is UTC+8 all year.
+  if (timezone_exists("Asia/Makassar")) {
+    check_bool("set timezone", muslimtify_set_timezone(mt, "Asia/Makassar") == MUSLIMTIFY_OK);
+    check_bool("read timezone", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+    check_bool("timezone stored", strcmp(loc.timezone, "Asia/Makassar") == 0);
+    check_bool("offset follows the zone", loc.utc_offset == 8.0);
+  }
+  muslimtify_close(mt);
+
+  check_bool("coordinates NULL handle",
+             muslimtify_set_coordinates(NULL, 0.0, 0.0) == MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("location NULL handle",
+             muslimtify_get_location(NULL, &loc) == MUSLIMTIFY_ERR_INVALID_ARG);
+}
+
+static void test_calculation_setters(void) {
+  printf("  method, madhab and time format...\n");
+
+  Config cfg = jakarta_config();
+  Muslimtify *mt = NULL;
+  check_bool("opens", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+
+  size_t count = muslimtify_method_count();
+  check_bool("there is a method", count >= 1);
+  MuslimtifyMethodInfo info;
+  MuslimtifyMethodInfo current;
+  char last_key[64] = "";
+  for (size_t i = 0; i < count; i++) {
+    check_bool("method at index", muslimtify_method_at(i, &info) == MUSLIMTIFY_OK);
+    check_bool("method has a key", info.key != NULL && info.key[0] != '\0');
+    check_bool("method has a name", info.name != NULL);
+    check_bool("listed method is accepted", muslimtify_set_method(mt, info.key) == MUSLIMTIFY_OK);
+    check_bool("method reads back", muslimtify_get_method(mt, &current) == MUSLIMTIFY_OK &&
+                                        strcmp(current.key, info.key) == 0 &&
+                                        strcmp(current.name, info.name) == 0);
+    snprintf(last_key, sizeof(last_key), "%s", info.key);
+  }
+  check_bool("index at the count",
+             muslimtify_method_at(count, &info) == MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("method_at NULL out", muslimtify_method_at(0, NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+
+  check_bool("custom is not selectable",
+             muslimtify_set_method(mt, "custom") == MUSLIMTIFY_ERR_UNKNOWN_METHOD);
+  check_bool("unknown method",
+             muslimtify_set_method(mt, "nosuch") == MUSLIMTIFY_ERR_UNKNOWN_METHOD);
+  check_bool("NULL method", muslimtify_set_method(mt, NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("rejected method changed nothing",
+             muslimtify_get_method(mt, &current) == MUSLIMTIFY_OK &&
+                 strcmp(current.key, last_key) == 0);
+
+  check_bool("set hanafi", muslimtify_set_madhab(mt, MUSLIMTIFY_MADHAB_HANAFI) == MUSLIMTIFY_OK);
+  check_bool("hanafi reads back", muslimtify_get_madhab(mt) == MUSLIMTIFY_MADHAB_HANAFI);
+  check_bool("madhab out of range",
+             muslimtify_set_madhab(mt, (MuslimtifyMadhab)7) == MUSLIMTIFY_ERR_INVALID_VALUE);
+  check_bool("rejected madhab changed nothing",
+             muslimtify_get_madhab(mt) == MUSLIMTIFY_MADHAB_HANAFI);
+  check_bool("set shafi", muslimtify_set_madhab(mt, MUSLIMTIFY_MADHAB_SHAFI) == MUSLIMTIFY_OK &&
+                              muslimtify_get_madhab(mt) == MUSLIMTIFY_MADHAB_SHAFI);
+  check_bool("NULL handle is shafi", muslimtify_get_madhab(NULL) == MUSLIMTIFY_MADHAB_SHAFI);
+
+  check_bool("set 12", muslimtify_set_time_format(mt, 12) == MUSLIMTIFY_OK &&
+                           muslimtify_time_format(mt) == 12);
+  check_bool("time format 13", muslimtify_set_time_format(mt, 13) == MUSLIMTIFY_ERR_INVALID_VALUE);
+  check_bool("rejected time format changed nothing", muslimtify_time_format(mt) == 12);
+  muslimtify_close(mt);
+}
+
+static void test_notification_setters(void) {
+  printf("  prayer and notification setters...\n");
+
+  Config cfg = jakarta_config();
+  Muslimtify *mt = NULL;
+  check_bool("opens", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+
+  MuslimtifyNotification before;
+  MuslimtifyNotification n;
+  check_bool("read before", muslimtify_get_notification(mt, &before) == MUSLIMTIFY_OK);
+
+  const int eleven[11] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+  const int zero[1] = {0};
+  const int too_far[1] = {1441};
+  check_bool("unknown prayer", muslimtify_set_prayer_enabled(mt, MUSLIMTIFY_PRAYER_COUNT, true) ==
+                                   MUSLIMTIFY_ERR_UNKNOWN_PRAYER);
+  check_bool("offset 61", muslimtify_set_prayer_offset(mt, MUSLIMTIFY_FAJR, 61) ==
+                              MUSLIMTIFY_ERR_INVALID_OFFSET);
+  check_bool("offset -61", muslimtify_set_prayer_offset(mt, MUSLIMTIFY_FAJR, -61) ==
+                               MUSLIMTIFY_ERR_INVALID_OFFSET);
+  check_bool("eleven reminders", muslimtify_set_prayer_reminders(mt, MUSLIMTIFY_FAJR, eleven, 11) ==
+                                     MUSLIMTIFY_ERR_TOO_MANY_REMINDERS);
+  check_bool("reminder of 0", muslimtify_set_prayer_reminders(mt, MUSLIMTIFY_FAJR, zero, 1) ==
+                                  MUSLIMTIFY_ERR_INVALID_REMINDER);
+  check_bool("reminder of 1441", muslimtify_set_prayer_reminders(mt, MUSLIMTIFY_FAJR, too_far, 1) ==
+                                     MUSLIMTIFY_ERR_INVALID_REMINDER);
+  check_bool("reminders NULL with a count",
+             muslimtify_set_prayer_reminders(mt, MUSLIMTIFY_FAJR, NULL, 2) ==
+                 MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("adhan file NULL", muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, NULL) ==
+                                    MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("urgency out of range",
+             muslimtify_set_urgency(mt, (MuslimtifyUrgency)7) == MUSLIMTIFY_ERR_INVALID_VALUE);
+  check_bool("sound out of range",
+             muslimtify_set_sound_mode(mt, (MuslimtifySoundMode)7) == MUSLIMTIFY_ERR_INVALID_VALUE);
+  check_bool("read after rejections", muslimtify_get_notification(mt, &n) == MUSLIMTIFY_OK);
+  check_bool("rejections changed nothing", same_notification(&before, &n));
+
+  const int three[3] = {30, 15, 5};
+  check_bool("disable asr",
+             muslimtify_set_prayer_enabled(mt, MUSLIMTIFY_ASR, false) == MUSLIMTIFY_OK);
+  check_bool("offset -60", muslimtify_set_prayer_offset(mt, MUSLIMTIFY_FAJR, -60) == MUSLIMTIFY_OK);
+  check_bool("offset 60", muslimtify_set_prayer_offset(mt, MUSLIMTIFY_DHUHR, 60) == MUSLIMTIFY_OK);
+  check_bool("three reminders",
+             muslimtify_set_prayer_reminders(mt, MUSLIMTIFY_FAJR, three, 3) == MUSLIMTIFY_OK);
+  check_bool("clear reminders",
+             muslimtify_set_prayer_reminders(mt, MUSLIMTIFY_ISHA, NULL, 0) == MUSLIMTIFY_OK);
+  check_bool("adhan on",
+             muslimtify_set_prayer_adhan(mt, MUSLIMTIFY_MAGHRIB, true) == MUSLIMTIFY_OK);
+  check_bool("urgency critical",
+             muslimtify_set_urgency(mt, MUSLIMTIFY_URGENCY_CRITICAL) == MUSLIMTIFY_OK);
+  check_bool("sound adhan", muslimtify_set_sound_mode(mt, MUSLIMTIFY_SOUND_ADHAN) == MUSLIMTIFY_OK);
+
+  check_bool("read accepted", muslimtify_get_notification(mt, &n) == MUSLIMTIFY_OK);
+  check_bool("asr disabled", !n.prayers[MUSLIMTIFY_ASR].enabled);
+  check_bool("fajr offset", n.prayers[MUSLIMTIFY_FAJR].offset == -60);
+  check_bool("dhuhr offset", n.prayers[MUSLIMTIFY_DHUHR].offset == 60);
+  check_bool("fajr reminders", n.prayers[MUSLIMTIFY_FAJR].reminder_count == 3 &&
+                                   n.prayers[MUSLIMTIFY_FAJR].reminders[0] == 30 &&
+                                   n.prayers[MUSLIMTIFY_FAJR].reminders[2] == 5);
+  check_bool("isha reminders cleared", n.prayers[MUSLIMTIFY_ISHA].reminder_count == 0);
+  check_bool("maghrib adhan", n.prayers[MUSLIMTIFY_MAGHRIB].adhan_enabled);
+  check_bool("urgency read back", n.urgency == MUSLIMTIFY_URGENCY_CRITICAL);
+  check_bool("sound read back", n.sound_mode == MUSLIMTIFY_SOUND_ADHAN);
+
+  check_bool("notification NULL handle",
+             muslimtify_get_notification(NULL, &n) == MUSLIMTIFY_ERR_INVALID_ARG);
+  muslimtify_close(mt);
+}
+
+static void test_adhan_file(void) {
+  printf("  adhan file...\n");
+
+  char file[512];
+  char link[512];
+  char missing[512];
+  snprintf(file, sizeof(file), "%s/adhan.mp3", tmpdir);
+  snprintf(link, sizeof(link), "%s/adhan-link.mp3", tmpdir);
+  snprintf(missing, sizeof(missing), "%s/no-such-file.mp3", tmpdir);
+  FILE *f = fopen(file, "w");
+  check_bool("temp file created", f != NULL);
+  if (!f)
+    return;
+  fputs("x", f);
+  fclose(f);
+  check_bool("symlink created", symlink(file, link) == 0);
+
+  Config cfg = jakarta_config();
+  Muslimtify *mt = NULL;
+  MuslimtifyNotification n;
+  check_bool("opens", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+
+  check_bool("regular file accepted",
+             muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, file) == MUSLIMTIFY_OK);
+  check_bool("read", muslimtify_get_notification(mt, &n) == MUSLIMTIFY_OK);
+  check_bool("a path is stored",
+             strstr(n.prayers[MUSLIMTIFY_FAJR].adhan_file, "adhan.mp3") != NULL);
+
+  check_bool("missing file", muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, missing) ==
+                                 MUSLIMTIFY_ERR_FILE_NOT_FOUND);
+  check_bool("symlink", muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, link) ==
+                            MUSLIMTIFY_ERR_FILE_IS_SYMLINK);
+  check_bool("directory is refused",
+             muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, tmpdir) != MUSLIMTIFY_OK);
+
+  MuslimtifyNotification after;
+  check_bool("read after rejections", muslimtify_get_notification(mt, &after) == MUSLIMTIFY_OK);
+  check_bool("rejections kept the stored path", same_notification(&n, &after));
+  muslimtify_close(mt);
+}
+
+static void test_names_and_parsing(void) {
+  printf("  names and parsing...\n");
+
+  for (int m = MUSLIMTIFY_MADHAB_SHAFI; m <= MUSLIMTIFY_MADHAB_HANAFI; m++) {
+    MuslimtifyMadhab out = (MuslimtifyMadhab)99;
+    check_bool("madhab key round trips",
+               muslimtify_parse_madhab(muslimtify_madhab_key((MuslimtifyMadhab)m), &out) ==
+                       MUSLIMTIFY_OK &&
+                   (int)out == m);
+    check_bool("madhab has a name", muslimtify_madhab_name((MuslimtifyMadhab)m)[0] != '\0');
+  }
+  for (int u = MUSLIMTIFY_URGENCY_LOW; u <= MUSLIMTIFY_URGENCY_CRITICAL; u++) {
+    MuslimtifyUrgency out = (MuslimtifyUrgency)99;
+    check_bool("urgency key round trips",
+               muslimtify_parse_urgency(muslimtify_urgency_key((MuslimtifyUrgency)u), &out) ==
+                       MUSLIMTIFY_OK &&
+                   (int)out == u);
+  }
+  for (int s = MUSLIMTIFY_SOUND_ADHAN; s <= MUSLIMTIFY_SOUND_OFF; s++) {
+    MuslimtifySoundMode out = (MuslimtifySoundMode)99;
+    check_bool("sound key round trips",
+               muslimtify_parse_sound_mode(muslimtify_sound_mode_key((MuslimtifySoundMode)s),
+                                           &out) == MUSLIMTIFY_OK &&
+                   (int)out == s);
+  }
+  for (int p = 0; p < MUSLIMTIFY_PRAYER_COUNT; p++) {
+    MuslimtifyPrayerType out = MUSLIMTIFY_PRAYER_COUNT;
+    check_bool("prayer name round trips",
+               muslimtify_parse_prayer(muslimtify_prayer_name((MuslimtifyPrayerType)p), &out) ==
+                       MUSLIMTIFY_OK &&
+                   (int)out == p);
+  }
+
+  MuslimtifyPrayerType prayer = MUSLIMTIFY_PRAYER_COUNT;
+  check_bool("lowercase prayer", muslimtify_parse_prayer("fajr", &prayer) == MUSLIMTIFY_OK &&
+                                     prayer == MUSLIMTIFY_FAJR);
+  check_bool("uppercase prayer", muslimtify_parse_prayer("ISHA", &prayer) == MUSLIMTIFY_OK &&
+                                     prayer == MUSLIMTIFY_ISHA);
+  check_bool("dhur alias", muslimtify_parse_prayer("dhur", &prayer) == MUSLIMTIFY_OK &&
+                               prayer == MUSLIMTIFY_DHUHR);
+  check_bool("dhur alias uppercase", muslimtify_parse_prayer("DHUR", &prayer) == MUSLIMTIFY_OK &&
+                                         prayer == MUSLIMTIFY_DHUHR);
+  prayer = MUSLIMTIFY_ASR;
+  check_bool("unknown prayer",
+             muslimtify_parse_prayer("nosuch", &prayer) == MUSLIMTIFY_ERR_UNKNOWN_PRAYER);
+  check_bool("unknown prayer leaves out alone", prayer == MUSLIMTIFY_ASR);
+  check_bool("NULL prayer name",
+             muslimtify_parse_prayer(NULL, &prayer) == MUSLIMTIFY_ERR_INVALID_ARG);
+
+  MuslimtifyMadhab madhab = MUSLIMTIFY_MADHAB_HANAFI;
+  MuslimtifyUrgency urgency = MUSLIMTIFY_URGENCY_LOW;
+  MuslimtifySoundMode sound = MUSLIMTIFY_SOUND_OFF;
+  check_bool("unknown madhab",
+             muslimtify_parse_madhab("nosuch", &madhab) == MUSLIMTIFY_ERR_INVALID_VALUE &&
+                 madhab == MUSLIMTIFY_MADHAB_HANAFI);
+  check_bool("unknown urgency",
+             muslimtify_parse_urgency("loud", &urgency) == MUSLIMTIFY_ERR_INVALID_VALUE &&
+                 urgency == MUSLIMTIFY_URGENCY_LOW);
+  check_bool("unknown sound",
+             muslimtify_parse_sound_mode("loud", &sound) == MUSLIMTIFY_ERR_INVALID_VALUE &&
+                 sound == MUSLIMTIFY_SOUND_OFF);
+  check_bool("NULL madhab key",
+             muslimtify_parse_madhab(NULL, &madhab) == MUSLIMTIFY_ERR_INVALID_ARG);
+
+  check_bool("out of range madhab key",
+             strcmp(muslimtify_madhab_key((MuslimtifyMadhab)7), "unknown") == 0);
+  check_bool("out of range urgency key",
+             strcmp(muslimtify_urgency_key((MuslimtifyUrgency)7), "unknown") == 0);
+  check_bool("out of range sound key",
+             strcmp(muslimtify_sound_mode_key((MuslimtifySoundMode)7), "unknown") == 0);
+}
+
+// A config edited by hand to hold a word the library does not know reads back
+// as the default, which is what the daemon does with it.
+static void test_unknown_words(void) {
+  printf("  unknown words in the config...\n");
+
+  Config cfg = jakarta_config();
+  snprintf(cfg.notification_urgency, sizeof(cfg.notification_urgency), "loud");
+  snprintf(cfg.notification_sound, sizeof(cfg.notification_sound), "loud");
+  snprintf(cfg.madhab, sizeof(cfg.madhab), "nosuch");
+  Muslimtify *mt = NULL;
+  MuslimtifyNotification n;
+  check_bool("opens", muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK);
+  if (!mt)
+    return;
+  check_bool("read", muslimtify_get_notification(mt, &n) == MUSLIMTIFY_OK);
+  check_bool("unknown urgency is normal", n.urgency == MUSLIMTIFY_URGENCY_NORMAL);
+  check_bool("unknown sound is default", n.sound_mode == MUSLIMTIFY_SOUND_DEFAULT);
+  check_bool("unknown madhab is shafi", muslimtify_get_madhab(mt) == MUSLIMTIFY_MADHAB_SHAFI);
+  muslimtify_close(mt);
 }
 
 // -- Agreement with the engine ------------------------------------------------
@@ -429,7 +890,7 @@ static void test_next(void) {
 static void test_strings(void) {
   printf("  strings...\n");
 
-  for (int e = MUSLIMTIFY_OK; e <= MUSLIMTIFY_ERR_RANGE_TOO_LONG; e++) {
+  for (int e = MUSLIMTIFY_OK; e <= MUSLIMTIFY_ERR_FILE_RESOLVE; e++) {
     const char *msg = muslimtify_get_error((MuslimtifyError)e);
     check_bool("error message exists", msg != NULL && msg[0] != '\0');
     check_bool("error message is specific", strcmp(msg, "Unknown error") != 0);
@@ -480,7 +941,15 @@ int main(void) {
   printf("Running muslimtify library tests...\n");
   setup();
   test_open_from_disk();
+  test_save_reload();
+  test_save_invalidates_cache();
   test_open_config();
+  test_location_setters();
+  test_calculation_setters();
+  test_notification_setters();
+  test_adhan_file();
+  test_names_and_parsing();
+  test_unknown_words();
   test_engine_agreement();
   test_instant();
   test_errors();

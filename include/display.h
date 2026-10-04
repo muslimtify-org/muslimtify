@@ -1,9 +1,6 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-// vibekit: config.h is here only for the location and notification settings
-// renderers below. Piece 2 gives them library structs and drops this include.
-#include "config.h"
 #include "muslimtify.h"
 #include <stddef.h>
 
@@ -44,27 +41,23 @@ void display_next_plain(const MuslimtifyNext *next, int time_format);
 /** The next prayer as a JSON object {date, prayer, time, remaining}. */
 void display_next_json(const MuslimtifyNext *next, int time_format);
 
-/**
- * Display location info
- */
-void display_location(const Config *cfg);
+/** Location settings as a table. */
+void display_location(const MuslimtifyLocation *loc);
 
-/**
- * Display location info as JSON
- */
-void display_location_json(const Config *cfg);
+/** Location settings as JSON. */
+void display_location_json(const MuslimtifyLocation *loc);
 
-/**
- * Display location info as lowercase key=value
- */
-void display_location_headless(const Config *cfg);
+/** Location settings as lowercase key=value. */
+void display_location_headless(const MuslimtifyLocation *loc);
 
-/** Display notification settings as a table */
-void display_notification_settings(const Config *cfg);
-/** Display notification settings as JSON */
-void display_notification_settings_json(const Config *cfg);
-/** Display notification settings as lowercase key=value */
-void display_notification_settings_headless(const Config *cfg);
+/** Notification settings as a table. */
+void display_notification_settings(const MuslimtifyNotification *n);
+
+/** Notification settings as JSON. */
+void display_notification_settings_json(const MuslimtifyNotification *n);
+
+/** Notification settings as lowercase key=value. */
+void display_notification_settings_headless(const MuslimtifyNotification *n);
 
 #ifdef __cplusplus
 }

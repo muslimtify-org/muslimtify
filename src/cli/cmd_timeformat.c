@@ -1,5 +1,4 @@
 #include "cli_internal.h"
-#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,29 +23,18 @@ static void print_timeformat_help(void) {
   printf("  %-25s %s\n", "muslimtify timeformat --list", "# List clock formats");
 }
 
-int handle_timeformat(int argc, char **argv) {
-  if (cli_wants_help(argc, argv)) {
-    print_timeformat_help();
-    return 0;
-  }
-  if (cli_reject_extra_args("timeformat", argc - 1, argv + 1))
-    return 1;
-
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
+static int timeformat_run(Muslimtify *mt, int argc, char **argv) {
+  int current = muslimtify_time_format(mt);
 
   if (argc == 0) {
-    printf("Time format: %d-hour\n", cfg.time_format);
+    printf("Time format: %d-hour\n", current);
     return 0;
   }
 
   if (strcmp(argv[0], "--list") == 0) {
     printf("Available time formats:\n\n");
-    printf("  %-8s %s %s\n", "12", cfg.time_format == 12 ? "*" : " ", "04:35 PM");
-    printf("  %-8s %s %s\n", "24", cfg.time_format == 24 ? "*" : " ", "16:35");
+    printf("  %-8s %s %s\n", "12", current == 12 ? "*" : " ", "04:35 PM");
+    printf("  %-8s %s %s\n", "24", current == 24 ? "*" : " ", "16:35");
     printf("\n* = current time format\n");
     return 0;
   }
@@ -57,13 +45,27 @@ int handle_timeformat(int argc, char **argv) {
     return 1;
   }
 
-  // No cache_invalidate: the trigger cache holds prayer times as doubles and
-  // formats them at fire time, so the next notification picks this up as is.
-  cfg.time_format = atoi(argv[0]);
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
-  }
-  printf("Time format set to: %d-hour\n", cfg.time_format);
+  MuslimtifyError err = muslimtify_set_time_format(mt, atoi(argv[0]));
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+  printf("Time format set to: %d-hour\n", muslimtify_time_format(mt));
   return 0;
+}
+
+int handle_timeformat(int argc, char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    print_timeformat_help();
+    return 0;
+  }
+  if (cli_reject_extra_args("timeformat", argc - 1, argv + 1))
+    return 1;
+
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
+    return 1;
+  int ret = timeformat_run(mt, argc, argv);
+  muslimtify_close(mt);
+  return ret;
 }

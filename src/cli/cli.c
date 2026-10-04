@@ -1,7 +1,6 @@
 #include "cli.h"
 #include "cli_internal.h"
 #include "config.h"
-#include "prayertimes.h"
 #include "util.h"
 #include "version.h"
 #include <stdbool.h>
@@ -28,6 +27,21 @@ int cli_unknown_prayer(const char *name) {
   fprintf(stderr, "Error: Unknown prayer '%s'\n", name);
   fprintf(stderr, "  Available: fajr, dhuhr, asr, maghrib, isha\n");
   return 1;
+}
+
+int cli_fail(MuslimtifyError err) {
+  fprintf(stderr, "Error: %s\n", muslimtify_get_error(err));
+  return 1;
+}
+
+int cli_fail_value(MuslimtifyError err, const char *value) {
+  fprintf(stderr, "Error: %s '%s'\n", muslimtify_get_error(err), value);
+  return 1;
+}
+
+int cli_open(Muslimtify **mt) {
+  MuslimtifyError err = muslimtify_open(mt);
+  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
 }
 
 // --- migration stubs for removed top-level commands -----------------------
@@ -100,17 +114,17 @@ int handle_version(int argc, char **argv) {
 
   printf("Muslimtify v%s\n", MUSLIMTIFY_VERSION);
   printf("Prayer Time Notification Daemon\n\n");
-  Config cfg;
-  if (config_load(&cfg) == 0) {
-    CalcMethod m = method_from_string(cfg.calculation_method);
-    const MethodParams *p = method_params_get(m);
-    printf("Method: %s", cfg.calculation_method);
-    if (p)
-      printf(" (%s)", p->name);
+  Muslimtify *mt = NULL;
+  MuslimtifyMethodInfo info;
+  if (muslimtify_open(&mt) == MUSLIMTIFY_OK && muslimtify_get_method(mt, &info) == MUSLIMTIFY_OK) {
+    printf("Method: %s", info.key);
+    if (info.name[0] != '\0')
+      printf(" (%s)", info.name);
     printf("\n");
   } else {
     printf("Method: kemenag (KEMENAG, Indonesia)\n");
   }
+  muslimtify_close(mt);
 
   return 0;
 }

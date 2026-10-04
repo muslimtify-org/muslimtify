@@ -1,6 +1,5 @@
-#include "cache.h"
 #include "cli_internal.h"
-#include "prayer_checker.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -23,6 +22,29 @@ static void print_offset_help(void) {
   printf("  %-25s %s\n", "muslimtify offset all 0", "# Reset every prayer offset");
 }
 
+static int offset_run(Muslimtify *mt, const char *prayer_name, int minutes) {
+  bool is_all = strcmp(prayer_name, "all") == 0;
+  MuslimtifyError err = MUSLIMTIFY_OK;
+
+  if (is_all) {
+    for (int i = 0; i < MUSLIMTIFY_PRAYER_COUNT && err == MUSLIMTIFY_OK; i++)
+      err = muslimtify_set_prayer_offset(mt, (MuslimtifyPrayerType)i, minutes);
+  } else {
+    MuslimtifyPrayerType prayer;
+    if (muslimtify_parse_prayer(prayer_name, &prayer) != MUSLIMTIFY_OK)
+      return cli_unknown_prayer(prayer_name);
+    err = muslimtify_set_prayer_offset(mt, prayer, minutes);
+  }
+
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  printf("✓ Offset set to %+d min for %s\n", minutes, is_all ? "all prayers" : prayer_name);
+  return 0;
+}
+
 int handle_offset(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
     print_offset_help();
@@ -36,43 +58,22 @@ int handle_offset(int argc, char **argv) {
   if (cli_reject_extra_args("offset", argc - 2, argv + 2))
     return 1;
 
-  const char *prayer_name = argv[0];
+  // Text that is not an integer is the CLI's error. Whether the integer is an
+  // acceptable offset is the library's.
   const char *value_str = argv[1];
-
   char *end = NULL;
   long value = strtol(value_str, &end, 10);
-  if (end == value_str || *end != '\0' || value < PRAYER_OFFSET_MIN || value > PRAYER_OFFSET_MAX) {
-    fprintf(stderr, "Error: Offset must be an integer from %d to %d\n", PRAYER_OFFSET_MIN,
-            PRAYER_OFFSET_MAX);
+  if (end == value_str || *end != '\0') {
+    fprintf(stderr, "Error: Offset must be an integer from -60 to 60\n");
     return 1;
   }
+  if (value < INT_MIN || value > INT_MAX)
+    return cli_fail(MUSLIMTIFY_ERR_INVALID_OFFSET);
 
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
     return 1;
-  }
-
-  bool is_all = strcmp(prayer_name, "all") == 0;
-  if (is_all) {
-    PrayerConfig *prayers[] = {&cfg.fajr, &cfg.dhuhr, &cfg.asr, &cfg.maghrib, &cfg.isha};
-    for (int i = 0; i < PRAYER_COUNT; i++) {
-      prayers[i]->offset = (int)value;
-    }
-  } else {
-    PrayerConfig *prayer = config_get_prayer(&cfg, prayer_name);
-    if (!prayer) {
-      return cli_unknown_prayer(prayer_name);
-    }
-    prayer->offset = (int)value;
-  }
-
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
-  }
-
-  cache_invalidate();
-  printf("✓ Offset set to %+d min for %s\n", (int)value, is_all ? "all prayers" : prayer_name);
-  return 0;
+  int ret = offset_run(mt, argv[0], (int)value);
+  muslimtify_close(mt);
+  return ret;
 }

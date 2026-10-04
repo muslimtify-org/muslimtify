@@ -165,56 +165,6 @@ static void test_validate(void) {
   check_bool("validate offset -61 invalid", !config_validate(&cfg));
 }
 
-// -- config_get_prayer tests -------------------------------------------------
-
-static void test_get_prayer(void) {
-  printf("  get_prayer...\n");
-  Config cfg = config_default();
-
-  // Lowercase
-  check_bool("get fajr", config_get_prayer(&cfg, "fajr") == &cfg.fajr);
-  check_bool("get isha", config_get_prayer(&cfg, "isha") == &cfg.isha);
-  check_bool("get asr", config_get_prayer(&cfg, "asr") == &cfg.asr);
-  check_bool("get maghrib", config_get_prayer(&cfg, "maghrib") == &cfg.maghrib);
-
-  // Mixed case
-  check_bool("get Fajr", config_get_prayer(&cfg, "Fajr") == &cfg.fajr);
-  check_bool("get DHUHR", config_get_prayer(&cfg, "DHUHR") == &cfg.dhuhr);
-  check_bool("get Maghrib", config_get_prayer(&cfg, "Maghrib") == &cfg.maghrib);
-
-  // Alias: "dhur" → dhuhr
-  check_bool("get dhur alias", config_get_prayer(&cfg, "dhur") == &cfg.dhuhr);
-
-  // Unknown prayer
-  check_bool("get unknown", config_get_prayer(&cfg, "badprayer") == NULL);
-
-  // NULL inputs
-  check_bool("get NULL cfg", config_get_prayer(NULL, "fajr") == NULL);
-  check_bool("get NULL name", config_get_prayer(&cfg, NULL) == NULL);
-}
-
-// -- config_format_reminders tests -------------------------------------------
-
-static void test_format_reminders(void) {
-  printf("  format_reminders...\n");
-  char buf[128];
-
-  // Normal
-  PrayerConfig pc = {.reminder_count = 3, .reminders = {30, 15, 5}};
-  config_format_reminders(&pc, buf, sizeof(buf));
-  check_bool("format 30,15,5", strcmp(buf, "30,15,5") == 0);
-
-  // Single
-  pc = (PrayerConfig){.reminder_count = 1, .reminders = {10}};
-  config_format_reminders(&pc, buf, sizeof(buf));
-  check_bool("format 10", strcmp(buf, "10") == 0);
-
-  // Empty → "none"
-  pc = (PrayerConfig){.reminder_count = 0};
-  config_format_reminders(&pc, buf, sizeof(buf));
-  check_bool("format none", strcmp(buf, "none") == 0);
-}
-
 // -- config_default tests ----------------------------------------------------
 
 static void test_default(void) {
@@ -974,8 +924,6 @@ int main(void) {
   test_validate_rejects_nan();
   test_invalid_location_blanks_times();
   test_location_needs_detect();
-  test_get_prayer();
-  test_format_reminders();
   test_default();
   test_path_resolution();
   test_round_trip();

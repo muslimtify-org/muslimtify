@@ -637,32 +637,6 @@ bool config_validate(const Config *cfg) {
   return true;
 }
 
-PrayerConfig *config_get_prayer(Config *cfg, const char *prayer_name) {
-  if (!cfg || !prayer_name)
-    return NULL;
-
-  // Convert to lowercase for comparison
-  char name_lower[32];
-  copy_string(name_lower, sizeof(name_lower), prayer_name);
-  for (int i = 0; name_lower[i]; i++) {
-    int tmp = tolower((unsigned char)name_lower[i]);
-    name_lower[i] = (char)tmp;
-  }
-
-  if (strcmp(name_lower, "fajr") == 0)
-    return &cfg->fajr;
-  if (strcmp(name_lower, "dhuhr") == 0 || strcmp(name_lower, "dhur") == 0)
-    return &cfg->dhuhr;
-  if (strcmp(name_lower, "asr") == 0)
-    return &cfg->asr;
-  if (strcmp(name_lower, "maghrib") == 0)
-    return &cfg->maghrib;
-  if (strcmp(name_lower, "isha") == 0)
-    return &cfg->isha;
-
-  return NULL;
-}
-
 typedef struct {
   int *reminders;
   int max;
@@ -717,36 +691,6 @@ int config_parse_reminders(const char *reminder_str, int *reminders, int max_rem
   }
 
   return ctx.count;
-}
-
-void config_format_reminders(const PrayerConfig *prayer, char *buffer, size_t bufsize) {
-  if (!prayer || !buffer || bufsize == 0)
-    return;
-
-  buffer[0] = '\0';
-
-  if (prayer->reminder_count == 0) {
-    if (!copy_string(buffer, bufsize, "none")) {
-      log_truncation("reminders");
-    }
-    return;
-  }
-
-  char temp[16];
-  for (int i = 0; i < prayer->reminder_count; i++) {
-    snprintf(temp, sizeof(temp), "%d", prayer->reminders[i]);
-    if (!append_string(buffer, bufsize, temp)) {
-      log_truncation("reminders");
-      break;
-    }
-
-    if (i < prayer->reminder_count - 1) {
-      if (!append_string(buffer, bufsize, ",")) {
-        log_truncation("reminders");
-        break;
-      }
-    }
-  }
 }
 
 MethodParams method_params_from_config(const Config *cfg) {
