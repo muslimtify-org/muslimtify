@@ -1,4 +1,5 @@
 #include "widgets.h"
+#include "themes.h"
 #include <assert.h>
 #include <ccompose.h>
 
@@ -28,4 +29,13 @@ bool muslimtify_widget_toggle(MuslimtifyThemes *themes, bool *is_active) {
   }
 
   return flipped;
+}
+
+bool muslimtify_widget_prayer_time_card(MuslimtifyThemes *themes) {
+  assert(themes != NULL);
+  Box("muslimtify_widget_prayer_time_card",
+      .layout = {.sizing = {.width = Grow(), .height = Fixed(200)}},
+      .backgroundColor = themes->container) {}
+
+  return true;
 }

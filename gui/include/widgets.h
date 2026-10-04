@@ -17,4 +17,6 @@ bool muslimtify_widget_header(MuslimtifyThemes *themes, GuiConfig *cfg);
 
 bool muslimtify_widget_content(MuslimtifyThemes *themes, GuiConfig *cfg);
 
+bool muslimtify_widget_prayer_time_card(MuslimtifyThemes *themes);
+
 #endif // MUSLIMTIFY_GUI_WIDGETS_H

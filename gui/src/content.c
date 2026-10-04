@@ -25,7 +25,10 @@ static void muslimtify_widget_content_left(MuslimtifyThemes *themes, GuiConfig *
 static void muslimtify_widget_content_right(MuslimtifyThemes *themes, GuiConfig *cfg) {
   Column(
       "muslimtify_widget_content_right", .layout = {.sizing = {.width = Grow(), .height = Grow()}}
-  ) {}
+  ) {
+
+    muslimtify_widget_prayer_time_card(themes);
+  }
 }
 
 bool muslimtify_widget_content(MuslimtifyThemes *themes, GuiConfig *cfg) {
