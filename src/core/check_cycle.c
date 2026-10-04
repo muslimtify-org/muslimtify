@@ -2,10 +2,10 @@
 
 #include "cache.h"
 #include "config.h"
-#include "display.h"
 #include "location.h"
 #include "notification.h"
 #include "platform.h"
+#include "prayer_checker.h"
 #include "prayertimes.h"
 
 #include <stdbool.h>

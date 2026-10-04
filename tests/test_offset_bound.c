@@ -1,7 +1,7 @@
 // Pins that a raw prayer time never drifts more than one day away from the
 // requested date, which is spec goal 4 of the day-offset-visible plan.
 //
-// format_time_hm_day (src/core/display.c) expresses the day offset as a
+// format_cell (src/cli/display.c) expresses MuslimtifyTime.day_offset as a
 // single character, '+' or '-'. That is only a complete encoding if the
 // offset is always -1, 0 or +1. A raw field of struct PrayerTimes carries
 // that offset as whole days folded into the decimal-hours value, so the

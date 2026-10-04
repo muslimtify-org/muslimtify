@@ -5,6 +5,8 @@
 #include "config.h"
 #include "country.h"
 #include "display.h"
+#include "lib/muslimtify_internal.h"
+#include "muslimtify.h"
 #include "platform.h"
 #include "prayertimes.h"
 #include <ctype.h>
@@ -583,7 +585,7 @@ static void test_show_date_bounds(void) {
   // 367 days is one past the cap and is rejected
   run(5, (char *[]){"m", "show", "--date", "2024-01-01", "2025-01-01", NULL});
   check_ret("bounds span 367 ret", 1);
-  check_contains("bounds span 367 msg", "date range too long");
+  check_contains("bounds span 367 msg", "Date range too long");
 
   // over-wide fields are rejected: "00002024" is not a 4-digit ISO year
   run(4, (char *[]){"m", "show", "--date", "00002024-01-01", NULL});
@@ -630,7 +632,7 @@ static void test_show_range(void) {
   // reversed range rejected
   run(5, (char *[]){"m", "show", "--date", "2022-01-03", "2022-01-01", NULL});
   check_ret("range reversed ret", 1);
-  check_contains("range reversed msg", "end date is before start date");
+  check_contains("range reversed msg", "End date is before start date");
 
   // JSON range: array of day objects with dates
   run(6, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", NULL});
@@ -702,9 +704,8 @@ static void test_show_range(void) {
 }
 
 // A "marked" time is HH:MM immediately followed by + or -, e.g. "00:06+".
-// That suffix is the day marker: format_time_hm_day() appends it, and only
-// the two show tables (single-day and range) call format_time_hm_day().
-// Every other surface calls plain format_time_hm() and prints the bare
+// That suffix is the day marker: format_cell() in src/cli/display.c appends it when asked, and only
+// the range table asks. Every other surface prints the bare
 // HH:MM, so this scans for the marker shape rather than a fixed time.
 static bool has_time_marker(const char *s) {
   for (const char *p = s; *p; p++) {
@@ -730,9 +731,9 @@ static bool has_time_marker(const char *s) {
 // whole table row, since the row's column padding is incidental but the
 // digits-colon-digits-marker shape is what the feature promises.
 //
-// Mutation record. Each mutant below was applied to src/core/display.c by
+// Mutation record. Each mutant below was applied to src/cli/display.c by
 // hand, built, run against `ctest --test-dir build -R cli --output-on-failure`,
-// then reverted with `git checkout -- src/core/display.c` before the next one.
+// then reverted with `git checkout -- src/cli/display.c` before the next one.
 // git status was confirmed empty after each revert. All three were caught.
 //
 // Mutant 1: print_day_marker_legend() made to print the next-day line
@@ -970,7 +971,7 @@ static void test_next_after_isha(void) {
   now.tm_hour = 23;
   now.tm_min = 0;
 
-  // Capture display_next_prayer_headless() called directly.
+  // Capture display_next_plain() called directly.
   fflush(stdout);
   int saved_out = dup(STDOUT_FILENO);
   FILE *f = fopen(output_file, "w");
@@ -979,7 +980,12 @@ static void test_next_after_isha(void) {
     return;
   }
   dup2(fileno(f), STDOUT_FILENO);
-  display_next_prayer_headless(&today, &cfg, &now);
+  Muslimtify *mt = NULL;
+  MuslimtifyNext next;
+  if (muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK &&
+      muslimtify_next_at(mt, &now, &next) == MUSLIMTIFY_OK)
+    display_next_plain(&next, 24);
+  muslimtify_close(mt);
   fflush(stdout);
   dup2(saved_out, STDOUT_FILENO);
   close(saved_out);
@@ -1434,7 +1440,7 @@ static void test_location_set_timezone_validation(void) {
 // `git checkout -- <path>` before the next one. git status --porcelain was
 // confirmed empty after each revert. All three were caught.
 //
-// Mutant 1: src/core/display.c:315, inside print_prayer_entries, changed
+// Mutant 1: src/cli/display.c, inside print_prayer_entries, changed
 // `i + 1 < PRAYER_COUNT` back to `i < 6`. Caught by the show and show --date
 // checks for both fixtures. Output:
 //   FAIL [jakarta show json no trailing comma]
@@ -1443,7 +1449,7 @@ static void test_location_set_timezone_validation(void) {
 //   FAIL [reykjavik show date json no trailing comma]
 //   Results: 357 passed, 4 failed
 //
-// Mutant 2: src/core/display.c:727, inside
+// Mutant 2: src/cli/display.c, inside
 // display_notification_settings_json, changed `i + 1 < PRAYER_COUNT` back to
 // `i < 6`, leaving mutant 1's site fixed. A scan covering only the show
 // commands would have passed this mutant. Caught by the notification check
@@ -1581,7 +1587,7 @@ static void test_show_args(void) {
   check_contains("show args bad offset before config msg", "Invalid day offset abc");
   run(5, (char *[]){"m", "show", "--date", "2024-01-02", "2024-01-01", NULL});
   check_ret("show args reversed range before config ret", 1);
-  check_contains("show args reversed range before config msg", "end date is before start date");
+  check_contains("show args reversed range before config msg", "End date is before start date");
   reset_config();
 }
 

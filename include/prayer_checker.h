@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "prayertimes.h"
+#include <stddef.h>
 #include <time.h>
 
 #ifdef __cplusplus
@@ -42,6 +43,24 @@ bool prayer_is_enabled(const Config *cfg, PrayerType type);
  * Get prayer config by type
  */
 const PrayerConfig *prayer_get_config(const Config *cfg, PrayerType type);
+
+/**
+ * Format a wall-clock hour and minute: "HH:MM" when time_format is anything
+ * other than 12, "hh:MM AM" / "hh:MM PM" when it is 12. The hour keeps its
+ * leading zero so every string in a column has the same width. Nine bytes are
+ * enough for either.
+ */
+void clock_format(int hour, int minute, int time_format, char *out, size_t cap);
+
+/**
+ * Format a decimal-hours time for display, honoring cfg->time_format. A
+ * non-finite time renders as "--:--" in both modes, with no meridiem.
+ *
+ * The underlying "HH:MM" comes from format_time_hm, so the Kemenag round-up,
+ * the clock-face reduction of an out-of-range value and the non-finite case
+ * all stay in one place and cannot drift between the two modes.
+ */
+void format_time_cfg(const Config *cfg, double hours, char *out, size_t cap);
 
 /**
  * The next enabled prayer at or after `now`, to the minute.

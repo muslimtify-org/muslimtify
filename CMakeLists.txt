@@ -137,7 +137,7 @@ add_library(muslimtify_core OBJECT
     # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
     $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
     src/core/prayertimes.c
-    src/core/display.c
+    src/lib/muslimtify.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/posix/platform_posix.c>
@@ -152,6 +152,7 @@ muslimtify_set_target_defaults(muslimtify_core)
 
 add_library(muslimtify_cli OBJECT
     src/cli/cli.c
+    src/cli/display.c
     src/cli/cmd_show.c
     src/cli/cmd_location.c
     src/cli/cmd_prayer.c
@@ -245,6 +246,12 @@ if(BUILD_TESTING)
         target_include_directories(test_display PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
         target_link_libraries(test_display muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME display COMMAND test_display)
+
+        add_executable(test_muslimtify tests/test_muslimtify.c)
+        muslimtify_set_target_defaults(test_muslimtify)
+        target_include_directories(test_muslimtify PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_muslimtify muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        add_test(NAME muslimtify COMMAND test_muslimtify)
 
         add_executable(test_offset_bound tests/test_offset_bound.c)
         muslimtify_set_target_defaults(test_offset_bound)
