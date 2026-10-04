@@ -85,6 +85,7 @@
 #include "cache.h"
 #include "config.h"
 #include "display.h"
+#include "prayer_checker.h"
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>

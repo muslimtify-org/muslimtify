@@ -122,29 +122,6 @@ int prayer_time_day_offset(double hours) {
   return 0;
 }
 
-void format_time_cfg(const Config *cfg, double hours, char *out, size_t cap) {
-  char hm[6];
-  format_time_hm(hours, hm, sizeof(hm));
-
-  // "--:--" has no hour to convert, and 24-hour mode is already what
-  // format_time_hm produced.
-  if (!cfg || cfg->time_format != 12 || hm[0] == '-') {
-    snprintf(out, cap, "%s", hm);
-    return;
-  }
-
-  int hour = (hm[0] - '0') * 10 + (hm[1] - '0');
-  const char *meridiem = hour < 12 ? "AM" : "PM";
-  int hour12 = hour % 12;
-  if (hour12 == 0)
-    hour12 = 12;
-  char out12[9];
-  // The modulo is redundant on a 1-12 value: it is what lets GCC's range
-  // analysis bound the field width and drop -Wformat-truncation.
-  snprintf(out12, sizeof(out12), "%02u:%c%c %s", (unsigned)hour12 % 100u, hm[3], hm[4], meridiem);
-  snprintf(out, cap, "%s", out12);
-}
-
 void format_time_hm_day(const Config *cfg, double hours, char *outBuffer, size_t bufSize) {
   char hm[9];
   format_time_cfg(cfg, hours, hm, sizeof(hm));
