@@ -106,6 +106,11 @@ MuslimtifyError muslimtify_parse_prayer(const char *name, MuslimtifyPrayerType *
       return MUSLIMTIFY_OK;
     }
   }
+  // A common shorter spelling, accepted for as long as the CLI has existed.
+  if (equals_ignore_case(name, "dhur")) {
+    *out = MUSLIMTIFY_DHUHR;
+    return MUSLIMTIFY_OK;
+  }
   return MUSLIMTIFY_ERR_UNKNOWN_PRAYER;
 }
 

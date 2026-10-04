@@ -293,7 +293,8 @@ const char *muslimtify_madhab_name(MuslimtifyMadhab madhab);     /* "Shafi'i", "
 const char *muslimtify_urgency_key(MuslimtifyUrgency urgency);   /* "low", "normal", "critical" */
 const char *muslimtify_sound_mode_key(MuslimtifySoundMode mode); /* "adhan", "default", "off" */
 
-/** Case-insensitive. MUSLIMTIFY_ERR_UNKNOWN_PRAYER when nothing matches. */
+/** Case-insensitive, and "dhur" is accepted for dhuhr. MUSLIMTIFY_ERR_UNKNOWN_PRAYER when nothing
+ * matches. */
 MuslimtifyError muslimtify_parse_prayer(const char *name, MuslimtifyPrayerType *out);
 
 /* Case-sensitive. MUSLIMTIFY_ERR_INVALID_VALUE when nothing matches. */

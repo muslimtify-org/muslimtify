@@ -554,6 +554,10 @@ static void test_names_and_parsing(void) {
                                      prayer == MUSLIMTIFY_FAJR);
   check_bool("uppercase prayer", muslimtify_parse_prayer("ISHA", &prayer) == MUSLIMTIFY_OK &&
                                      prayer == MUSLIMTIFY_ISHA);
+  check_bool("dhur alias", muslimtify_parse_prayer("dhur", &prayer) == MUSLIMTIFY_OK &&
+                               prayer == MUSLIMTIFY_DHUHR);
+  check_bool("dhur alias uppercase", muslimtify_parse_prayer("DHUR", &prayer) == MUSLIMTIFY_OK &&
+                                         prayer == MUSLIMTIFY_DHUHR);
   prayer = MUSLIMTIFY_ASR;
   check_bool("unknown prayer",
              muslimtify_parse_prayer("nosuch", &prayer) == MUSLIMTIFY_ERR_UNKNOWN_PRAYER);
