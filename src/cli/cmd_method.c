@@ -1,9 +1,4 @@
-#include "cache.h"
 #include "cli_internal.h"
-#include "country.h"
-#include "location.h"
-#include "prayertimes.h"
-#include "string_util.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -45,34 +40,36 @@ static void print_method_help(void) {
   printf("  %-25s %s\n", "muslimtify method --list", "# List available methods");
 }
 
-// Auto-select the calculation method from the country in config. If no country
-// is set yet, detect the location first (which populates the country), then
-// derive the method.
-static int method_auto(void) {
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
-  if (cfg.country[0] == '\0') {
+// Auto-select the calculation method from the stored country. If no country is
+// set yet, detect the location first, which fills it in, then derive the method.
+static int method_auto(Muslimtify *mt) {
+  MuslimtifyLocation loc;
+  MuslimtifyError err = muslimtify_get_location(mt, &loc);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  if (loc.country[0] == '\0') {
     printf("Detecting location...\n");
-    if (location_fetch(&cfg) != 0) {
-      fprintf(stderr, "Error: Failed to detect location\n");
-      return 1;
-    }
-    cfg.auto_detect = true;
+    MuslimtifyDetection detection;
+    err = muslimtify_detect_location(mt, &detection);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail(err);
+    cli_print_gps_warning(&detection);
   }
-  CalcMethod m = country_default_method(cfg.country);
-  copy_string(cfg.calculation_method, sizeof(cfg.calculation_method), method_to_string(m));
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
-  }
-  cache_invalidate();
-  const MethodParams *p = method_params_get(m);
-  printf("Method auto-detected: %s", cfg.calculation_method);
-  if (p)
-    printf(" (%s)", p->name);
+
+  err = muslimtify_set_method_from_country(mt);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  MuslimtifyMethodInfo info;
+  err = muslimtify_get_method(mt, &info);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+  printf("Method auto-detected: %s", info.key);
+  if (info.name[0] != '\0')
+    printf(" (%s)", info.name);
   printf("\n");
   return 0;
 }
@@ -136,17 +133,14 @@ int handle_method(int argc, char **argv) {
   if (argc > 0 && cli_reject_extra_args("method", argc - 1, argv + 1))
     return 1;
 
-  // Detects the location over the network when no country is known, so it
-  // stays on the core config until that moves into the library.
-  if (argc > 0 && strcmp(argv[0], "--auto") == 0)
-    return method_auto();
-
   Muslimtify *mt = NULL;
   if (cli_open(&mt))
     return 1;
   int ret;
   if (argc == 0) {
     ret = method_show_current(mt);
+  } else if (strcmp(argv[0], "--auto") == 0) {
+    ret = method_auto(mt);
   } else if (strcmp(argv[0], "--list") == 0) {
     print_method_list(stdout, mt);
     ret = 0;

@@ -44,6 +44,37 @@ int cli_open(Muslimtify **mt) {
   return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
 }
 
+void cli_print_gps_warning(const MuslimtifyDetection *detection) {
+  const char *warning = muslimtify_detection_warning(detection);
+  if (warning)
+    fprintf(stderr, "%s\n", warning);
+}
+
+int cli_ensure_location(Muslimtify *mt) {
+  if (!muslimtify_location_needs_detect(mt))
+    return 0;
+
+  fprintf(stderr, "Detecting location...\n");
+  MuslimtifyDetection detection;
+  MuslimtifyError err = muslimtify_detect_location(mt, &detection);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+  cli_print_gps_warning(&detection);
+
+  MuslimtifyLocation loc;
+  err = muslimtify_save(mt);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_get_location(mt, &loc);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  if (loc.city[0] != '\0')
+    fprintf(stderr, "✓ Location detected: %s, %s\n", loc.city, loc.country);
+  else
+    fprintf(stderr, "✓ Location detected: %.4f, %.4f\n", loc.latitude, loc.longitude);
+  return 0;
+}
+
 // --- migration stubs for removed top-level commands -----------------------
 
 static int removed_enable(int a, char **v) {

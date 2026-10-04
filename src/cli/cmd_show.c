@@ -1,8 +1,5 @@
 #include "cli_internal.h"
-#include "config.h"
 #include "display.h"
-#include "lib/muslimtify_internal.h"
-#include "location.h"
 #include "muslimtify.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -297,23 +294,14 @@ int handle_show(int argc, char **argv) {
     return 1;
   }
 
-  // vibekit: first-run detection and stale refresh still run here, on the core
-  // config, and the handle is opened from that same config so it is read once.
-  // Piece 3 moves that orchestration into muslimtify_open and removes this.
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
-  if (ensure_location(&cfg) != 0)
-    return 1;
-
   Muslimtify *mt = NULL;
-  MuslimtifyError err = muslimtify_open_config(&cfg, &mt);
-  if (err != MUSLIMTIFY_OK) {
-    fprintf(stderr, "Error: %s\n", muslimtify_get_error(err));
+  if (cli_open(&mt))
+    return 1;
+  if (cli_ensure_location(mt)) {
+    muslimtify_close(mt);
     return 1;
   }
+  MuslimtifyError err = MUSLIMTIFY_OK;
   int time_format = muslimtify_time_format(mt);
 
   if (want_next) {
