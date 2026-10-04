@@ -8,13 +8,18 @@
 #include <stdio.h>
 #include <string.h>
 
-static void print_method_list(FILE *out, const Config *cfg) {
+static void print_method_list(FILE *out, const Muslimtify *mt) {
+  MuslimtifyMethodInfo current;
+  const char *current_key = muslimtify_get_method(mt, &current) == MUSLIMTIFY_OK ? current.key : "";
+
   fprintf(out, "Available calculation methods:\n\n");
-  for (int i = 0; i < CALC_CUSTOM; i++) {
-    const MethodParams *p = method_params_get((CalcMethod)i);
-    const char *key = method_to_string((CalcMethod)i);
-    bool current = strcmp(cfg->calculation_method, key) == 0;
-    fprintf(out, "  %-14s %s %s\n", key, current ? "*" : " ", p ? p->name : "");
+  size_t count = muslimtify_method_count();
+  for (size_t i = 0; i < count; i++) {
+    MuslimtifyMethodInfo info;
+    if (muslimtify_method_at(i, &info) != MUSLIMTIFY_OK)
+      continue;
+    fprintf(out, "  %-14s %s %s\n", info.key, strcmp(current_key, info.key) == 0 ? "*" : " ",
+            info.name);
   }
   fprintf(out, "\n* = current method\n");
 }
@@ -72,46 +77,34 @@ static int method_auto(void) {
   return 0;
 }
 
-static int method_show_current(void) {
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
-    return 1;
-  }
-  CalcMethod m = method_from_string(cfg.calculation_method);
-  const MethodParams *p = method_params_get(m);
-  printf("Calculation Method: %s", cfg.calculation_method);
-  if (p)
-    printf(" (%s)", p->name);
+static int method_show_current(Muslimtify *mt) {
+  MuslimtifyMethodInfo info;
+  MuslimtifyError err = muslimtify_get_method(mt, &info);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+  printf("Calculation Method: %s", info.key);
+  if (info.name[0] != '\0')
+    printf(" (%s)", info.name);
   printf("\n");
   return 0;
 }
 
-static int method_set(const char *name) {
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
+static int method_set(Muslimtify *mt, const char *name) {
+  MuslimtifyError err = muslimtify_set_method(mt, name);
+  if (err == MUSLIMTIFY_ERR_UNKNOWN_METHOD) {
+    cli_fail_value(err, name);
+    print_method_list(stderr, mt);
     return 1;
   }
-  CalcMethod m = method_from_string(name);
-  // method_from_string falls back to CALC_CUSTOM for unknown names, and "custom"
-  // itself is not selectable here (it needs fajr/isha angles from config). Treat
-  // both as unknown and list the real methods.
-  if (m == CALC_CUSTOM || strcmp(name, method_to_string(m)) != 0) {
-    fprintf(stderr, "Error: Unknown method '%s'\n", name);
-    print_method_list(stderr, &cfg);
-    return 1;
-  }
-  const MethodParams *p = method_params_get(m);
-  copy_string(cfg.calculation_method, sizeof(cfg.calculation_method), name);
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
-  }
-  cache_invalidate();
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  MuslimtifyMethodInfo info;
   printf("Method set to: %s", name);
-  if (p)
-    printf(" (%s)", p->name);
+  if (muslimtify_get_method(mt, &info) == MUSLIMTIFY_OK && info.name[0] != '\0')
+    printf(" (%s)", info.name);
   printf("\n");
   return 0;
 }
@@ -121,52 +114,47 @@ int handle_method(int argc, char **argv) {
     print_method_help();
     return 0;
   }
-  if (argc == 0)
-    return method_show_current();
 
   // Removed subcommands -> migration hints.
-  if (strcmp(argv[0], "show") == 0) {
+  if (argc > 0 && strcmp(argv[0], "show") == 0) {
     fprintf(stderr, "Error: 'method show' was removed; use 'method' to show the current method\n");
     return 1;
   }
-  if (strcmp(argv[0], "set") == 0) {
+  if (argc > 0 && strcmp(argv[0], "set") == 0) {
     fprintf(stderr, "Error: 'method set' was removed; use 'method <name>' directly\n");
     return 1;
   }
-  if (strcmp(argv[0], "list") == 0) {
+  if (argc > 0 && strcmp(argv[0], "list") == 0) {
     fprintf(stderr, "Error: 'method list' was removed; use 'method --list'\n");
     return 1;
   }
-  if (strcmp(argv[0], "madhab") == 0) {
+  if (argc > 0 && strcmp(argv[0], "madhab") == 0) {
     fprintf(stderr, "Error: 'method madhab' was removed; use 'madzhab <name>'\n");
     return 1;
   }
 
-  if (cli_reject_extra_args("method", argc - 1, argv + 1))
+  if (argc > 0 && cli_reject_extra_args("method", argc - 1, argv + 1))
     return 1;
 
-  if (strcmp(argv[0], "--auto") == 0)
+  // Detects the location over the network when no country is known, so it
+  // stays on the core config until that moves into the library.
+  if (argc > 0 && strcmp(argv[0], "--auto") == 0)
     return method_auto();
 
-  if (strcmp(argv[0], "--list") == 0) {
-    Config cfg;
-    if (config_load(&cfg) != 0) {
-      fprintf(stderr, "Error: Failed to load config\n");
-      return 1;
-    }
-    print_method_list(stdout, &cfg);
-    return 0;
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
+    return 1;
+  int ret;
+  if (argc == 0) {
+    ret = method_show_current(mt);
+  } else if (strcmp(argv[0], "--list") == 0) {
+    print_method_list(stdout, mt);
+    ret = 0;
+  } else {
+    ret = method_set(mt, argv[0]);
   }
-
-  return method_set(argv[0]);
-}
-
-static const char *madzhab_label(const char *v) {
-  if (strcmp(v, "hanafi") == 0)
-    return "Hanafi";
-  if (strcmp(v, "shafi") == 0)
-    return "Shafi'i";
-  return "unknown";
+  muslimtify_close(mt);
+  return ret;
 }
 
 static void print_madzhab_help(void) {
@@ -188,6 +176,41 @@ static void print_madzhab_help(void) {
   printf("  %-25s %s\n", "muslimtify madzhab --list", "# List madzhab options");
 }
 
+static int madzhab_run(Muslimtify *mt, int argc, char **argv) {
+  MuslimtifyMadhab current = muslimtify_get_madhab(mt);
+
+  if (argc == 0) {
+    printf("Madzhab: %s (%s)\n", muslimtify_madhab_key(current), muslimtify_madhab_name(current));
+    return 0;
+  }
+
+  if (strcmp(argv[0], "--list") == 0) {
+    printf("Available madzhab:\n\n");
+    for (int m = MUSLIMTIFY_MADHAB_SHAFI; m <= MUSLIMTIFY_MADHAB_HANAFI; m++) {
+      printf("  %-8s %s %s\n", muslimtify_madhab_key((MuslimtifyMadhab)m),
+             (int)current == m ? "*" : " ", muslimtify_madhab_name((MuslimtifyMadhab)m));
+    }
+    printf("\n* = current madzhab\n");
+    return 0;
+  }
+
+  MuslimtifyMadhab madhab;
+  if (muslimtify_parse_madhab(argv[0], &madhab) != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Error: Unknown madzhab '%s'\n", argv[0]);
+    fprintf(stderr, "  Available: shafi, hanafi\n");
+    return 1;
+  }
+
+  MuslimtifyError err = muslimtify_set_madhab(mt, madhab);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+  printf("Madzhab set to: %s (%s)\n", muslimtify_madhab_key(madhab),
+         muslimtify_madhab_name(madhab));
+  return 0;
+}
+
 int handle_madzhab(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
     print_madzhab_help();
@@ -195,37 +218,11 @@ int handle_madzhab(int argc, char **argv) {
   }
   if (cli_reject_extra_args("madzhab", argc - 1, argv + 1))
     return 1;
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
+
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
     return 1;
-  }
-
-  if (argc == 0) {
-    printf("Madzhab: %s (%s)\n", cfg.madhab, madzhab_label(cfg.madhab));
-    return 0;
-  }
-
-  if (strcmp(argv[0], "--list") == 0) {
-    printf("Available madzhab:\n\n");
-    printf("  %-8s %s %s\n", "shafi", strcmp(cfg.madhab, "shafi") == 0 ? "*" : " ", "Shafi'i");
-    printf("  %-8s %s %s\n", "hanafi", strcmp(cfg.madhab, "hanafi") == 0 ? "*" : " ", "Hanafi");
-    printf("\n* = current madzhab\n");
-    return 0;
-  }
-
-  if (strcmp(argv[0], "shafi") != 0 && strcmp(argv[0], "hanafi") != 0) {
-    fprintf(stderr, "Error: Unknown madzhab '%s'\n", argv[0]);
-    fprintf(stderr, "  Available: shafi, hanafi\n");
-    return 1;
-  }
-
-  copy_string(cfg.madhab, sizeof(cfg.madhab), argv[0]);
-  if (config_save(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save config\n");
-    return 1;
-  }
-  cache_invalidate();
-  printf("Madzhab set to: %s (%s)\n", argv[0], madzhab_label(argv[0]));
-  return 0;
+  int ret = madzhab_run(mt, argc, argv);
+  muslimtify_close(mt);
+  return ret;
 }

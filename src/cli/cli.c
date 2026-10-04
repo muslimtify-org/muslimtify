@@ -115,17 +115,17 @@ int handle_version(int argc, char **argv) {
 
   printf("Muslimtify v%s\n", MUSLIMTIFY_VERSION);
   printf("Prayer Time Notification Daemon\n\n");
-  Config cfg;
-  if (config_load(&cfg) == 0) {
-    CalcMethod m = method_from_string(cfg.calculation_method);
-    const MethodParams *p = method_params_get(m);
-    printf("Method: %s", cfg.calculation_method);
-    if (p)
-      printf(" (%s)", p->name);
+  Muslimtify *mt = NULL;
+  MuslimtifyMethodInfo info;
+  if (muslimtify_open(&mt) == MUSLIMTIFY_OK && muslimtify_get_method(mt, &info) == MUSLIMTIFY_OK) {
+    printf("Method: %s", info.key);
+    if (info.name[0] != '\0')
+      printf(" (%s)", info.name);
     printf("\n");
   } else {
     printf("Method: kemenag (KEMENAG, Indonesia)\n");
   }
+  muslimtify_close(mt);
 
   return 0;
 }
