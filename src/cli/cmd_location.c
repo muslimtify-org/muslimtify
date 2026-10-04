@@ -1,32 +1,10 @@
-#include "cache.h"
 #include "cli_internal.h"
-#include "country.h"
 #include "display.h"
-#include "location.h"
-#include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Copy `name` into cfg->city with NUL-termination, truncating on overflow.
-static void set_city(Config *cfg, const char *name) {
-  size_t cap = sizeof(cfg->city);
-  size_t n = strlen(name);
-  if (n >= cap)
-    n = cap - 1;
-  memcpy(cfg->city, name, n);
-  cfg->city[n] = '\0';
-}
-
-// Copy the 2-letter `code` into cfg->country, uppercased and NUL-terminated.
-// Caller must have validated `code` via country_is_valid_alpha2 first.
-static void set_country(Config *cfg, const char *code) {
-  cfg->country[0] = (char)toupper((unsigned char)code[0]);
-  cfg->country[1] = (char)toupper((unsigned char)code[1]);
-  cfg->country[2] = '\0';
-}
 
 static const char *LOCATION_SET_USAGE =
     "Usage: muslimtify location set [--lat=<latitude>] [--long=<longitude>] "
@@ -153,6 +131,37 @@ static int location_set_run(Muslimtify *mt, const LocationSetArgs *a) {
   return 0;
 }
 
+// `location set --auto`: detect over the network, apply the label overrides,
+// save, and print what was found.
+static int location_auto_run(Muslimtify *mt, const char *city, const char *country) {
+  printf("Detecting location...\n");
+  MuslimtifyDetection detection;
+  MuslimtifyError err = muslimtify_detect_location(mt, &detection);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+  cli_print_gps_warning(&detection);
+
+  if (city)
+    err = muslimtify_set_city(mt, city);
+  if (err == MUSLIMTIFY_OK && country)
+    err = muslimtify_set_country(mt, country);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  MuslimtifyLocation loc;
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_get_location(mt, &loc);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  printf("✓ Location detected: %.4f, %.4f\n", loc.latitude, loc.longitude);
+  printf("  Timezone: %s (UTC%+.1f)\n", loc.timezone, loc.utc_offset);
+  if (loc.city[0] != '\0')
+    printf("  City: %s\n", loc.city);
+  if (loc.country[0] != '\0')
+    printf("  Country: %s\n", loc.country);
+  return 0;
+}
+
 static int location_set_handler(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
     print_location_set_help();
@@ -256,44 +265,20 @@ static int location_set_handler(int argc, char **argv) {
                       "with --auto\n");
       return 1;
     }
-    // Check the country code before the network fetch, not after it.
-    if (override_country && !country_is_valid_alpha2(override_country)) {
-      fprintf(stderr, "Error: Invalid country code '%s' (expected ISO 3166-1 alpha-2, e.g. ID)\n",
-              override_country);
-      return 1;
+    // Check the country code before the config is loaded and before the network
+    // fetch, not after them.
+    if (override_country) {
+      MuslimtifyError country_err = muslimtify_check_country(override_country);
+      if (country_err != MUSLIMTIFY_OK)
+        return cli_fail_value(country_err, override_country);
     }
 
-    Config cfg;
-    if (config_load(&cfg) != 0) {
-      fprintf(stderr, "Error: Failed to load config\n");
+    Muslimtify *auto_mt = NULL;
+    if (cli_open(&auto_mt))
       return 1;
-    }
-
-    printf("Detecting location...\n");
-    if (location_fetch(&cfg) != 0) {
-      fprintf(stderr, "Error: Failed to fetch location\n");
-      return 1;
-    }
-    cfg.auto_detect = true;
-
-    if (override_city)
-      set_city(&cfg, override_city);
-    if (override_country)
-      set_country(&cfg, override_country);
-
-    if (config_save(&cfg) != 0) {
-      fprintf(stderr, "Error: Failed to save config\n");
-      return 1;
-    }
-    cache_invalidate();
-
-    printf("✓ Location detected: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
-    printf("  Timezone: %s (UTC%+.1f)\n", cfg.timezone, cfg.timezone_offset);
-    if (cfg.city[0] != '\0')
-      printf("  City: %s\n", cfg.city);
-    if (cfg.country[0] != '\0')
-      printf("  Country: %s\n", cfg.country);
-    return 0;
+    int auto_ret = location_auto_run(auto_mt, override_city, override_country);
+    muslimtify_close(auto_mt);
+    return auto_ret;
   }
 
   if (!override_lat && !override_lon && !override_tz && !override_city && !override_country &&
@@ -361,6 +346,71 @@ static void print_location_gps_help(void) {
   printf("With no argument, shows whether GPS is currently enabled.\n");
 }
 
+static int location_gps_run(Muslimtify *mt, int argc, char **argv) {
+  MuslimtifyLocation loc;
+  MuslimtifyError err;
+
+  // No argument: report current state.
+  if (argc == 0) {
+    err = muslimtify_get_location(mt, &loc);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail(err);
+    printf("GPS is %s\n", loc.gps ? "enabled" : "disabled");
+    return 0;
+  }
+
+  if (strcmp(argv[0], "off") == 0) {
+    err = muslimtify_set_gps(mt, false, NULL);
+    if (err == MUSLIMTIFY_OK)
+      err = muslimtify_save(mt);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail(err);
+    printf("GPS disabled; using ipinfo network geolocation.\n");
+    return 0;
+  }
+
+  if (strcmp(argv[0], "on") == 0) {
+    // Validating enable: the library probes GPS now and only enables it when a
+    // receiver is present. A receiver with no fix yet still enables, since GPS
+    // engages once a fix is available.
+    bool has_fix = false;
+    err = muslimtify_set_gps(mt, true, &has_fix);
+    switch (err) {
+    case MUSLIMTIFY_OK:
+      break;
+    case MUSLIMTIFY_ERR_GPS_NO_DAEMON:
+      fprintf(stderr, "GPS: cannot reach gpsd. Install and start it, then try again.\n");
+      return 1;
+    case MUSLIMTIFY_ERR_GPS_NO_DEVICE:
+      fprintf(stderr, "GPS: no GPS device detected. Connect one, then try again.\n");
+      return 1;
+    case MUSLIMTIFY_ERR_GPS_NO_PERMISSION:
+      fprintf(stderr, "GPS: location access is turned off. Turn on Settings > "
+                      "Privacy & security > Location, then try again.\n");
+      return 1;
+    case MUSLIMTIFY_ERR_GPS_UNAVAILABLE:
+      fprintf(stderr, "GPS not available in this build.\n");
+      return 1;
+    default:
+      return cli_fail(err);
+    }
+
+    err = muslimtify_save(mt);
+    if (err == MUSLIMTIFY_OK)
+      err = muslimtify_get_location(mt, &loc);
+    if (err != MUSLIMTIFY_OK)
+      return cli_fail(err);
+    if (has_fix)
+      printf("✓ GPS ready — enabled. Location: %.4f, %.4f\n", loc.latitude, loc.longitude);
+    else
+      printf("✓ GPS enabled. No fix yet; using ipinfo until a fix is available.\n");
+    return 0;
+  }
+
+  fprintf(stderr, "Error: unknown 'location gps' argument '%s' (expected on|off)\n", argv[0]);
+  return 1;
+}
+
 static int location_gps_handler(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
     print_location_gps_help();
@@ -369,72 +419,12 @@ static int location_gps_handler(int argc, char **argv) {
   if (cli_reject_extra_args("location gps", argc - 1, argv + 1))
     return 1;
 
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
     return 1;
-  }
-
-  // No argument: report current state.
-  if (argc == 0) {
-    printf("GPS is %s\n", cfg.use_gps ? "enabled" : "disabled");
-    return 0;
-  }
-
-  if (strcmp(argv[0], "off") == 0) {
-    cfg.use_gps = false;
-    if (config_save(&cfg) != 0) {
-      fprintf(stderr, "Error: Failed to save config\n");
-      return 1;
-    }
-    cache_invalidate();
-    printf("GPS disabled; using ipinfo network geolocation.\n");
-    return 0;
-  }
-
-  if (strcmp(argv[0], "on") == 0) {
-    // Validating enable: probe GPS now and only persist use_gps=true if a
-    // receiver is present. A transient no-fix (device present, no signal yet)
-    // still enables, since GPS engages once a fix is available.
-    GpsStatus st = location_fetch_gps(&cfg);
-    switch (st) {
-    case GPS_OK:
-    case GPS_NO_FIX:
-      // Both enable: a fix is ready now, or a device is present and GPS will
-      // engage once it gets one. Only the confirmation message differs.
-      cfg.use_gps = true;
-      if (config_save(&cfg) != 0) {
-        fprintf(stderr, "Error: Failed to save config\n");
-        return 1;
-      }
-      cache_invalidate();
-      if (st == GPS_OK)
-        printf("✓ GPS ready — enabled. Location: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
-      else
-        printf("✓ GPS enabled. No fix yet; using ipinfo until a fix is available.\n");
-      return 0;
-    case GPS_NO_DAEMON:
-      fprintf(stderr, "GPS: cannot reach gpsd. Install and start it, then try again.\n");
-      return 1;
-    case GPS_NO_DEVICE:
-      fprintf(stderr, "GPS: no GPS device detected. Connect one, then try again.\n");
-      return 1;
-    case GPS_NO_PERMISSION:
-      fprintf(stderr, "GPS: location access is turned off. Turn on Settings > "
-                      "Privacy & security > Location, then try again.\n");
-      return 1;
-    case GPS_UNAVAILABLE:
-      fprintf(stderr, "GPS not available in this build.\n");
-      return 1;
-    }
-    // No default: label above, so -Wswitch (via -Wall) fails the build if a new
-    // GpsStatus variant is added without deciding whether it should enable GPS.
-    // This return exists only to satisfy the compiler's flow analysis.
-    return 1;
-  }
-
-  fprintf(stderr, "Error: unknown 'location gps' argument '%s' (expected on|off)\n", argv[0]);
-  return 1;
+  int ret = location_gps_run(mt, argc, argv);
+  muslimtify_close(mt);
+  return ret;
 }
 
 static void print_location_help(void) {

@@ -44,6 +44,56 @@ int cli_open(Muslimtify **mt) {
   return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
 }
 
+void cli_print_gps_warning(const MuslimtifyDetection *detection) {
+  switch (detection->gps) {
+  case MUSLIMTIFY_ERR_GPS_NO_DAEMON:
+    fprintf(stderr, "GPS: gpsd is no longer reachable; disabling GPS and using ipinfo. "
+                    "Re-enable with 'muslimtify location gps on'.\n");
+    break;
+  case MUSLIMTIFY_ERR_GPS_NO_DEVICE:
+    fprintf(stderr, "GPS: no GPS device detected; disabling GPS and using ipinfo. "
+                    "Re-enable with 'muslimtify location gps on'.\n");
+    break;
+  case MUSLIMTIFY_ERR_GPS_UNAVAILABLE:
+    fprintf(stderr, "GPS: this build has no GPS support; disabling GPS and using ipinfo.\n");
+    break;
+  case MUSLIMTIFY_ERR_GPS_NO_PERMISSION:
+    // Deliberately does not say "disabling": GPS stays on for this one, because
+    // the user can grant access and have the next detection succeed.
+    fprintf(stderr, "GPS: location access is turned off; using ipinfo for now. Turn on "
+                    "Settings > Privacy & security > Location, and GPS resumes "
+                    "automatically.\n");
+    break;
+  default:
+    break;
+  }
+}
+
+int cli_ensure_location(Muslimtify *mt) {
+  if (!muslimtify_location_needs_detect(mt))
+    return 0;
+
+  fprintf(stderr, "Detecting location...\n");
+  MuslimtifyDetection detection;
+  MuslimtifyError err = muslimtify_detect_location(mt, &detection);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+  cli_print_gps_warning(&detection);
+
+  MuslimtifyLocation loc;
+  err = muslimtify_save(mt);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_get_location(mt, &loc);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  if (loc.city[0] != '\0')
+    fprintf(stderr, "✓ Location detected: %s, %s\n", loc.city, loc.country);
+  else
+    fprintf(stderr, "✓ Location detected: %.4f, %.4f\n", loc.latitude, loc.longitude);
+  return 0;
+}
+
 // --- migration stubs for removed top-level commands -----------------------
 
 static int removed_enable(int a, char **v) {
