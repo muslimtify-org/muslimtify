@@ -750,6 +750,9 @@ static void test_detect_gps_matrix(void) {
     check_bool("source", detection.source == cases[i].source);
     check_bool("gps code", detection.gps == cases[i].gps);
     check_bool("gps disabled", detection.gps_disabled == cases[i].disabled);
+    // A warning exists exactly when there is a GPS problem to report.
+    check_bool("warning matches the code", (muslimtify_detection_warning(&detection) != NULL) ==
+                                               (cases[i].gps != MUSLIMTIFY_OK));
     check_bool("read", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
     check_bool("stored GPS flag", loc.gps == !cases[i].disabled);
     check_bool("coordinates follow the source",
@@ -769,6 +772,8 @@ static void test_detect_gps_matrix(void) {
   check_bool("receiver not asked", stub_gps_calls == 0);
   check_bool("nothing to report", detection.gps == MUSLIMTIFY_OK && !detection.gps_disabled &&
                                       detection.source == MUSLIMTIFY_SOURCE_IP);
+  check_bool("no warning with GPS off", muslimtify_detection_warning(&detection) == NULL);
+  check_bool("no warning for NULL", muslimtify_detection_warning(NULL) == NULL);
   muslimtify_close(mt);
 }
 

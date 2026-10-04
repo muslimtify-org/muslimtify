@@ -63,6 +63,23 @@ MuslimtifyError muslimtify_detect_location(Muslimtify *mt, MuslimtifyDetection *
   return muslimtify_detect_location_with(mt, location_detect, out);
 }
 
+const char *muslimtify_detection_warning(const MuslimtifyDetection *detection) {
+  if (!detection)
+    return NULL;
+  switch (detection->gps) {
+  case MUSLIMTIFY_ERR_GPS_NO_DAEMON:
+    return gps_status_message(GPS_NO_DAEMON);
+  case MUSLIMTIFY_ERR_GPS_NO_DEVICE:
+    return gps_status_message(GPS_NO_DEVICE);
+  case MUSLIMTIFY_ERR_GPS_NO_PERMISSION:
+    return gps_status_message(GPS_NO_PERMISSION);
+  case MUSLIMTIFY_ERR_GPS_UNAVAILABLE:
+    return gps_status_message(GPS_UNAVAILABLE);
+  default:
+    return NULL;
+  }
+}
+
 MuslimtifyError muslimtify_set_gps_with(Muslimtify *mt, bool enabled, GpsStatus (*probe)(Config *),
                                         bool *has_fix) {
   if (!mt)

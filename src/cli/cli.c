@@ -45,28 +45,9 @@ int cli_open(Muslimtify **mt) {
 }
 
 void cli_print_gps_warning(const MuslimtifyDetection *detection) {
-  switch (detection->gps) {
-  case MUSLIMTIFY_ERR_GPS_NO_DAEMON:
-    fprintf(stderr, "GPS: gpsd is no longer reachable; disabling GPS and using ipinfo. "
-                    "Re-enable with 'muslimtify location gps on'.\n");
-    break;
-  case MUSLIMTIFY_ERR_GPS_NO_DEVICE:
-    fprintf(stderr, "GPS: no GPS device detected; disabling GPS and using ipinfo. "
-                    "Re-enable with 'muslimtify location gps on'.\n");
-    break;
-  case MUSLIMTIFY_ERR_GPS_UNAVAILABLE:
-    fprintf(stderr, "GPS: this build has no GPS support; disabling GPS and using ipinfo.\n");
-    break;
-  case MUSLIMTIFY_ERR_GPS_NO_PERMISSION:
-    // Deliberately does not say "disabling": GPS stays on for this one, because
-    // the user can grant access and have the next detection succeed.
-    fprintf(stderr, "GPS: location access is turned off; using ipinfo for now. Turn on "
-                    "Settings > Privacy & security > Location, and GPS resumes "
-                    "automatically.\n");
-    break;
-  default:
-    break;
-  }
+  const char *warning = muslimtify_detection_warning(detection);
+  if (warning)
+    fprintf(stderr, "%s\n", warning);
 }
 
 int cli_ensure_location(Muslimtify *mt) {

@@ -316,6 +316,14 @@ bool muslimtify_location_needs_detect(const Muslimtify *mt);
 MuslimtifyError muslimtify_detect_location(Muslimtify *mt, MuslimtifyDetection *out);
 
 /**
+ * A ready-made English warning for a GPS problem met during detection, phrased
+ * for the command line tool, or NULL when there is nothing to warn about. A
+ * frontend that wants its own wording switches on detection->gps instead.
+ * The string is static.
+ */
+const char *muslimtify_detection_warning(const MuslimtifyDetection *detection);
+
+/**
  * Turn the GPS location source on or off. Turning it on probes the receiver
  * first: a fix stores its coordinates and sets *has_fix, a receiver with no fix
  * yet still enables, and any other outcome returns a MUSLIMTIFY_ERR_GPS_* code
