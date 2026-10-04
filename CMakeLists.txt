@@ -137,7 +137,6 @@ add_library(muslimtify_core OBJECT
     # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
     $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
     src/core/prayertimes.c
-    src/core/display.c
     src/lib/muslimtify.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
@@ -153,6 +152,7 @@ muslimtify_set_target_defaults(muslimtify_core)
 
 add_library(muslimtify_cli OBJECT
     src/cli/cli.c
+    src/cli/display.c
     src/cli/cmd_show.c
     src/cli/cmd_location.c
     src/cli/cmd_prayer.c

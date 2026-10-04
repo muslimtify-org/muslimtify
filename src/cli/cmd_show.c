@@ -2,17 +2,11 @@
 #include "config.h"
 #include "display.h"
 #include "location.h"
-#include "platform.h"
+#include "muslimtify.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-
-// Longest span accepted by `show --date <start> <end>`, inclusive. 366 covers a
-// full leap year, the longest range with a real use case. Without this cap the
-// range loop is bounded only by the year range and can run for weeks.
-#define MAX_RANGE_DAYS 366
 
 // Largest magnitude accepted by `show --day-offset`: more days than years 1-9999 span.
 #define MAX_DAY_OFFSET (9999L * 366L)
@@ -114,19 +108,6 @@ static void print_show_date_help(void) {
          "# Range as key=value");
 }
 
-static int mt_is_leap(int y) {
-  return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
-}
-
-static int mt_days_in_month(int y, int m) {
-  static const int dm[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  if (m < 1 || m > 12)
-    return 0;
-  if (m == 2 && mt_is_leap(y))
-    return 29;
-  return dm[m - 1];
-}
-
 // Parse one unsigned decimal field of at most `maxdigits` digits into [min,max],
 // advancing *sp past those digits. Rejects a leading sign or whitespace (strtol
 // would accept both and yield a number the user never typed), an over-wide field
@@ -147,21 +128,20 @@ static int parse_field(const char **sp, int maxdigits, long min, long max, int *
   return 0;
 }
 
-// Parse an ISO "YYYY-MM-DD" date into y/m/d with full range validation.
-// Returns 0 on success, -1 on malformed input, trailing junk, a year outside
-// 1..9999, or an out-of-range month/day (leap-aware). Components need not be
-// zero-padded.
+// Split an ISO "YYYY-MM-DD" date into y/m/d. Returns 0 on success, -1 on
+// malformed input or trailing junk. Components need not be zero-padded. Whether
+// the date exists is the library's call, through muslimtify_check_range.
 static int parse_date(const char *s, int *y, int *m, int *d) {
   if (s == NULL)
     return -1;
   int yy, mm, dd;
-  if (parse_field(&s, 4, 1, 9999, &yy) != 0 || *s != '-')
+  if (parse_field(&s, 4, 0, 9999, &yy) != 0 || *s != '-')
     return -1;
   s++;
-  if (parse_field(&s, 2, 1, 12, &mm) != 0 || *s != '-')
+  if (parse_field(&s, 2, 0, 99, &mm) != 0 || *s != '-')
     return -1;
   s++;
-  if (parse_field(&s, 2, 1, mt_days_in_month(yy, mm), &dd) != 0)
+  if (parse_field(&s, 2, 0, 99, &dd) != 0)
     return -1;
   if (*s != '\0')
     return -1;
@@ -169,6 +149,20 @@ static int parse_date(const char *s, int *y, int *m, int *d) {
   *m = mm;
   *d = dd;
   return 0;
+}
+
+static void show_day(const MuslimtifyDay *day, int time_format, OutputMode mode) {
+  switch (mode) {
+  case OUTPUT_JSON:
+    display_day_json(day, time_format);
+    break;
+  case OUTPUT_HEADLESS:
+    display_day_plain(day, time_format);
+    break;
+  default:
+    display_day_table(day, time_format);
+    break;
+  }
 }
 
 // Parse a whole-day offset such as "1", "+7" or "-365". Unlike atoi, a missing
@@ -274,56 +268,36 @@ int handle_show(int argc, char **argv) {
 
   int sy = 0, sm = 0, sd = 0, ey = 0, em = 0, ed = 0;
   if (want_date) {
-    if (parse_date(date_start, &sy, &sm, &sd) != 0) {
+    if (parse_date(date_start, &sy, &sm, &sd) != 0 ||
+        muslimtify_check_range(sy, sm, sd, sy, sm, sd, NULL) != MUSLIMTIFY_OK) {
       fprintf(stderr, "Error: Invalid date %s\n", date_start ? date_start : "(missing)");
       print_show_date_help();
       return 1;
     }
     if (date_end) {
-      if (parse_date(date_end, &ey, &em, &ed) != 0) {
+      if (parse_date(date_end, &ey, &em, &ed) != 0 ||
+          muslimtify_check_range(ey, em, ed, ey, em, ed, NULL) != MUSLIMTIFY_OK) {
         fprintf(stderr, "Error: Invalid date %s\n", date_end);
         print_show_date_help();
         return 1;
       }
-      if (sy > ey || (sy == ey && (sm > em || (sm == em && sd > ed)))) {
-        fprintf(stderr, "Error: end date is before start date\n");
-        return 1;
-      }
-      long span = mt_days_from_civil(ey, em, ed) - mt_days_from_civil(sy, sm, sd) + 1;
-      if (span > MAX_RANGE_DAYS) {
-        fprintf(stderr, "Error: date range too long (%ld days, maximum %d)\n", span,
-                MAX_RANGE_DAYS);
+      MuslimtifyError range_err = muslimtify_check_range(sy, sm, sd, ey, em, ed, NULL);
+      if (range_err != MUSLIMTIFY_OK) {
+        fprintf(stderr, "Error: %s\n", muslimtify_get_error(range_err));
         return 1;
       }
     }
   }
 
-  time_t now = time(NULL);
-  struct tm tm_buf;
-  platform_localtime(&now, &tm_buf);
-  struct tm *tm_now = &tm_buf;
-
-  struct tm date = *tm_now;
-  if (want_day_offset) {
-    long offset = 0;
-    if (parse_day_offset(offset_arg, &offset) != 0) {
-      fprintf(stderr, "Error: Invalid day offset %s\n", offset_arg ? offset_arg : "(missing)");
-      print_show_day_offset_help();
-      return 1;
-    }
-    int y, m, d;
-    mt_civil_from_days(mt_days_from_civil(date.tm_year + 1900, date.tm_mon + 1, date.tm_mday) +
-                           offset,
-                       &y, &m, &d);
-    if (y < 1 || y > 9999) {
-      fprintf(stderr, "Error: day offset %ld falls outside years 1-9999\n", offset);
-      return 1;
-    }
-    date.tm_year = y - 1900;
-    date.tm_mon = m - 1;
-    date.tm_mday = d;
+  long offset = 0;
+  if (want_day_offset && parse_day_offset(offset_arg, &offset) != 0) {
+    fprintf(stderr, "Error: Invalid day offset %s\n", offset_arg ? offset_arg : "(missing)");
+    print_show_day_offset_help();
+    return 1;
   }
 
+  // vibekit: first-run detection and stale refresh still run here, on the core
+  // config. Piece 3 moves that orchestration into the library and removes this.
   Config cfg;
   if (config_load(&cfg) != 0) {
     fprintf(stderr, "Error: Failed to load config\n");
@@ -332,65 +306,67 @@ int handle_show(int argc, char **argv) {
   if (ensure_location(&cfg) != 0)
     return 1;
 
+  Muslimtify *mt = NULL;
+  MuslimtifyError err = muslimtify_open(&mt);
+  if (err != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Error: %s\n", muslimtify_get_error(err));
+    return 1;
+  }
+  int time_format = muslimtify_time_format(mt);
+
   if (want_next) {
-    struct PrayerTimes times =
-        prayer_times_for_config(&cfg, tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday);
-    switch (mode) {
-    case OUTPUT_JSON:
-      display_next_prayer_json(&times, &cfg, tm_now);
-      break;
-    case OUTPUT_HEADLESS:
-      display_next_prayer_headless(&times, &cfg, tm_now);
-      break;
-    default:
-      display_next_prayer(&times, &cfg, tm_now);
-      break;
+    MuslimtifyNext next;
+    err = muslimtify_next(mt, &next);
+    if (err == MUSLIMTIFY_OK) {
+      switch (mode) {
+      case OUTPUT_JSON:
+        display_next_json(&next, time_format);
+        break;
+      case OUTPUT_HEADLESS:
+        display_next_plain(&next, time_format);
+        break;
+      default:
+        display_next_table(&next, time_format);
+        break;
+      }
     }
-  } else if (want_date && date_end == NULL) {
-    struct tm start_tm = {0};
-    start_tm.tm_year = sy - 1900;
-    start_tm.tm_mon = sm - 1;
-    start_tm.tm_mday = sd;
-    struct PrayerTimes start = prayer_times_for_config(&cfg, sy, sm, sd);
-    switch (mode) {
-    case OUTPUT_JSON:
-      display_prayer_times_json(&start, &cfg, &start_tm);
-      break;
-    case OUTPUT_HEADLESS:
-      display_prayer_times_plain(&start, &cfg, &start_tm);
-      break;
-    default:
-      display_prayer_times_table(&start, &cfg, &start_tm);
-      break;
+  } else if (want_date && date_end != NULL) {
+    MuslimtifyDay *days = malloc(sizeof(*days) * MUSLIMTIFY_MAX_RANGE_DAYS);
+    size_t count = 0;
+    err =
+        days ? muslimtify_range(mt, sy, sm, sd, ey, em, ed, days, MUSLIMTIFY_MAX_RANGE_DAYS, &count)
+             : MUSLIMTIFY_ERR_NO_MEMORY;
+    if (err == MUSLIMTIFY_OK) {
+      switch (mode) {
+      case OUTPUT_JSON:
+        display_range_json(days, count, time_format);
+        break;
+      case OUTPUT_HEADLESS:
+        display_range_plain(days, count, time_format);
+        break;
+      default:
+        display_range_table(days, count, time_format);
+        break;
+      }
     }
-  } else if (want_date) {
-    switch (mode) {
-    case OUTPUT_JSON:
-      display_prayer_times_range_json(&cfg, sy, sm, sd, ey, em, ed);
-      break;
-    case OUTPUT_HEADLESS:
-      display_prayer_times_range_plain(&cfg, sy, sm, sd, ey, em, ed);
-      break;
-    default:
-      display_prayer_times_range_table(&cfg, sy, sm, sd, ey, em, ed);
-      break;
-    }
+    free(days);
   } else {
-    // Today, or today shifted by --day-offset.
-    struct PrayerTimes times =
-        prayer_times_for_config(&cfg, date.tm_year + 1900, date.tm_mon + 1, date.tm_mday);
-    switch (mode) {
-    case OUTPUT_JSON:
-      display_prayer_times_json(&times, &cfg, &date);
-      break;
-    case OUTPUT_HEADLESS:
-      display_prayer_times_plain(&times, &cfg, &date);
-      break;
-    default:
-      display_prayer_times_table(&times, &cfg, &date);
-      break;
-    }
+    // One date, or today shifted by --day-offset (zero without the flag).
+    MuslimtifyDay day;
+    err = want_date ? muslimtify_day(mt, sy, sm, sd, &day) : muslimtify_today(mt, offset, &day);
+    if (err == MUSLIMTIFY_OK)
+      show_day(&day, time_format, mode);
   }
 
+  muslimtify_close(mt);
+
+  if (err == MUSLIMTIFY_ERR_INVALID_DATE && want_day_offset) {
+    fprintf(stderr, "Error: day offset %ld falls outside years 1-9999\n", offset);
+    return 1;
+  }
+  if (err != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Error: %s\n", muslimtify_get_error(err));
+    return 1;
+  }
   return 0;
 }
