@@ -1141,7 +1141,7 @@ static void test_next(void) {
 static void test_strings(void) {
   printf("  strings...\n");
 
-  for (int e = MUSLIMTIFY_OK; e <= MUSLIMTIFY_ERR_DAEMON_ENABLE; e++) {
+  for (int e = MUSLIMTIFY_OK; e <= MUSLIMTIFY_ERR_CACHE_SAVE; e++) {
     const char *msg = muslimtify_get_error((MuslimtifyError)e);
     check_bool("error message exists", msg != NULL && msg[0] != '\0');
     check_bool("error message is specific", strcmp(msg, "Unknown error") != 0);
