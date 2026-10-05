@@ -368,3 +368,7 @@ void muslimtify_set_log_handler(MuslimtifyLogHandler handler, void *user_data) {
   log_user_data = user_data;
   mt_log_set_handler(handler ? log_adapter : NULL, NULL);
 }
+
+void muslimtify_log_stderr(MuslimtifyLogLevel level, const char *message, void *user_data) {
+  mt_log_stderr((MtLogLevel)level, message, user_data);
+}

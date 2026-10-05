@@ -480,13 +480,17 @@ typedef void (*MuslimtifyLogHandler)(MuslimtifyLogLevel level, const char *messa
  * written to stderr, one per line. With a handler set nothing is written to
  * stderr: each message goes to the handler as a string with no trailing
  * newline, valid only during the call, on the thread that produced it. A NULL
- * handler discards every message.
+ * handler discards every message. Passing muslimtify_log_stderr restores the
+ * default.
  *
  * The messages give the reason behind a failure a function only reports as a
  * code, and warn about things that did not fail. The setting is process-wide.
  * Set it once at startup, before other threads use the library.
  */
 void muslimtify_set_log_handler(MuslimtifyLogHandler handler, void *user_data);
+
+/** The default handler: writes the message and a newline to stderr. */
+void muslimtify_log_stderr(MuslimtifyLogLevel level, const char *message, void *user_data);
 
 #ifdef __cplusplus
 }

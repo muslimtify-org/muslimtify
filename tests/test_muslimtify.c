@@ -1262,7 +1262,7 @@ static void test_log_handler(void) {
   check_bool("and stderr stayed empty", captured[0] == '\0');
 
   // Back to the default, which is what a program that never sets a handler gets.
-  mt_log_set_handler(mt_log_stderr, NULL);
+  muslimtify_set_log_handler(muslimtify_log_stderr, NULL);
   check_bool("open fails once more",
              open_capturing_stderr(captured, sizeof(captured)) == MUSLIMTIFY_ERR_CONFIG_LOAD);
   check_bool("the default writes the reason to stderr",
