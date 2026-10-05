@@ -47,7 +47,13 @@ typedef enum {
   MUSLIMTIFY_ERR_GPS_UNAVAILABLE,
   MUSLIMTIFY_ERR_NOTIFY_INIT,
   MUSLIMTIFY_ERR_NO_UPCOMING_PRAYER,
-  MUSLIMTIFY_ERR_ADHAN_NOT_PLAYING
+  MUSLIMTIFY_ERR_ADHAN_NOT_PLAYING,
+  MUSLIMTIFY_ERR_UNSUPPORTED,
+  MUSLIMTIFY_ERR_DAEMON_BINARY,
+  MUSLIMTIFY_ERR_NO_HOME,
+  MUSLIMTIFY_ERR_DAEMON_UNIT,
+  MUSLIMTIFY_ERR_DAEMON_RELOAD,
+  MUSLIMTIFY_ERR_DAEMON_ENABLE
 } MuslimtifyError;
 
 typedef enum {
@@ -165,6 +171,33 @@ typedef struct {
   MuslimtifyDetection detection; /* outcome of that detection or refresh, when one ran */
   int notifications;             /* notifications sent in this cycle */
 } MuslimtifyCycle;
+
+/* The background service's state. installed is true when a service file exists
+   for it, whether muslimtify_daemon_install wrote it or a package provided it,
+   and is always true when the service is enabled or running. */
+typedef struct {
+  bool installed; /* a service file for it exists */
+  bool enabled;   /* the service manager starts it at login */
+  bool running;   /* it is active right now */
+} MuslimtifyDaemonStatus;
+
+/* What muslimtify_daemon_install did. */
+typedef struct {
+  char binary_path[MUSLIMTIFY_PATH_SIZE]; /* the program the service runs, "" if none was found */
+  char unit_path[MUSLIMTIFY_PATH_SIZE];   /* the service file that was written, "" if none */
+  bool legacy_timer_disabled;             /* an old muslimtify.timer was switched off */
+} MuslimtifyDaemonInstall;
+
+/* What muslimtify_daemon_uninstall did. */
+typedef struct {
+  bool stopped;               /* it was running and was stopped */
+  bool disabled;              /* it was enabled and was disabled */
+  bool legacy_timer_disabled; /* an old muslimtify.timer was switched off */
+  bool unit_removed;          /* the service file was deleted */
+  bool timer_removed;         /* an old timer file was deleted */
+  char unit_path[MUSLIMTIFY_PATH_SIZE];
+  char timer_path[MUSLIMTIFY_PATH_SIZE];
+} MuslimtifyDaemonUninstall;
 
 /**
  * Load the user's config into a new handle. Performs no network access and
@@ -378,6 +411,31 @@ MuslimtifyError muslimtify_notify_test(Muslimtify *mt, bool adhan, MuslimtifyNex
  * there is none to stop.
  */
 MuslimtifyError muslimtify_adhan_stop(void);
+
+/* The background service that calls muslimtify_run_cycle once a minute. These
+   three take no handle. They return MUSLIMTIFY_ERR_UNSUPPORTED on a platform
+   where managing the service through the library is not implemented yet. */
+
+/**
+ * Register the service for the current user and start it. The service runs the
+ * muslimtify command line program with `daemon run`. The caller does not say
+ * which program: the library uses the first one it finds beside the running
+ * executable, in the directory this build installs to, in /usr/local/bin or in
+ * /usr/bin. If there is none, nothing is installed and
+ * MUSLIMTIFY_ERR_DAEMON_BINARY is returned. *out, when not NULL, is filled even
+ * on an error return and shows how far the call got, including which program
+ * was chosen.
+ */
+MuslimtifyError muslimtify_daemon_install(MuslimtifyDaemonInstall *out);
+
+/**
+ * Stop the service, switch it off and delete its files. Succeeds when nothing
+ * was installed. *out, when not NULL, says what was actually done.
+ */
+MuslimtifyError muslimtify_daemon_uninstall(MuslimtifyDaemonUninstall *out);
+
+/** Report whether the service is installed, enabled and running. */
+MuslimtifyError muslimtify_daemon_status(MuslimtifyDaemonStatus *out);
 
 /* The names and messages returned below are static strings and never NULL. */
 
