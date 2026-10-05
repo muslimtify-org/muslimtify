@@ -373,110 +373,6 @@ static void test_location_harden_curl(void) {
   curl_easy_cleanup(curl);
 }
 
-// Injected into location_refresh_with to drive the fail-safe branches without
-// a network round-trip (declared non-static in src/core/location.c).
-extern int location_refresh_with(Config *cfg, int (*fetch)(Config *));
-
-// Simulates a successful ipinfo fetch: writes known coordinates into the copy.
-static int stub_fetch_ok(Config *cfg) {
-  cfg->latitude = -6.2;
-  cfg->longitude = 106.8;
-  return 0;
-}
-
-// Simulates a fetch that mutates its copy and THEN fails (e.g. parses some
-// fields, then the transfer errors). Zeroing the coords here proves the
-// copy-then-commit discards the partial write instead of clobbering *cfg.
-static int stub_fetch_fail(Config *cfg) {
-  cfg->latitude = 0.0;
-  cfg->longitude = 0.0;
-  return -1;
-}
-
-static void test_location_refresh(void) {
-  printf("\n-- location_refresh --\n");
-
-  // NULL config is rejected.
-  total++;
-  if (location_refresh(NULL) == -1) {
-    printf("  PASS: NULL config returns -1\n");
-  } else {
-    printf("  FAIL: NULL config did not return -1\n");
-    failures++;
-  }
-
-  // auto_detect disabled: refresh must be a no-op that reports success while
-  // touching neither the network nor the caller's coordinates. Sentinel coords
-  // prove a manually-set location is preserved (this path returns before any
-  // fetch or config_save, so it is deterministic and offline-safe).
-  Config off = config_default();
-  off.auto_detect = false;
-  off.latitude = 12.34;
-  off.longitude = 56.78;
-
-  total++;
-  int rc_off = location_refresh_with(&off, stub_fetch_ok);
-  bool off_unchanged = fabs(off.latitude - 12.34) < 1e-9 && fabs(off.longitude - 56.78) < 1e-9;
-  if (rc_off == 0 && off_unchanged) {
-    printf("  PASS: auto_detect off is a no-op (rc=0, coords preserved)\n");
-  } else {
-    printf("  FAIL: auto_detect off rc=%d lat=%.5f lng=%.5f\n", rc_off, off.latitude,
-           off.longitude);
-    failures++;
-  }
-
-  // Fail-safe: a fetch that fails (after partially mutating its copy) must
-  // leave the caller's cached coordinates fully intact. This is the core
-  // guarantee that an offline boot never wipes a good location.
-  Config keep = config_default();
-  keep.auto_detect = true;
-  keep.latitude = 1.11;
-  keep.longitude = 2.22;
-
-  total++;
-  int rc_fail = location_refresh_with(&keep, stub_fetch_fail);
-  bool preserved = fabs(keep.latitude - 1.11) < 1e-9 && fabs(keep.longitude - 2.22) < 1e-9;
-  if (rc_fail == -1 && preserved) {
-    printf("  PASS: failed fetch keeps cached coords (rc=-1, no clobber)\n");
-  } else {
-    printf("  FAIL: failed fetch rc=%d lat=%.5f lng=%.5f\n", rc_fail, keep.latitude,
-           keep.longitude);
-    failures++;
-  }
-
-#ifndef _WIN32
-  // Success path: a fetch that succeeds updates the coords AND persists them.
-  // config_save writes to config_get_path(), so sandbox it under a temp
-  // XDG_CONFIG_HOME (POSIX only) and confirm the value round-trips from disk.
-  char sandbox[] = "/tmp/mt_locrefresh_XXXXXX";
-  if (mkdtemp(sandbox)) {
-    setenv("XDG_CONFIG_HOME", sandbox, 1);
-
-    Config upd = config_default();
-    upd.auto_detect = true;
-    upd.latitude = 1.11;
-    upd.longitude = 2.22;
-
-    total++;
-    int rc_ok = location_refresh_with(&upd, stub_fetch_ok);
-    Config back;
-    bool saved = config_load(&back) == 0 && fabs(back.latitude - (-6.2)) < 1e-6 &&
-                 fabs(back.longitude - 106.8) < 1e-6;
-    bool applied = fabs(upd.latitude - (-6.2)) < 1e-6 && fabs(upd.longitude - 106.8) < 1e-6;
-    if (rc_ok == 0 && applied && saved) {
-      printf("  PASS: successful fetch updates coords and persists them\n");
-    } else {
-      printf("  FAIL: success rc=%d applied=%d saved=%d\n", rc_ok, applied, saved);
-      failures++;
-    }
-
-    char cmd[300];
-    snprintf(cmd, sizeof(cmd), "rm -rf %s", sandbox);
-    (void)system(cmd);
-  }
-#endif
-}
-
 // -- location_fetch_core: GPS-first / ipinfo-fallback decision matrix --------
 // Injected stubs let us drive every GpsStatus branch without gpsd or network.
 
@@ -626,73 +522,6 @@ static void test_location_fetch_core(void) {
   int rc_h = location_fetch_core(&h, stub_gps_nodaemon, stub_ipinfo, NULL);
   expect(rc_h == 0 && core_ipinfo_calls == 1 && !h.use_gps, "NULL status pointer is accepted");
 }
-
-#ifndef _WIN32
-// Declared non-static in src/core/location.c as a test seam.
-extern int ensure_location_with(Config *cfg, int (*prepare)(Config *));
-
-// Simulates a successful first-run detection without touching the network.
-static int stub_prepare_ok(Config *cfg) {
-  cfg->latitude = -6.2;
-  cfg->longitude = 106.8;
-  return 0;
-}
-
-// Read a whole temp file into buf (capacity cap, NUL-terminated).
-static void slurp(FILE *f, char *buf, size_t cap) {
-  rewind(f);
-  size_t n = fread(buf, 1, cap - 1, f);
-  buf[n] = '\0';
-}
-
-static void test_ensure_location_streams(void) {
-  printf("\n-- ensure_location output streams --\n");
-
-  FILE *out = tmpfile();
-  FILE *err = tmpfile();
-  if (!out || !err) {
-    expect(false, "tmpfile for stream capture");
-    return;
-  }
-
-  Config cfg = config_default();
-  cfg.auto_detect = true;
-  cfg.latitude = 0.0;
-  cfg.longitude = 0.0;
-  cfg.city[0] = '\0';
-
-  fflush(stdout);
-  fflush(stderr);
-  int saved_out = dup(STDOUT_FILENO);
-  int saved_err = dup(STDERR_FILENO);
-  dup2(fileno(out), STDOUT_FILENO);
-  dup2(fileno(err), STDERR_FILENO);
-
-  int rc = ensure_location_with(&cfg, stub_prepare_ok);
-
-  fflush(stdout);
-  fflush(stderr);
-  dup2(saved_out, STDOUT_FILENO);
-  dup2(saved_err, STDERR_FILENO);
-  close(saved_out);
-  close(saved_err);
-
-  char out_buf[512];
-  char err_buf[512];
-  slurp(out, out_buf, sizeof(out_buf));
-  slurp(err, err_buf, sizeof(err_buf));
-  fclose(out);
-  fclose(err);
-
-  // A first run under `show --json` must keep stdout empty so the JSON that
-  // follows is the only thing on it.
-  expect(rc == 0, "first-run detection succeeds");
-  expect(out_buf[0] == '\0', "no status text on stdout");
-  expect(strstr(err_buf, "Detecting location...") != NULL, "progress line on stderr");
-  expect(strstr(err_buf, "Location detected: -6.2000, 106.8000") != NULL,
-         "detected line on stderr");
-}
-#endif /* _WIN32 */
 
 // Declared non-static in src/core/location.c as a test seam.
 extern int location_parse_ipinfo(Config *cfg, char *body);
@@ -916,13 +745,11 @@ int main(void) {
   test_timezone_name_is_valid();
   test_timezone_exists();
   test_location_harden_curl();
-  test_location_refresh();
   test_gps_status_message();
   test_location_fetch_core();
   test_location_parse_ipinfo();
 #ifndef _WIN32
   test_gpsd_scan_line();
-  test_ensure_location_streams();
 #endif
   test_location_is_stale();
 

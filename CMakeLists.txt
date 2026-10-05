@@ -133,9 +133,6 @@ add_library(muslimtify_core OBJECT
     src/core/check_cycle.c
     src/core/miniaudio.c
     src/core/audio.c
-    # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
-    # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
-    $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
     src/core/prayertimes.c
     src/lib/muslimtify.c
     src/lib/muslimtify_settings.c
@@ -163,6 +160,9 @@ add_library(muslimtify_cli OBJECT
     src/cli/cmd_method.c
     src/cli/cmd_notification.c
     src/cli/cmd_timeformat.c
+    # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
+    # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
+    $<$<NOT:$<BOOL:${WIN32}>>:src/cli/daemon_loop.c>
 )
 muslimtify_set_target_defaults(muslimtify_cli)
 
@@ -281,7 +281,7 @@ if(BUILD_TESTING)
 
         add_executable(test_daemon_loop
             tests/test_daemon_loop.c
-            src/core/daemon_loop.c
+            src/cli/daemon_loop.c
         )
         muslimtify_set_target_defaults(test_daemon_loop)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)

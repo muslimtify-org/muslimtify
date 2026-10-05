@@ -12,7 +12,7 @@ extern "C" {
 int seconds_until_next_minute(time_t now);
 
 /* Runs the prayer-notification loop in the foreground until SIGTERM/SIGINT.
- * Calls run_check_cycle() once per wall-clock minute. Returns 0 on clean
+ * Calls muslimtify_run_cycle() once per wall-clock minute. Returns 0 on clean
  * shutdown. */
 int run_daemon_loop(void);
 

@@ -1036,7 +1036,7 @@ static void test_consumed_trigger_not_resurrected_by_later_cycle(void) {
 
 // cache_is_valid_for_today keeps a same-day cache with no triggers left, which
 // only helps if cache_save and cache_load round trip an empty trigger list.
-// Otherwise the load fails and run_check_cycle rebuilds every minute anyway.
+// Otherwise the load fails and muslimtify_run_cycle rebuilds every minute anyway.
 static void test_empty_cache_roundtrip(void) {
   printf("  empty cache roundtrip...\n");
   char tmpdir[] = "/tmp/mt_cache_empty_XXXXXX";
