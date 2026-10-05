@@ -103,6 +103,8 @@ const char *muslimtify_get_error(MuslimtifyError err) {
     return "systemctl daemon-reload failed";
   case MUSLIMTIFY_ERR_DAEMON_ENABLE:
     return "Failed to enable muslimtify.service";
+  case MUSLIMTIFY_ERR_CACHE_SAVE:
+    return "Cannot write the trigger cache, so notifications may repeat";
   default:
     return "Unknown error";
   }

@@ -40,15 +40,13 @@ static void print_method_help(void) {
   printf("  %-25s %s\n", "muslimtify method --list", "# List available methods");
 }
 
-// Auto-select the calculation method from the stored country. If no country is
-// set yet, detect the location first, which fills it in, then derive the method.
+// Auto-select the calculation method from the stored country. If no location
+// is set yet, detect it first, which fills the country in, then derive the
+// method. A location set by hand is never replaced here, even without a
+// country: muslimtify_set_method_from_country reports that case itself.
 static int method_auto(Muslimtify *mt) {
-  MuslimtifyLocation loc;
-  MuslimtifyError err = muslimtify_get_location(mt, &loc);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
-
-  if (loc.country[0] == '\0') {
+  MuslimtifyError err;
+  if (muslimtify_location_needs_detect(mt)) {
     printf("Detecting location...\n");
     MuslimtifyDetection detection;
     err = muslimtify_detect_location(mt, &detection);

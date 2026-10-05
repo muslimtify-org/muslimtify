@@ -1,6 +1,5 @@
-#ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
-#endif
+
 #include "display.h"
 #include "muslimtify.h"
 #include "platform.h"
@@ -165,6 +164,10 @@ void display_day_table(const MuslimtifyDay *day, int time_format) {
             pos += (size_t)written;
         }
         snprintf(reminders + pos, sizeof(reminders) - pos, " min before");
+        // The column is 21 wide. A list that does not fit is summarised so
+        // the table stays aligned; `notification --headless` lists them all.
+        if (strlen(reminders) > 21)
+          snprintf(reminders, sizeof(reminders), "%d reminders", p->reminder_count);
       }
     } else {
       snprintf(reminders, sizeof(reminders), "-");
@@ -521,8 +524,11 @@ void display_location_json(const MuslimtifyLocation *loc) {
   printf("}\n");
 }
 
-// "none" when there are no reminders, else the minutes joined by commas.
-static void format_reminders(const MuslimtifyPrayerSettings *p, char *out, size_t cap) {
+// "none" when there are no reminders, else the minutes joined by commas. A
+// list wider than `width` is summarised as a count so the table stays aligned;
+// the headless output lists every value.
+static void format_reminders(const MuslimtifyPrayerSettings *p, size_t width, char *out,
+                             size_t cap) {
   if (p->reminder_count == 0) {
     snprintf(out, cap, "none");
     return;
@@ -535,6 +541,8 @@ static void format_reminders(const MuslimtifyPrayerSettings *p, char *out, size_
       break;
     pos += (size_t)written;
   }
+  if (pos > width)
+    snprintf(out, cap, "%d reminders", p->reminder_count);
 }
 
 void display_notification_settings(const MuslimtifyNotification *n) {
@@ -546,7 +554,7 @@ void display_notification_settings(const MuslimtifyNotification *n) {
     char key[16];
     prayer_key(i, key, sizeof(key));
     char reminders[64];
-    format_reminders(p, reminders, sizeof(reminders));
+    format_reminders(p, 13, reminders, sizeof(reminders));
     printf("| %-7s | %-7s | %-13s | %-5s |\n", key, p->enabled ? "yes" : "no", reminders,
            p->adhan_enabled ? "on" : "off");
   }
@@ -563,7 +571,7 @@ void display_notification_settings_headless(const MuslimtifyNotification *n) {
     char key[16];
     prayer_key(i, key, sizeof(key));
     char reminders[64];
-    format_reminders(p, reminders, sizeof(reminders));
+    format_reminders(p, sizeof(reminders), reminders, sizeof(reminders));
     printf("%s.enabled=%s\n", key, p->enabled ? "true" : "false");
     printf("%s.reminders=%s\n", key, reminders);
     printf("%s.adhan=%s\n", key, p->adhan_enabled ? "true" : "false");

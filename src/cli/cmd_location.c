@@ -62,6 +62,10 @@ static int location_set_run(Muslimtify *mt, const LocationSetArgs *a) {
   // Coordinates go first: moving them resets the city, the country and the
   // timezone, which the setters below then override.
   bool coords_changed = a->lat_str || a->lon_str;
+  if (coords_changed && !loc.is_set && !(a->lat_str && a->lon_str)) {
+    fprintf(stderr, "Error: No location is set yet, so both --lat and --long are required\n");
+    return 1;
+  }
   if (coords_changed) {
     err = muslimtify_set_coordinates(mt, a->lat_str ? a->lat : loc.latitude,
                                      a->lon_str ? a->lon : loc.longitude);

@@ -135,6 +135,9 @@ static void setup(void) {
   snprintf(new_path, sizeof(new_path), "%s:%s", fake_dir, old_path ? old_path : "");
   setenv("PATH", new_path, 1);
   setenv("HOME", home_dir, 1);
+  // The unit directory follows XDG_CONFIG_HOME when it is set, so the
+  // developer's own value must not leak in here.
+  unsetenv("XDG_CONFIG_HOME");
   setenv("MT_FAKE_LOG", fake_log, 1);
   fake_fails("");
 
@@ -177,7 +180,7 @@ static void test_install(void) {
   char unit[4096];
   read_file(unit_file, unit, sizeof(unit));
   char expected_exec[2048];
-  snprintf(expected_exec, sizeof(expected_exec), "ExecStart=%s daemon run\n", daemon_bin);
+  snprintf(expected_exec, sizeof(expected_exec), "ExecStart=\"%s\" daemon run\n", daemon_bin);
   check_bool("unit runs the given binary", strstr(unit, expected_exec) != NULL);
   check_bool("systemd reloaded", log_has("--user daemon-reload"));
   check_bool("service enabled and started", log_has("--user enable --now muslimtify.service"));
@@ -206,7 +209,7 @@ static void test_install(void) {
     check_bool("it is named muslimtify", slash != NULL && strcmp(slash + 1, "muslimtify") == 0);
     check_bool("it is executable", access(result.binary_path, X_OK) == 0);
     char expected[4096];
-    snprintf(expected, sizeof(expected), "ExecStart=%s daemon run\n", result.binary_path);
+    snprintf(expected, sizeof(expected), "ExecStart=\"%s\" daemon run\n", result.binary_path);
     read_file(unit_file, unit, sizeof(unit));
     check_bool("the unit runs the chosen program", strstr(unit, expected) != NULL);
   } else {
@@ -269,6 +272,43 @@ static void test_install_failures(void) {
   check_bool("no unit path on that failure", result.unit_path[0] == '\0');
   mt_log_set_handler(mt_log_stderr, NULL);
   setenv("HOME", home_dir, 1);
+}
+
+// With XDG_CONFIG_HOME set, systemd reads user units from under it, so that
+// is where the unit goes, and where status and uninstall look for it.
+static void test_xdg_config_home(void) {
+  printf("  XDG_CONFIG_HOME...\n");
+
+  char xdg[512];
+  char xdg_unit[1024];
+  snprintf(xdg, sizeof(xdg), "%s/xdg", tmpdir);
+  snprintf(xdg_unit, sizeof(xdg_unit), "%s/systemd/user/muslimtify.service", xdg);
+  setenv("XDG_CONFIG_HOME", xdg, 1);
+  fake_fails("is-enabled:muslimtify.timer");
+
+  MuslimtifyDaemonInstall install;
+  check_bool("install succeeds",
+             muslimtify_daemon_install_binary(daemon_bin, &install) == MUSLIMTIFY_OK);
+  check_bool("unit is under XDG_CONFIG_HOME",
+             strcmp(install.unit_path, xdg_unit) == 0 && file_exists(xdg_unit));
+  check_bool("nothing under ~/.config", !file_exists(unit_file));
+
+  MuslimtifyDaemonStatus status;
+  fake_fails(NOTHING_THERE);
+  check_bool("status reads it",
+             muslimtify_daemon_status(&status) == MUSLIMTIFY_OK && status.installed);
+
+  MuslimtifyDaemonUninstall uninstall;
+  check_bool("uninstall removes it", muslimtify_daemon_uninstall(&uninstall) == MUSLIMTIFY_OK &&
+                                         uninstall.unit_removed && !file_exists(xdg_unit));
+
+  // An empty value means unset, the same as for the config directory.
+  setenv("XDG_CONFIG_HOME", "", 1);
+  fake_fails("is-enabled:muslimtify.timer");
+  check_bool("empty XDG_CONFIG_HOME falls back to home",
+             muslimtify_daemon_install_binary(daemon_bin, &install) == MUSLIMTIFY_OK &&
+                 strcmp(install.unit_path, unit_file) == 0);
+  unsetenv("XDG_CONFIG_HOME");
 }
 
 static void test_uninstall(void) {
@@ -384,6 +424,7 @@ int main(void) {
   setup();
   test_install();
   test_install_failures();
+  test_xdg_config_home();
   test_uninstall();
   test_status();
   test_messages();

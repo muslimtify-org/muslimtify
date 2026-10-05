@@ -3,12 +3,14 @@
 #include "config.h"
 #include "lib/muslimtify_internal.h"
 #include "muslimtify.h"
+#include "platform.h"
 #include "prayer_checker.h"
 #include "prayertimes.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static int passed = 0;
@@ -62,7 +64,9 @@ static bool init_ok;
 static int detect_calls;
 static bool detect_ok;
 static double detect_latitude;
+static double detect_longitude;
 static time_t detect_stamp;
+static bool cache_delete_during_notify;
 
 static int rec_init(const char *app_name) {
   (void)app_name;
@@ -72,6 +76,8 @@ static int rec_init(const char *app_name) {
 
 static void rec_prayer(const char *prayer_name, const char *time_str, int minutes_before,
                        const char *urgency, const char *sound_preset) {
+  if (cache_delete_during_notify)
+    cache_invalidate();
   if (sent_count >= SENT_MAX)
     return;
   Sent *s = &sent_log[sent_count++];
@@ -110,7 +116,7 @@ static int rec_detect(Config *cfg, GpsStatus *status) {
     return -1;
   }
   cfg->latitude = detect_latitude;
-  cfg->longitude = 106.8456;
+  cfg->longitude = detect_longitude;
   snprintf(cfg->timezone, sizeof(cfg->timezone), "Asia/Jakarta");
   cfg->timezone_offset = 7.0;
   cfg->updated_at = (int64_t)detect_stamp;
@@ -177,7 +183,9 @@ static void begin(const Config *cfg) {
   detect_calls = 0;
   detect_ok = true;
   detect_latitude = JAKARTA_LAT;
+  detect_longitude = 106.8456;
   detect_stamp = TEST_EPOCH;
+  cache_delete_during_notify = false;
 }
 
 static MuslimtifyError cycle_at(int minute, time_t epoch, MuslimtifyCycle *out) {
@@ -396,6 +404,89 @@ static void test_refresh_does_not_repeat(void) {
   check_bool("and announced nothing again", sent_count == 1 && cycle.notifications == 0);
 }
 
+// A refresh that moves the location rebuilds today's triggers for the new
+// place: the old dhuhr minute goes quiet and the new one is announced.
+static void test_refresh_moves_triggers(void) {
+  printf("  a refresh moves today's triggers...\n");
+
+  Config cfg = base_config();
+  cfg.auto_detect = true;
+  cfg.refresh_interval = 3600;
+  cfg.updated_at = (int64_t)TEST_EPOCH;
+  begin(&cfg);
+  int old_dhuhr = dhuhr_minute(&cfg);
+
+  // Build and save today's cache at the old location, well before dhuhr.
+  MuslimtifyCycle cycle;
+  check_bool("first cycle succeeds",
+             cycle_at(old_dhuhr - 120, TEST_EPOCH, &cycle) == MUSLIMTIFY_OK);
+  check_bool("nothing due yet", sent_count == 0);
+
+  // Jakarta's latitude but Kathmandu's longitude: dhuhr moves by over an hour.
+  Config moved = cfg;
+  moved.longitude = 85.3;
+  int new_dhuhr = dhuhr_minute(&moved);
+  check_bool("the two dhuhr minutes differ", new_dhuhr != old_dhuhr);
+
+  detect_stamp = TEST_EPOCH + 4000;
+  detect_longitude = 85.3;
+  check_bool("refresh cycle succeeds",
+             cycle_at(old_dhuhr - 100, TEST_EPOCH + 4000, &cycle) == MUSLIMTIFY_OK);
+  check_bool("it refreshed", cycle.refreshed && detect_calls == 1);
+
+  check_bool("old dhuhr minute is quiet",
+             cycle_at(old_dhuhr, TEST_EPOCH + 4000, &cycle) == MUSLIMTIFY_OK && sent_count == 0);
+  check_bool("new dhuhr minute announces",
+             cycle_at(new_dhuhr, TEST_EPOCH + 4000, &cycle) == MUSLIMTIFY_OK && sent_count == 1);
+}
+
+// A failed refresh is not retried on the very next cycle.
+static void test_refresh_backs_off(void) {
+  printf("  a failed refresh backs off...\n");
+
+  Config cfg = stale_config();
+  begin(&cfg);
+  detect_ok = false;
+  MuslimtifyCycle cycle;
+  check_bool("first attempt fails",
+             cycle_at(60, TEST_EPOCH + 100000, &cycle) == MUSLIMTIFY_OK && cycle.refresh_failed);
+  check_bool("next minute does not retry",
+             cycle_at(61, TEST_EPOCH + 100060, &cycle) == MUSLIMTIFY_OK && !cycle.refresh_failed &&
+                 detect_calls == 1);
+  detect_ok = true;
+  check_bool("it retries later", cycle_at(75, TEST_EPOCH + 100900, &cycle) == MUSLIMTIFY_OK &&
+                                     cycle.refreshed && detect_calls == 2);
+}
+
+// Settings saved while a cycle runs delete the cache. The cycle must not write
+// its stale copy back, and an unwritable cache is reported.
+static void test_cache_gone_and_unwritable(void) {
+  printf("  a cache deleted during the cycle, and one that cannot be written...\n");
+
+  Config cfg = base_config();
+  begin(&cfg);
+  int dhuhr = dhuhr_minute(&cfg);
+
+  // An adhan hook stands in for the moment another process saves settings.
+  MuslimtifyCycle cycle;
+  cache_delete_during_notify = true;
+  check_bool("cycle succeeds", cycle_at(dhuhr, TEST_EPOCH, &cycle) == MUSLIMTIFY_OK);
+  check_bool("announced once", sent_count == 1);
+  check_bool("the deleted cache stays deleted", !platform_file_exists(cache_get_path()));
+  cache_delete_during_notify = false;
+
+  // The cache directory is read-only, so the cache cannot be written. (Root
+  // ignores directory modes, so under root this part proves nothing.)
+  begin(&cfg);
+  char cache_dir[512];
+  snprintf(cache_dir, sizeof(cache_dir), "%s/muslimtify", tmpdir);
+  check_bool("cache dir made read-only", chmod(cache_dir, 0500) == 0);
+  check_bool("the failure is reported",
+             cycle_at(dhuhr, TEST_EPOCH, &cycle) == MUSLIMTIFY_ERR_CACHE_SAVE);
+  check_bool("the prayer was still announced", sent_count == 1 && cycle.notifications == 1);
+  chmod(cache_dir, 0700);
+}
+
 static void test_init_failure(void) {
   printf("  a notification system that will not start...\n");
 
@@ -515,6 +606,9 @@ int main(void) {
   test_first_run();
   test_stale_refresh();
   test_refresh_does_not_repeat();
+  test_refresh_moves_triggers();
+  test_refresh_backs_off();
+  test_cache_gone_and_unwritable();
   test_init_failure();
   test_sound_and_urgency();
   test_notify_test();

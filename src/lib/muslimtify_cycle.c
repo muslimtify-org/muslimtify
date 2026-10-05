@@ -17,6 +17,14 @@
 // The name shown as the sender of every notification.
 #define APP_NAME "Muslimtify"
 
+// How long a failed location refresh waits before the next attempt.
+#define REFRESH_RETRY_SEC 600
+
+// Epoch second before which a stale location is not refreshed again, set after
+// a failed refresh. Process-wide on purpose: the cycle keeps no handle, and the
+// daemon is one process.
+static int64_t g_refresh_retry_at = 0;
+
 static const MuslimtifyCycleHooks REAL_HOOKS = {
     location_detect, notify_init_once, notify_prayer, notify_adhan, notify_cleanup,
 };
@@ -60,10 +68,13 @@ MuslimtifyError muslimtify_run_cycle_at(const MuslimtifyCycleHooks *hooks, const
 
   // Periodic refresh: once the saved auto-detected location is older than the
   // configured interval, detect it again. Not fatal: a failed lookup keeps the
-  // last known good location and the cycle carries on.
-  if (location_is_stale(&cfg, (int64_t)now_epoch)) {
+  // last known good location and the cycle carries on. A failure is not
+  // retried every minute: the stored timestamp never advances, so without this
+  // pause an offline machine would block on the lookup once a minute.
+  if (location_is_stale(&cfg, (int64_t)now_epoch) && (int64_t)now_epoch >= g_refresh_retry_at) {
     if (detect_into(&cfg, hooks, &cycle->detection) != MUSLIMTIFY_OK) {
       cycle->refresh_failed = true;
+      g_refresh_retry_at = (int64_t)now_epoch + REFRESH_RETRY_SEC;
     } else {
       cycle->refreshed = true;
       if (config_save(&cfg) != 0)
@@ -76,16 +87,30 @@ MuslimtifyError muslimtify_run_cycle_at(const MuslimtifyCycleHooks *hooks, const
   snprintf(today, sizeof(today), "%04d-%02d-%02d", now->tm_year + 1900, now->tm_mon + 1,
            now->tm_mday);
 
+  // Today's triggers were built for the location in force at the time. A
+  // refreshed location means new times, so the day is rebuilt, minus whatever
+  // already lies behind: the old location's version of those was handled by
+  // earlier cycles, and announcing them again would be noise.
   PrayerCache cache;
-  bool cache_valid =
-      (cache_load(&cache) == 0 && cache_is_valid_for_today(cache.date, cache.trigger_count, today));
+  bool cache_valid = !cycle->refreshed && cache_load(&cache) == 0 &&
+                     cache_is_valid_for_today(cache.date, cache.trigger_count, today);
 
+  bool cache_write_failed = false;
   if (!cache_valid) {
     struct PrayerTimes times =
         prayer_times_for_config(&cfg, now->tm_year + 1900, now->tm_mon + 1, now->tm_mday);
 
     cache_build_triggers(&cache, &cfg, &times, current_min, today);
-    cache_save(&cache);
+    if (cycle->refreshed) {
+      int j = 0;
+      while (j < cache.trigger_count) {
+        if (cache.triggers[j].minute < current_min)
+          cache_remove_trigger(&cache, j);
+        else
+          j++;
+      }
+    }
+    cache_write_failed = cache_save(&cache) != 0;
   }
 
   bool notified = false;
@@ -134,10 +159,17 @@ MuslimtifyError muslimtify_run_cycle_at(const MuslimtifyCycleHooks *hooks, const
 
   if (notified)
     hooks->notify_cleanup();
-  if (dirty)
-    cache_save(&cache);
 
-  return MUSLIMTIFY_OK;
+  // Another process may have changed the settings while this cycle ran, which
+  // can take minutes when an adhan plays. It announces that by deleting the
+  // cache file. Writing this cycle's copy back would resurrect the old
+  // triggers, so a cache that is gone stays gone and the next cycle rebuilds.
+  if (dirty && platform_file_exists(cache_get_path()))
+    cache_write_failed = cache_save(&cache) != 0;
+
+  // The notifications went out either way. Without a saved cache the same
+  // triggers come back next minute, which the caller should hear about.
+  return cache_write_failed ? MUSLIMTIFY_ERR_CACHE_SAVE : MUSLIMTIFY_OK;
 }
 
 MuslimtifyError muslimtify_run_cycle(MuslimtifyCycle *out) {

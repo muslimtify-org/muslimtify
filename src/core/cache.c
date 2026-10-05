@@ -215,8 +215,19 @@ int cache_load(PrayerCache *cache) {
     if (!copy_string(t->prayer, sizeof(t->prayer), prayer)) {
       cache_log_trunc("prayer");
     }
-    t->minute = (int)strtol(minute_str, NULL, 10);
-    t->minutes_before = (int)strtol(mb_str, NULL, 10);
+    // A trigger belongs to one day and a reminder is at most a day ahead, so
+    // anything outside these ranges is a corrupt file, not a trigger. Values
+    // that pass cannot overflow the minute arithmetic in check_cycle.
+    long minute = strtol(minute_str, NULL, 10);
+    long minutes_before = strtol(mb_str, NULL, 10);
+    if (minute < 0 || minute >= 1440 || minutes_before < 0 || minutes_before > 1440) {
+      *(obj_end + 1) = saved;
+      json_end(ctx);
+      free(content);
+      return -1;
+    }
+    t->minute = (int)minute;
+    t->minutes_before = (int)minutes_before;
     t->prayer_time = strtod(pt_str, NULL);
     t->adhan_enabled = strcmp(ae_str, "true") == 0;
     if (!copy_string(t->adhan, sizeof(t->adhan), adhan_str)) {
