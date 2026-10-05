@@ -29,7 +29,15 @@ static void test_build_service_unit(void) {
   report_result("builder returns success", written > 0);
   report_result("unit is a simple (long-running) service", strstr(unit, "Type=simple") != NULL);
   report_result("unit runs the loop",
-                strstr(unit, "ExecStart=/usr/local/bin/muslimtify daemon run") != NULL);
+                strstr(unit, "ExecStart=\"/usr/local/bin/muslimtify\" daemon run") != NULL);
+
+  // A path systemd would otherwise split or expand is quoted and escaped.
+  char odd[DAEMON_UNIT_MAX];
+  report_result("odd path is accepted",
+                build_service_unit("/opt/My Apps/%h \"q\" \\b/muslimtify", odd, sizeof(odd)) > 0);
+  report_result(
+      "odd path is quoted and escaped",
+      strstr(odd, "ExecStart=\"/opt/My Apps/%%h \\\"q\\\" \\\\b/muslimtify\" daemon run") != NULL);
   report_result("unit installs into the user target",
                 strstr(unit, "WantedBy=default.target") != NULL);
   report_result("unit is not a timer", strstr(unit, "OnCalendar") == NULL);

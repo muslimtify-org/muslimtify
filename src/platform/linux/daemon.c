@@ -44,8 +44,13 @@ static int systemctl_user(const char *const *args) {
     _exit(127);
   }
   free((void *)child_argv);
-  int wstatus;
-  waitpid(pid, &wstatus, 0);
+  int wstatus = 0;
+  pid_t waited;
+  do {
+    waited = waitpid(pid, &wstatus, 0);
+  } while (waited < 0 && errno == EINTR);
+  if (waited != pid)
+    return 1;
   return WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : 1;
 }
 
@@ -68,7 +73,7 @@ static void mkdir_p(const char *path) {
 
 static const char *get_home(void) {
   const char *home = getenv("HOME");
-  if (!home) {
+  if (!home || home[0] == '\0') {
     struct passwd *pw = getpwuid(getuid());
     if (pw)
       home = pw->pw_dir;
@@ -76,8 +81,62 @@ static const char *get_home(void) {
   return home;
 }
 
+// The directory systemd reads the user's own units from: $XDG_CONFIG_HOME when
+// set, else ~/.config, each followed by systemd/user. False when there is no
+// home or the path does not fit.
+static bool unit_dir_path(char *out, size_t cap) {
+  const char *xdg = getenv("XDG_CONFIG_HOME");
+  int n;
+  if (xdg && xdg[0] != '\0') {
+    n = snprintf(out, cap, "%s/systemd/user", xdg);
+  } else {
+    const char *home = get_home();
+    if (!home)
+      return false;
+    n = snprintf(out, cap, "%s/" UNIT_DIR, home);
+  }
+  return n > 0 && (size_t)n < cap;
+}
+
+// Writes binary_path into out as a systemd command-line argument: wrapped in
+// double quotes, with backslash and quote escaped and '%' doubled so a path
+// is never read as a specifier. False when it does not fit.
+static bool quote_exec_path(const char *binary_path, char *out, size_t cap) {
+  size_t pos = 0;
+  if (cap < 3)
+    return false;
+  out[pos++] = '"';
+  for (const char *p = binary_path; *p; p++) {
+    const char *piece;
+    if (*p == '\\')
+      piece = "\\\\";
+    else if (*p == '"')
+      piece = "\\\"";
+    else if (*p == '%')
+      piece = "%%";
+    else
+      piece = NULL;
+    size_t need = piece ? strlen(piece) : 1;
+    if (pos + need + 2 > cap)
+      return false;
+    if (piece) {
+      memcpy(out + pos, piece, need);
+      pos += need;
+    } else {
+      out[pos++] = *p;
+    }
+  }
+  out[pos++] = '"';
+  out[pos] = '\0';
+  return true;
+}
+
 int build_service_unit(const char *binary_path, char *buffer, size_t buffer_size) {
   if (!binary_path || !buffer || buffer_size == 0)
+    return -1;
+
+  char quoted[PLATFORM_DAEMON_PATH_MAX * 2];
+  if (!quote_exec_path(binary_path, quoted, sizeof(quoted)))
     return -1;
 
   int written = snprintf(buffer, buffer_size,
@@ -93,16 +152,16 @@ int build_service_unit(const char *binary_path, char *buffer, size_t buffer_size
                          "\n"
                          "[Install]\n"
                          "WantedBy=default.target\n",
-                         binary_path);
+                         quoted);
 
   if (written < 0 || (size_t)written >= buffer_size)
     return -1;
   return written;
 }
 
-// Writes "<home>/.config/systemd/user/<name>" into out. False when it does not fit.
-static bool unit_file_path(const char *home, const char *name, char *out, size_t cap) {
-  int n = snprintf(out, cap, "%s/" UNIT_DIR "/%s", home, name);
+// Writes "<unit_dir>/<name>" into out. False when it does not fit.
+static bool unit_file_path(const char *unit_dir, const char *name, char *out, size_t cap) {
+  int n = snprintf(out, cap, "%s/%s", unit_dir, name);
   return n > 0 && (size_t)n < cap;
 }
 
@@ -161,17 +220,14 @@ PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDa
     return PLATFORM_DAEMON_BINARY_INVALID;
   snprintf(out->binary_path, sizeof(out->binary_path), "%s", binary_path);
 
-  const char *home = get_home();
-  if (!home)
-    return PLATFORM_DAEMON_NO_HOME;
-
   char unit_dir[PLATFORM_DAEMON_PATH_MAX];
   char unit_path[PLATFORM_DAEMON_PATH_MAX];
   char timer_path[PLATFORM_DAEMON_PATH_MAX];
-  int n = snprintf(unit_dir, sizeof(unit_dir), "%s/" UNIT_DIR, home);
-  if (n <= 0 || (size_t)n >= sizeof(unit_dir) ||
-      !unit_file_path(home, SERVICE_UNIT, unit_path, sizeof(unit_path)) ||
-      !unit_file_path(home, TIMER_UNIT, timer_path, sizeof(timer_path))) {
+  if (!get_home())
+    return PLATFORM_DAEMON_NO_HOME;
+  if (!unit_dir_path(unit_dir, sizeof(unit_dir)) ||
+      !unit_file_path(unit_dir, SERVICE_UNIT, unit_path, sizeof(unit_path)) ||
+      !unit_file_path(unit_dir, TIMER_UNIT, timer_path, sizeof(timer_path))) {
     MT_LOGF(MT_LOG_ERROR, "Error: Home directory path is too long for the service file");
     return PLATFORM_DAEMON_UNIT_FAILED;
   }
@@ -233,13 +289,15 @@ PlatformDaemonResult platform_daemon_uninstall(PlatformDaemonUninstall *out) {
     out->legacy_timer_disabled = true;
   }
 
-  const char *home = get_home();
-  if (!home)
+  char unit_dir[PLATFORM_DAEMON_PATH_MAX];
+  if (!get_home())
     return PLATFORM_DAEMON_NO_HOME;
+  if (!unit_dir_path(unit_dir, sizeof(unit_dir)))
+    return PLATFORM_DAEMON_UNIT_FAILED;
 
-  if (unit_file_path(home, SERVICE_UNIT, out->unit_path, sizeof(out->unit_path)))
+  if (unit_file_path(unit_dir, SERVICE_UNIT, out->unit_path, sizeof(out->unit_path)))
     out->unit_removed = remove(out->unit_path) == 0;
-  if (unit_file_path(home, TIMER_UNIT, out->timer_path, sizeof(out->timer_path)))
+  if (unit_file_path(unit_dir, TIMER_UNIT, out->timer_path, sizeof(out->timer_path)))
     out->timer_removed = remove(out->timer_path) == 0;
 
   systemctl_user((const char *[]){"daemon-reload", NULL});
@@ -267,9 +325,10 @@ PlatformDaemonResult platform_daemon_status(PlatformDaemonStatus *out) {
       "/usr/lib/systemd/user",
   };
 
+  char unit_dir[PLATFORM_DAEMON_PATH_MAX];
   char unit_path[PLATFORM_DAEMON_PATH_MAX];
-  const char *home = get_home();
-  if (home && unit_file_path(home, SERVICE_UNIT, unit_path, sizeof(unit_path)))
+  if (unit_dir_path(unit_dir, sizeof(unit_dir)) &&
+      unit_file_path(unit_dir, SERVICE_UNIT, unit_path, sizeof(unit_path)))
     out->installed = access(unit_path, F_OK) == 0;
   if (!out->installed)
     out->installed = daemon_unit_in_dirs(system_dirs, sizeof(system_dirs) / sizeof(system_dirs[0]));
