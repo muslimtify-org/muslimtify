@@ -139,10 +139,12 @@ add_library(muslimtify_core OBJECT
     src/lib/muslimtify_settings.c
     src/lib/muslimtify_location.c
     src/lib/muslimtify_cycle.c
+    src/lib/muslimtify_daemon.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/posix/platform_posix.c>
     $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/platform_linux.c>
+    $<IF:$<BOOL:${WIN32}>,src/platform/windows/daemon_win.c,src/platform/linux/daemon.c>
     # Exactly one location provider is compiled per platform, so
     # platform_get_location has a single definition and core code needs no ifdefs.
     $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/gpsd_client.c>
@@ -267,6 +269,12 @@ if(BUILD_TESTING)
         muslimtify_set_target_defaults(test_log)
         add_test(NAME log COMMAND test_log)
 
+        add_executable(test_muslimtify_daemon tests/test_muslimtify_daemon.c)
+        muslimtify_set_target_defaults(test_muslimtify_daemon)
+        target_include_directories(test_muslimtify_daemon PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_muslimtify_daemon muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        add_test(NAME muslimtify_daemon COMMAND test_muslimtify_daemon)
+
         add_executable(test_offset_bound tests/test_offset_bound.c)
         muslimtify_set_target_defaults(test_offset_bound)
         target_include_directories(test_offset_bound PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
@@ -275,13 +283,11 @@ if(BUILD_TESTING)
 
         add_executable(test_cmd_daemon
             tests/test_cmd_daemon.c
-            src/cli/cmd_daemon.c
-            src/platform/posix/platform_posix.c
-            src/platform/linux/platform_linux.c
+            src/platform/linux/daemon.c
+            src/core/log.c
         )
         muslimtify_set_target_defaults(test_cmd_daemon)
         target_include_directories(test_cmd_daemon PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_compile_definitions(test_cmd_daemon PRIVATE MUSLIMTIFY_CMD_DAEMON_TEST)
         add_test(NAME cmd_daemon COMMAND test_cmd_daemon)
 
         add_executable(test_daemon_loop

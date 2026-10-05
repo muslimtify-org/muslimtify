@@ -91,6 +91,18 @@ const char *muslimtify_get_error(MuslimtifyError err) {
     return "No upcoming prayers enabled";
   case MUSLIMTIFY_ERR_ADHAN_NOT_PLAYING:
     return "No adhan is currently playing";
+  case MUSLIMTIFY_ERR_UNSUPPORTED:
+    return "Not supported on this platform";
+  case MUSLIMTIFY_ERR_DAEMON_BINARY:
+    return "Cannot determine binary path";
+  case MUSLIMTIFY_ERR_NO_HOME:
+    return "Cannot determine home directory";
+  case MUSLIMTIFY_ERR_DAEMON_UNIT:
+    return "Cannot write the service file";
+  case MUSLIMTIFY_ERR_DAEMON_RELOAD:
+    return "systemctl daemon-reload failed";
+  case MUSLIMTIFY_ERR_DAEMON_ENABLE:
+    return "Failed to enable muslimtify.service";
   default:
     return "Unknown error";
   }

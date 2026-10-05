@@ -1,5 +1,5 @@
-#ifndef CMD_DAEMON_H
-#define CMD_DAEMON_H
+#ifndef DAEMON_LINUX_H
+#define DAEMON_LINUX_H
 
 #include <stddef.h>
 

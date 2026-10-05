@@ -1,6 +1,7 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -163,6 +164,61 @@ typedef enum {
  * Geolocator. Returns GPS_OK with *latlong written, or a GpsStatus failure code.
  */
 GpsStatus platform_get_location(PlatformLatLng *latlong);
+
+/**
+ * Outcome of a platform_daemon_* call.
+ */
+typedef enum {
+  PLATFORM_DAEMON_OK = 0,
+  PLATFORM_DAEMON_UNSUPPORTED,   /* this platform has no implementation yet */
+  PLATFORM_DAEMON_NO_HOME,       /* the user's home directory could not be found */
+  PLATFORM_DAEMON_UNIT_FAILED,   /* the service file could not be written */
+  PLATFORM_DAEMON_RELOAD_FAILED, /* the service manager would not reload */
+  PLATFORM_DAEMON_ENABLE_FAILED  /* the service could not be enabled and started */
+} PlatformDaemonResult;
+
+enum { PLATFORM_DAEMON_PATH_MAX = 512 };
+
+typedef struct {
+  bool installed; /* the user service file written by install exists */
+  bool enabled;   /* the service manager starts it at login */
+  bool running;   /* it is active right now */
+} PlatformDaemonStatus;
+
+typedef struct {
+  char unit_path[PLATFORM_DAEMON_PATH_MAX]; /* the service file written, "" if none */
+  bool legacy_timer_disabled;               /* an old timer unit was switched off */
+} PlatformDaemonInstall;
+
+typedef struct {
+  bool stopped;
+  bool disabled;
+  bool legacy_timer_disabled;
+  bool unit_removed;
+  bool timer_removed;
+  char unit_path[PLATFORM_DAEMON_PATH_MAX];
+  char timer_path[PLATFORM_DAEMON_PATH_MAX];
+} PlatformDaemonUninstall;
+
+/**
+ * Register the background service for the current user and start it. The
+ * service runs `binary_path daemon run`. *out is zeroed first and then filled
+ * as the call proceeds, so on a failure it shows how far it got. Prints
+ * nothing: failure detail goes to the log handler.
+ */
+PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDaemonInstall *out);
+
+/**
+ * Stop the service, switch it off and delete its files. Succeeds when nothing
+ * was installed. *out says what was actually done.
+ */
+PlatformDaemonResult platform_daemon_uninstall(PlatformDaemonUninstall *out);
+
+/**
+ * Report the service's state. The three fields come from separate sources and
+ * are reported as observed, not reconciled with each other.
+ */
+PlatformDaemonResult platform_daemon_status(PlatformDaemonStatus *out);
 
 #ifdef __cplusplus
 }

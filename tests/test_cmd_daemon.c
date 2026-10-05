@@ -1,4 +1,4 @@
-#include "cmd_daemon.h"
+#include "platform/linux/daemon_linux.h"
 
 #include <stdbool.h>
 #include <stdio.h>

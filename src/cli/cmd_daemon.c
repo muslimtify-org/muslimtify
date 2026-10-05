@@ -1,8 +1,8 @@
 #define _GNU_SOURCE
-#include "cmd_daemon.h"
 #include "cli_internal.h"
 #include "daemon_loop.h"
 #include "platform.h"
+#include "platform/linux/daemon_linux.h"
 #include "util.h"
 #include <errno.h>
 #include <linux/limits.h>
@@ -65,30 +65,6 @@ static const char *get_home(void) {
       home = pw->pw_dir;
   }
   return home;
-}
-
-int build_service_unit(const char *binary_path, char *buffer, size_t buffer_size) {
-  if (!binary_path || !buffer || buffer_size == 0)
-    return -1;
-
-  int written = snprintf(buffer, buffer_size,
-                         "[Unit]\n"
-                         "Description=Muslimtify prayer notification daemon\n"
-                         "After=network-online.target\n"
-                         "\n"
-                         "[Service]\n"
-                         "Type=simple\n"
-                         "ExecStart=%s daemon run\n"
-                         "Restart=on-failure\n"
-                         "RestartSec=5\n"
-                         "\n"
-                         "[Install]\n"
-                         "WantedBy=default.target\n",
-                         binary_path);
-
-  if (written < 0 || (size_t)written >= buffer_size)
-    return -1;
-  return written;
 }
 
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
