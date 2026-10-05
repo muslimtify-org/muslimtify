@@ -101,8 +101,6 @@ static void check_bool(const char *test, bool cond) {
   }
 }
 
-// -- Site fixtures ------------------------------------------------------------
-
 typedef struct {
   const char *name;
   double latitude;
@@ -131,8 +129,6 @@ static Config site_config(const Site *s) {
   cfg.calculation_method[sizeof(cfg.calculation_method) - 1] = '\0';
   return cfg;
 }
-
-// -- test_cache_triggers_unchanged --------------------------------------------
 
 // Pin the non-goal: cache_build_triggers still produces trigger minutes in
 // [0, 1440) after the wrap moved into it, on a Reykjavik day whose isha is
@@ -169,8 +165,6 @@ static void test_cache_triggers_unchanged(void) {
 
   check_bool("found a Reykjavik day with isha >= 24", found);
 }
-
-// -- test_time_format_12h ------------------------------------------------------
 
 static void test_time_format_12h(void) {
   printf("  12-hour format...\n");
@@ -231,8 +225,6 @@ static void test_time_format_12h(void) {
     check_bool("12h hour is in 01..12", h12 >= 1 && h12 <= 12);
   }
 }
-
-// -- main ---------------------------------------------------------------------
 
 int main(void) {
   printf("Running display tests...\n");

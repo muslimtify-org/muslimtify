@@ -13,8 +13,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-// -- helpers -----------------------------------------------------------------
-
 static int systemctl_user(const char *const *args) {
   int n = 0;
   while (args[n])
@@ -145,8 +143,6 @@ static void daemon_auto_setup(void) {
   muslimtify_close(mt);
 }
 #endif
-
-// -- sub-handlers ------------------------------------------------------------
 
 static int daemon_install_handler(int argc, char **argv) {
   (void)argc;

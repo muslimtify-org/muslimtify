@@ -11,8 +11,6 @@
 #include <wchar.h>
 #include <windows.h>
 
-/* -- WinRT type declarations ------------------------------------------------ */
-
 /* HSTRING types (from winstring.h) */
 typedef struct HSTRING__ {
   int unused;
@@ -228,8 +226,6 @@ interface IToastNotificationManagerStatics {
   CONST_VTBL struct IToastNotificationManagerStaticsVtbl *lpVtbl;
 };
 
-/* -- GUIDs ------------------------------------------------------------------ */
-
 static const IID IID_IToastNotificationManagerStatics = {
     0x50ac103f, 0xd235, 0x4598, {0xbb, 0xef, 0x98, 0xfe, 0x4d, 0x1a, 0x3a, 0xd4}};
 static const IID IID_IToastNotificationFactory = {
@@ -239,14 +235,10 @@ static const IID IID_IXmlDocument = {
 static const IID IID_IXmlDocumentIO = {
     0x6cd0e74e, 0xee65, 0x4489, {0x9e, 0xbf, 0xca, 0x43, 0xe8, 0x7b, 0xa6, 0x37}};
 
-/* -- Runtime class names ---------------------------------------------------- */
-
 static const WCHAR RuntimeClass_ToastNotificationManager[] =
     L"Windows.UI.Notifications.ToastNotificationManager";
 static const WCHAR RuntimeClass_ToastNotification[] = L"Windows.UI.Notifications.ToastNotification";
 static const WCHAR RuntimeClass_XmlDocument[] = L"Windows.Data.Xml.Dom.XmlDocument";
-
-/* -- RoAPI declarations ----------------------------------------------------- */
 
 #ifndef ROAPI
 #ifdef _ROAPI_
@@ -265,11 +257,7 @@ ROAPI void WINAPI RoUninitialize(void);
    avoid including shell headers that clash with our hand-rolled WinRT types. */
 DECLSPEC_IMPORT HRESULT WINAPI SetCurrentProcessExplicitAppUserModelID(PCWSTR AppID);
 
-/* -- AUMID for unpackaged app ----------------------------------------------- */
-
 static const WCHAR MUSLIMTIFY_AUMID[] = L"Muslimtify";
-
-/* -- File-static state ------------------------------------------------------ */
 
 typedef struct {
   IToastNotificationFactory *factory;
@@ -280,8 +268,6 @@ typedef struct {
 static NotifyState g_state = {0};
 
 #define WINDOWS_PATH_MAX 32768
-
-/* -- Helpers ---------------------------------------------------------------- */
 
 /* Convert UTF-8 string to UTF-16. Caller must free() the result. */
 static wchar_t *utf8_to_utf16(const char *utf8) {
@@ -824,7 +810,6 @@ static void send_notification(const char *title, const char *message, const char
   free(xml);
 }
 
-/* -- Adhan stop signal ------------------------------------------------------ */
 /* Toast buttons cannot deliver a callback to an unpackaged Win32 app without a
    registered COM activator (ToastActivatorCLSID) + AUMID shortcut, so we do not
    rely on toast interaction to stop the adhan. Instead notify_adhan creates a
@@ -835,8 +820,6 @@ static void send_notification(const char *title, const char *message, const char
    user's shell share one logon session. */
 static const wchar_t ADHAN_STOP_EVENT_NAME[] = L"Local\\MuslimtifyAdhanStop";
 static HANDLE g_adhan_stop_event = NULL;
-
-/* -- API implementation ----------------------------------------------------- */
 
 int notify_init_once(const char *app_name) {
   (void)app_name; /* AUMID is used instead on Windows */

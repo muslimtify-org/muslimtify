@@ -42,8 +42,6 @@ static void teardown(void) {
   }
 }
 
-// -- config_parse_reminders tests --------------------------------------------
-
 static void test_parse_reminders(void) {
   printf("  parse_reminders...\n");
   int buf[MAX_REMINDERS];
@@ -90,8 +88,6 @@ static void test_parse_reminders(void) {
   n = config_parse_reminders("1441", buf, MAX_REMINDERS);
   check_bool("parse 1441 rejected", n == 0);
 }
-
-// -- config_validate tests ---------------------------------------------------
 
 static void test_validate(void) {
   printf("  validate...\n");
@@ -165,8 +161,6 @@ static void test_validate(void) {
   check_bool("validate offset -61 invalid", !config_validate(&cfg));
 }
 
-// -- config_default tests ----------------------------------------------------
-
 static void test_default(void) {
   printf("  default...\n");
   Config cfg = config_default();
@@ -200,8 +194,6 @@ static void test_default(void) {
   check_bool("default adhan enabled", cfg.maghrib.adhan_enabled == true);
   check_bool("default adhan enabled", cfg.isha.adhan_enabled == true);
 }
-
-// -- round-trip save/load test -----------------------------------------------
 
 static void test_path_resolution(void) {
   printf("  path resolution...\n");
@@ -547,8 +539,6 @@ static void test_config_escapes_adhan(void) {
              strstr(buf, "/home/u/my \\\"best\\\" adhan.mp3") != NULL);
   check_bool("config: no raw quote in adhan", strstr(buf, "/home/u/my \"best\" adhan.mp3") == NULL);
 }
-
-// -- main ---------------------------------------------------------------------
 
 static void write_config_text(const char *text) {
   FILE *f = fopen(config_get_path(), "w");
