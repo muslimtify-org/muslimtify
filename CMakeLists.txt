@@ -284,6 +284,8 @@ if(BUILD_TESTING)
         add_executable(test_cmd_daemon
             tests/test_cmd_daemon.c
             src/platform/linux/daemon.c
+            src/platform/posix/platform_posix.c
+            src/platform/linux/platform_linux.c
             src/core/log.c
         )
         muslimtify_set_target_defaults(test_cmd_daemon)

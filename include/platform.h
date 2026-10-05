@@ -174,13 +174,14 @@ typedef enum {
   PLATFORM_DAEMON_NO_HOME,       /* the user's home directory could not be found */
   PLATFORM_DAEMON_UNIT_FAILED,   /* the service file could not be written */
   PLATFORM_DAEMON_RELOAD_FAILED, /* the service manager would not reload */
-  PLATFORM_DAEMON_ENABLE_FAILED  /* the service could not be enabled and started */
+  PLATFORM_DAEMON_ENABLE_FAILED, /* the service could not be enabled and started */
+  PLATFORM_DAEMON_BINARY_INVALID /* the program to run is missing or not executable */
 } PlatformDaemonResult;
 
 enum { PLATFORM_DAEMON_PATH_MAX = 512 };
 
 typedef struct {
-  bool installed; /* the user service file written by install exists */
+  bool installed; /* a service file for it exists */
   bool enabled;   /* the service manager starts it at login */
   bool running;   /* it is active right now */
 } PlatformDaemonStatus;
@@ -202,8 +203,11 @@ typedef struct {
 
 /**
  * Register the background service for the current user and start it. The
- * service runs `binary_path daemon run`. *out is zeroed first and then filled
- * as the call proceeds, so on a failure it shows how far it got. Prints
+ * service runs `binary_path daemon run`. A NULL binary_path means the program
+ * named muslimtify beside the running executable. Either way it must be an
+ * existing file the caller may execute, or nothing is installed and
+ * PLATFORM_DAEMON_BINARY_INVALID is returned. *out is zeroed first and then
+ * filled as the call proceeds, so on a failure it shows how far it got. Prints
  * nothing: failure detail goes to the log handler.
  */
 PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDaemonInstall *out);
@@ -215,8 +219,9 @@ PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDa
 PlatformDaemonResult platform_daemon_uninstall(PlatformDaemonUninstall *out);
 
 /**
- * Report the service's state. The three fields come from separate sources and
- * are reported as observed, not reconciled with each other.
+ * Report the service's state. installed is true when a service file exists in
+ * the user's own directory or in a system-wide one, and always when the service
+ * is enabled or running.
  */
 PlatformDaemonResult platform_daemon_status(PlatformDaemonStatus *out);
 

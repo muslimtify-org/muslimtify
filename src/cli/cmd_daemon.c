@@ -64,7 +64,7 @@ static int daemon_install_handler(int argc, char **argv) {
   daemon_auto_setup();
 
   MuslimtifyDaemonInstall result;
-  MuslimtifyError err = muslimtify_daemon_install(NULL, &result);
+  MuslimtifyError err = muslimtify_daemon_install(platform_exe_path(), &result);
 
   // Report each step that happened, including on a failure part way through.
   if (result.unit_path[0] != '\0')

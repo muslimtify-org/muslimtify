@@ -105,8 +105,39 @@ static bool unit_file_path(const char *home, const char *name, char *out, size_t
   return n > 0 && (size_t)n < cap;
 }
 
+// The program the service will run. NULL means the muslimtify program beside
+// the running executable, so a frontend installed next to the command line
+// tool gets the right one without knowing its path, and never gets itself.
+// Returns NULL, after logging why, when there is no such executable file.
+static const char *resolve_daemon_binary(const char *binary_path, char *buffer, size_t cap) {
+  if (!binary_path) {
+    const char *dir = platform_exe_dir();
+    int n = (dir && dir[0] != '\0') ? snprintf(buffer, cap, "%s/muslimtify", dir) : -1;
+    if (n <= 0 || (size_t)n >= cap) {
+      MT_LOGF(MT_LOG_ERROR, "Error: Cannot locate the muslimtify program beside this one");
+      return NULL;
+    }
+    binary_path = buffer;
+  }
+  if (binary_path[0] == '\0' || access(binary_path, X_OK) != 0) {
+    MT_LOGF(MT_LOG_ERROR, "Error: %s is not an executable program", binary_path);
+    return NULL;
+  }
+  struct stat st;
+  if (stat(binary_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+    MT_LOGF(MT_LOG_ERROR, "Error: %s is not an executable program", binary_path);
+    return NULL;
+  }
+  return binary_path;
+}
+
 PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDaemonInstall *out) {
   memset(out, 0, sizeof(*out));
+
+  char sibling[PLATFORM_DAEMON_PATH_MAX];
+  binary_path = resolve_daemon_binary(binary_path, sibling, sizeof(sibling));
+  if (!binary_path)
+    return PLATFORM_DAEMON_BINARY_INVALID;
 
   const char *home = get_home();
   if (!home)
@@ -193,15 +224,40 @@ PlatformDaemonResult platform_daemon_uninstall(PlatformDaemonUninstall *out) {
   return PLATFORM_DAEMON_OK;
 }
 
+bool daemon_unit_in_dirs(const char *const *dirs, size_t count) {
+  for (size_t i = 0; i < count; i++) {
+    char path[PLATFORM_DAEMON_PATH_MAX];
+    int n = snprintf(path, sizeof(path), "%s/" SERVICE_UNIT, dirs[i]);
+    if (n > 0 && (size_t)n < sizeof(path) && access(path, F_OK) == 0)
+      return true;
+  }
+  return false;
+}
+
 PlatformDaemonResult platform_daemon_status(PlatformDaemonStatus *out) {
   memset(out, 0, sizeof(*out));
+
+  // Where systemd looks for user units that are not in the user's own home: a
+  // distro package installs the unit into one of these.
+  static const char *const system_dirs[] = {
+      "/etc/systemd/user",
+      "/usr/local/lib/systemd/user",
+      "/usr/lib/systemd/user",
+  };
 
   char unit_path[PLATFORM_DAEMON_PATH_MAX];
   const char *home = get_home();
   if (home && unit_file_path(home, SERVICE_UNIT, unit_path, sizeof(unit_path)))
     out->installed = access(unit_path, F_OK) == 0;
+  if (!out->installed)
+    out->installed = daemon_unit_in_dirs(system_dirs, sizeof(system_dirs) / sizeof(system_dirs[0]));
 
   out->enabled = systemctl_user((const char *[]){"is-enabled", "--quiet", SERVICE_UNIT, NULL}) == 0;
   out->running = systemctl_user((const char *[]){"is-active", "--quiet", SERVICE_UNIT, NULL}) == 0;
+
+  // A service the manager reports as enabled or active exists, wherever its
+  // unit file lives, so the three answers can never contradict each other.
+  if (out->enabled || out->running)
+    out->installed = true;
   return PLATFORM_DAEMON_OK;
 }

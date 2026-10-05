@@ -172,11 +172,11 @@ typedef struct {
   int notifications;             /* notifications sent in this cycle */
 } MuslimtifyCycle;
 
-/* The background service's state. Each field comes from a separate source and
-   is reported as observed. A service file installed system-wide by a package
-   and enabled by hand shows installed false with enabled and running true. */
+/* The background service's state. installed is true when a service file exists
+   for it, whether muslimtify_daemon_install wrote it or a package provided it,
+   and is always true when the service is enabled or running. */
 typedef struct {
-  bool installed; /* the user service file written by muslimtify_daemon_install exists */
+  bool installed; /* a service file for it exists */
   bool enabled;   /* the service manager starts it at login */
   bool running;   /* it is active right now */
 } MuslimtifyDaemonStatus;
@@ -418,9 +418,12 @@ MuslimtifyError muslimtify_adhan_stop(void);
 /**
  * Register the service for the current user and start it. It runs
  * `daemon_binary daemon run`, so daemon_binary is the path of the muslimtify
- * command line program. NULL means the running executable, which is right only
- * when the caller is that program. *out, when not NULL, is filled even on an
- * error return and shows how far the call got.
+ * command line program. NULL means the program named muslimtify in the same
+ * directory as the running executable, which is what a frontend installed
+ * beside it wants. The binary must be an existing file the caller may execute,
+ * otherwise nothing is installed and MUSLIMTIFY_ERR_DAEMON_BINARY is returned.
+ * *out, when not NULL, is filled even on an error return and shows how far the
+ * call got.
  */
 MuslimtifyError muslimtify_daemon_install(const char *daemon_binary, MuslimtifyDaemonInstall *out);
 

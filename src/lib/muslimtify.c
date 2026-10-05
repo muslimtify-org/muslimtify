@@ -94,7 +94,7 @@ const char *muslimtify_get_error(MuslimtifyError err) {
   case MUSLIMTIFY_ERR_UNSUPPORTED:
     return "Not supported on this platform";
   case MUSLIMTIFY_ERR_DAEMON_BINARY:
-    return "Cannot determine binary path";
+    return "Cannot find the muslimtify program to run as the daemon";
   case MUSLIMTIFY_ERR_NO_HOME:
     return "Cannot determine home directory";
   case MUSLIMTIFY_ERR_DAEMON_UNIT:

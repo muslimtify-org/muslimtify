@@ -21,6 +21,8 @@ static MuslimtifyError daemon_error(PlatformDaemonResult result) {
     return MUSLIMTIFY_ERR_DAEMON_RELOAD;
   case PLATFORM_DAEMON_ENABLE_FAILED:
     return MUSLIMTIFY_ERR_DAEMON_ENABLE;
+  case PLATFORM_DAEMON_BINARY_INVALID:
+    return MUSLIMTIFY_ERR_DAEMON_BINARY;
   }
   // No default label above, so -Wswitch fails the build if a platform result
   // is added without deciding what it maps to.
@@ -31,12 +33,8 @@ MuslimtifyError muslimtify_daemon_install(const char *daemon_binary, MuslimtifyD
   if (out)
     memset(out, 0, sizeof(*out));
 
-  const char *binary = daemon_binary ? daemon_binary : platform_exe_path();
-  if (!binary || binary[0] == '\0')
-    return MUSLIMTIFY_ERR_DAEMON_BINARY;
-
   PlatformDaemonInstall result;
-  MuslimtifyError err = daemon_error(platform_daemon_install(binary, &result));
+  MuslimtifyError err = daemon_error(platform_daemon_install(daemon_binary, &result));
   if (out) {
     snprintf(out->unit_path, sizeof(out->unit_path), "%s", result.unit_path);
     out->legacy_timer_disabled = result.legacy_timer_disabled;
