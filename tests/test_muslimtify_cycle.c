@@ -42,8 +42,6 @@ static void teardown(void) {
   }
 }
 
-// -- Stand-ins for the outside world ------------------------------------------
-
 typedef struct {
   char kind; /* 'p' for a prayer notification, 'a' for an adhan */
   char prayer[32];
@@ -122,8 +120,6 @@ static int rec_detect(Config *cfg, GpsStatus *status) {
 static const MuslimtifyCycleHooks HOOKS = {rec_detect, rec_init, rec_prayer, rec_adhan,
                                            rec_cleanup};
 
-// -- Fixtures -----------------------------------------------------------------
-
 #define JAKARTA_LAT (-6.2088)
 #define TEST_YEAR 2026
 #define TEST_MONTH 3
@@ -188,8 +184,6 @@ static MuslimtifyError cycle_at(int minute, time_t epoch, MuslimtifyCycle *out) 
   struct tm now = at_minute(minute);
   return muslimtify_run_cycle_at(&HOOKS, &now, epoch, out);
 }
-
-// -- Tests --------------------------------------------------------------------
 
 static void test_fires_once(void) {
   printf("  a due prayer is announced once...\n");
@@ -509,8 +503,6 @@ static void test_notify_test(void) {
   muslimtify_close(mt);
   check_bool("the failures sent nothing", sent_count == 2);
 }
-
-// -- main ---------------------------------------------------------------------
 
 int main(void) {
   printf("Running muslimtify cycle tests...\n");

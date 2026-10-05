@@ -47,8 +47,6 @@ static Config test_config(void) {
   return cfg;
 }
 
-// -- next prayer tests -------------------------------------------------------
-
 // Jakarta's times for the previous, same and next day. Real neighbours differ
 // by a minute or so, which none of these cases depend on.
 static void same_days(struct PrayerTimes days[3]) {
@@ -264,8 +262,6 @@ static void test_next_london_dst(void) {
   check_london_after_isha("london autumn", 2026, 10, 24, 1.0, 0.0);
 }
 
-// -- helper function tests ---------------------------------------------------
-
 static void test_prayer_get_name(void) {
   printf("  prayer_get_name...\n");
   check_bool("name fajr", strcmp(prayer_get_name(PRAYER_FAJR), "Fajr") == 0);
@@ -287,8 +283,6 @@ static void test_prayer_get_time(void) {
   check_bool("get isha time", fabs(prayer_get_time(&times, PRAYER_ISHA) - times.isha) < 0.001);
   check_bool("get none time", prayer_get_time(&times, PRAYER_NONE) == 0.0);
 }
-
-// -- main ---------------------------------------------------------------------
 
 int main(void) {
   printf("Running prayer checker tests...\n");

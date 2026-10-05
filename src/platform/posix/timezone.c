@@ -17,7 +17,7 @@
 
 double parse_timezone_offset(const char *tz_name, time_t when) {
   // Defense-in-depth: never setenv/tzset an unvalidated string (a corrupted
-  // config value on the load path bypasses location_fetch's check).
+  // config value on the load path bypasses location_detect's check).
   if (!timezone_name_is_valid(tz_name))
     return 0.0;
 

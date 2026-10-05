@@ -41,8 +41,6 @@ static void check_not_null(const void *result, const char *label) {
   }
 }
 
-/* -- Basic extraction ------------------------------------------------------- */
-
 static void test_basic_string(void) {
   printf("test_basic_string\n");
   JsonContext *ctx = json_begin();
@@ -89,8 +87,6 @@ static void test_empty_string_value(void) {
   json_end(ctx);
 }
 
-/* -- Nested objects --------------------------------------------------------- */
-
 static void test_nested_object(void) {
   printf("test_nested_object\n");
   JsonContext *ctx = json_begin();
@@ -105,8 +101,6 @@ static void test_nested_object(void) {
   check_str(lon, "2.0", "nested lon value");
   json_end(ctx);
 }
-
-/* -- Missing keys ----------------------------------------------------------- */
 
 static void test_missing_key(void) {
   printf("test_missing_key\n");
@@ -125,8 +119,6 @@ static void test_empty_object(void) {
   check_null(val, "empty object returns NULL");
   json_end(ctx);
 }
-
-/* -- Escaped strings -------------------------------------------------------- */
 
 static void test_escaped_quote(void) {
   printf("test_escaped_quote\n");
@@ -247,8 +239,6 @@ static void test_string_trailing_backslash_no_oob(void) {
   free(buf);
 }
 
-/* -- Edge cases ------------------------------------------------------------- */
-
 static void test_key_inside_value(void) {
   printf("test_key_inside_value\n");
   JsonContext *ctx = json_begin();
@@ -273,8 +263,6 @@ static void test_multiple_get_value(void) {
   check_str(c, "third", "third value still valid");
   json_end(ctx);
 }
-
-/* -- Lifecycle -------------------------------------------------------------- */
 
 static void test_json_begin(void) {
   printf("test_json_begin\n");
@@ -311,8 +299,6 @@ static void test_arena_large_alignment(void) {
 
   json_alloc_free(arena);
 }
-
-/* -- Main ------------------------------------------------------------------- */
 
 int main(void) {
   printf("=== json.h tests ===\n\n");

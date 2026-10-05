@@ -55,8 +55,6 @@ static void teardown(void) {
   }
 }
 
-// -- Fixtures -----------------------------------------------------------------
-
 typedef struct {
   const char *name;
   double latitude;
@@ -131,8 +129,6 @@ static bool same_notification(const MuslimtifyNotification *a, const MuslimtifyN
   }
   return true;
 }
-
-// -- muslimtify_open ----------------------------------------------------------
 
 // Must run first: the config and cache paths are resolved once per process.
 // A fresh config is auto_detect at 0,0. The handle opens, the queries report
@@ -263,8 +259,6 @@ static void test_open_config(void) {
   check_bool("NULL handle is 24", muslimtify_time_format(NULL) == 24);
 }
 
-// -- Settings -----------------------------------------------------------------
-
 static void test_location_setters(void) {
   printf("  location setters...\n");
 
@@ -394,6 +388,10 @@ static void test_calculation_setters(void) {
   check_bool("set shafi", muslimtify_set_madhab(mt, MUSLIMTIFY_MADHAB_SHAFI) == MUSLIMTIFY_OK &&
                               muslimtify_get_madhab(mt) == MUSLIMTIFY_MADHAB_SHAFI);
   check_bool("NULL handle is shafi", muslimtify_get_madhab(NULL) == MUSLIMTIFY_MADHAB_SHAFI);
+  check_bool("config path is set",
+             muslimtify_config_path() != NULL && muslimtify_config_path()[0] != '\0');
+  check_bool("config path is the core path",
+             strcmp(muslimtify_config_path(), config_get_path()) == 0);
 
   check_bool("set 12", muslimtify_set_time_format(mt, 12) == MUSLIMTIFY_OK &&
                            muslimtify_time_format(mt) == 12);
@@ -609,8 +607,6 @@ static void test_unknown_words(void) {
   check_bool("unknown madhab is shafi", muslimtify_get_madhab(mt) == MUSLIMTIFY_MADHAB_SHAFI);
   muslimtify_close(mt);
 }
-
-// -- Location detection -------------------------------------------------------
 
 // Stand-ins for the receiver and the network. The GPS stub returns whatever
 // status the test sets, and the detect stub runs the real fallback rule in
@@ -875,8 +871,6 @@ static void test_method_from_country(void) {
   check_bool("NULL code", muslimtify_check_country(NULL) == MUSLIMTIFY_ERR_INVALID_ARG);
 }
 
-// -- Agreement with the engine ------------------------------------------------
-
 // Walk every site through every day of 2026. Each valid time must print the
 // same clock string as format_time_hm on the raw double, carry the day offset
 // of the minute-rounded value, the calendar date that offset implies, and an
@@ -960,8 +954,6 @@ static void test_engine_agreement(void) {
   printf("    non-finite times seen: %d\n", invalid_seen);
 }
 
-// -- Instants -----------------------------------------------------------------
-
 static void test_instant(void) {
   printf("  instant...\n");
 
@@ -998,8 +990,6 @@ static void test_instant(void) {
     muslimtify_close(mt);
   }
 }
-
-// -- Errors -------------------------------------------------------------------
 
 static void test_errors(void) {
   printf("  errors...\n");
@@ -1076,8 +1066,6 @@ static void test_errors(void) {
   muslimtify_close(mt);
 }
 
-// -- Per-prayer settings ------------------------------------------------------
-
 static void test_prayer_settings(void) {
   printf("  prayer settings...\n");
 
@@ -1103,8 +1091,6 @@ static void test_prayer_settings(void) {
              fajr->reminder_count == 2 && fajr->reminders[0] == 30 && fajr->reminders[1] == 10);
   muslimtify_close(mt);
 }
-
-// -- Next prayer --------------------------------------------------------------
 
 static void test_next(void) {
   printf("  next...\n");
@@ -1150,8 +1136,6 @@ static void test_next(void) {
   check_bool("nothing upcoming is reported", next.prayer == MUSLIMTIFY_PRAYER_COUNT);
   muslimtify_close(mt);
 }
-
-// -- Strings ------------------------------------------------------------------
 
 static void test_strings(void) {
   printf("  strings...\n");
@@ -1200,8 +1184,6 @@ static void test_strings(void) {
   muslimtify_format_time(NULL, 24, buf, sizeof(buf));
   check_bool("NULL time", strcmp(buf, "--:--") == 0);
 }
-
-// -- main ---------------------------------------------------------------------
 
 int main(void) {
   printf("Running muslimtify library tests...\n");

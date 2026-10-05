@@ -58,8 +58,6 @@ static PrayerConfig *prayer_settings(Muslimtify *mt, MuslimtifyPrayerType prayer
   return all[prayer];
 }
 
-/* -- Lifecycle ------------------------------------------------------------- */
-
 MuslimtifyError muslimtify_reload(Muslimtify *mt) {
   if (!mt)
     return MUSLIMTIFY_ERR_INVALID_ARG;
@@ -78,8 +76,6 @@ MuslimtifyError muslimtify_save(Muslimtify *mt) {
   cache_invalidate();
   return MUSLIMTIFY_OK;
 }
-
-/* -- Names and parsing ------------------------------------------------------ */
 
 const char *muslimtify_madhab_key(MuslimtifyMadhab madhab) {
   return key_at(MADHAB_KEYS, ARRAY_LEN(MADHAB_KEYS), (int)madhab);
@@ -143,8 +139,6 @@ MuslimtifyError muslimtify_parse_sound_mode(const char *key, MuslimtifySoundMode
   *out = (MuslimtifySoundMode)value;
   return MUSLIMTIFY_OK;
 }
-
-/* -- Getters ---------------------------------------------------------------- */
 
 MuslimtifyError muslimtify_get_location(const Muslimtify *mt, MuslimtifyLocation *out) {
   if (!mt || !out)
@@ -235,7 +229,10 @@ MuslimtifyMadhab muslimtify_get_madhab(const Muslimtify *mt) {
   return MUSLIMTIFY_MADHAB_SHAFI;
 }
 
-/* -- Location setters ------------------------------------------------------- */
+const char *muslimtify_config_path(void) {
+  const char *path = config_get_path();
+  return path ? path : "";
+}
 
 MuslimtifyError muslimtify_set_coordinates(Muslimtify *mt, double latitude, double longitude) {
   if (!mt)
@@ -305,8 +302,6 @@ MuslimtifyError muslimtify_set_refresh_interval(Muslimtify *mt, long long second
   return MUSLIMTIFY_OK;
 }
 
-/* -- Calculation and display setters ---------------------------------------- */
-
 MuslimtifyError muslimtify_set_method(Muslimtify *mt, const char *key) {
   if (!mt || !key)
     return MUSLIMTIFY_ERR_INVALID_ARG;
@@ -337,8 +332,6 @@ MuslimtifyError muslimtify_set_time_format(Muslimtify *mt, int time_format) {
   mt->cfg.time_format = time_format;
   return MUSLIMTIFY_OK;
 }
-
-/* -- Per-prayer setters ----------------------------------------------------- */
 
 MuslimtifyError muslimtify_set_prayer_enabled(Muslimtify *mt, MuslimtifyPrayerType prayer,
                                               bool enabled) {
@@ -422,8 +415,6 @@ MuslimtifyError muslimtify_set_prayer_adhan_file(Muslimtify *mt, MuslimtifyPraye
   copy_string(pcfg->adhan, sizeof(pcfg->adhan), resolved);
   return MUSLIMTIFY_OK;
 }
-
-/* -- Notification setters --------------------------------------------------- */
 
 MuslimtifyError muslimtify_set_urgency(Muslimtify *mt, MuslimtifyUrgency urgency) {
   if (!mt)

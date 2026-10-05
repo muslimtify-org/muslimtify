@@ -373,7 +373,6 @@ static void test_location_harden_curl(void) {
   curl_easy_cleanup(curl);
 }
 
-// -- location_fetch_core: GPS-first / ipinfo-fallback decision matrix --------
 // Injected stubs let us drive every GpsStatus branch without gpsd or network.
 
 static int core_ipinfo_calls;

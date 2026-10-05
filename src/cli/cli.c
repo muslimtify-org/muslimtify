@@ -1,6 +1,5 @@
 #include "cli.h"
 #include "cli_internal.h"
-#include "config.h"
 #include "util.h"
 #include "version.h"
 #include <stdbool.h>
@@ -75,8 +74,6 @@ int cli_ensure_location(Muslimtify *mt) {
   return 0;
 }
 
-// --- migration stubs for removed top-level commands -----------------------
-
 static int removed_enable(int a, char **v) {
   (void)a;
   (void)v;
@@ -109,8 +106,6 @@ static int removed_sound(int a, char **v) {
   return 1;
 }
 
-// --- top-level dispatch table -----------------------
-
 static const CommandEntry top_commands[] = {
     {"show", handle_show},
     {"location", handle_location},
@@ -132,8 +127,6 @@ static const CommandEntry top_commands[] = {
     {"--help", handle_help},
     {"-h", handle_help},
 };
-
-// --- version / help -----------------------
 
 int handle_version(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
@@ -167,8 +160,6 @@ int handle_help(int argc, char **argv) {
   cli_print_help();
   return 0;
 }
-
-// --- public API -----------------------
 
 void cli_print_help(void) {
   printf("Muslimtify - Cross-platform Prayer Time Notification Daemon\n\n");
@@ -325,7 +316,7 @@ void cli_print_help(void) {
   printf("\n");
 
   printf("Config File:\n");
-  printf("  %s\n", config_get_path());
+  printf("  %s\n", muslimtify_config_path());
 }
 
 int cli_run(int argc, char **argv) {

@@ -51,13 +51,6 @@ bool timezone_exists(const char *tz_name);
 int get_system_timezone(char *buf, size_t cap);
 
 /**
- * location_detect, plus the gps_status_message warning on stderr when GPS had
- * a problem worth telling the user about.
- * Returns: 0 on success, -1 on failure.
- */
-int location_fetch(Config *cfg);
-
-/**
  * Try to read coordinates from a local gpsd receiver. On GPS_OK, writes
  * latitude/longitude and derives the timezone from the host system (GPS carries
  * no timezone); country is left unchanged. Returns a GpsStatus describing the
@@ -111,15 +104,6 @@ int location_detect(Config *cfg, GpsStatus *gps_status);
  * with a positive interval is always stale.
  */
 bool location_is_stale(const Config *cfg, int64_t now);
-
-/**
- * Auto-detect: fetch location via ipinfo and set calculation_method from the
- * detected country (via country_default_method). Mutates *cfg only — does NOT
- * save config or print. Returns 0 on success, -1 on fetch failure.
- *
- * Used by `daemon enable` (Linux + Windows).
- */
-int config_auto_detect(Config *cfg);
 
 #ifdef __cplusplus
 }

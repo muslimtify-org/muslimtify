@@ -166,8 +166,6 @@ typedef struct {
   int notifications;             /* notifications sent in this cycle */
 } MuslimtifyCycle;
 
-/* -- Handle lifecycle ------------------------------------------------------ */
-
 /**
  * Load the user's config into a new handle. Performs no network access and
  * succeeds even when no location is configured. On error *out is NULL. Free
@@ -192,9 +190,8 @@ MuslimtifyError muslimtify_save(Muslimtify *mt);
 /** Free a handle, discarding unsaved changes. NULL is a no-op. */
 void muslimtify_close(Muslimtify *mt);
 
-/* -- Prayer time queries ---------------------------------------------------- */
-/* The functions that take a handle return MUSLIMTIFY_ERR_NO_LOCATION while it
-   has no location. */
+/* The prayer time queries below that take a handle return
+   MUSLIMTIFY_ERR_NO_LOCATION while it has no location. */
 
 /**
  * Validate an inclusive date range without a handle. Years are 1-9999 and the
@@ -225,8 +222,6 @@ MuslimtifyError muslimtify_range(const Muslimtify *mt, int start_year, int start
  */
 MuslimtifyError muslimtify_next(const Muslimtify *mt, MuslimtifyNext *out);
 
-/* -- Settings: read --------------------------------------------------------- */
-
 MuslimtifyError muslimtify_get_location(const Muslimtify *mt, MuslimtifyLocation *out);
 MuslimtifyError muslimtify_get_notification(const Muslimtify *mt, MuslimtifyNotification *out);
 
@@ -242,15 +237,17 @@ MuslimtifyMadhab muslimtify_get_madhab(const Muslimtify *mt);
 /** The configured display format, 12 or 24. A NULL handle gives 24. */
 int muslimtify_time_format(const Muslimtify *mt);
 
+/** Path of the config file. Static string, never NULL. */
+const char *muslimtify_config_path(void);
+
 /** Number of selectable calculation methods. */
 size_t muslimtify_method_count(void);
 
 /** The method at index, with static strings. index must be below the count. */
 MuslimtifyError muslimtify_method_at(size_t index, MuslimtifyMethodInfo *out);
 
-/* -- Settings: write -------------------------------------------------------- */
-/* Every setter validates before it writes, so a failed call changes nothing.
-   Changes stay in memory until muslimtify_save. */
+/* Every setter below validates before it writes, so a failed call changes
+   nothing. Changes stay in memory until muslimtify_save. */
 
 /**
  * Set both coordinates. Moving the location also turns auto-detect off, clears
@@ -308,8 +305,8 @@ MuslimtifyError muslimtify_set_prayer_adhan_file(Muslimtify *mt, MuslimtifyPraye
 MuslimtifyError muslimtify_set_urgency(Muslimtify *mt, MuslimtifyUrgency urgency);
 MuslimtifyError muslimtify_set_sound_mode(Muslimtify *mt, MuslimtifySoundMode mode);
 
-/* -- Location detection ----------------------------------------------------- */
-/* Like the setters, these change the handle in memory until muslimtify_save. */
+/* Like the setters, the location detection functions below change the handle in
+   memory until muslimtify_save. */
 
 /**
  * True when no usable location is stored and auto-detect is on, so a frontend
@@ -355,8 +352,6 @@ MuslimtifyError muslimtify_set_method_from_country(Muslimtify *mt);
  */
 MuslimtifyError muslimtify_check_country(const char *iso2);
 
-/* -- Notifications ---------------------------------------------------------- */
-
 /**
  * Run one notification check for the current minute: load the config, detect
  * the location on a first run, refresh it when it is older than the refresh
@@ -384,8 +379,7 @@ MuslimtifyError muslimtify_notify_test(Muslimtify *mt, bool adhan, MuslimtifyNex
  */
 MuslimtifyError muslimtify_adhan_stop(void);
 
-/* -- Names, parsing and formatting ------------------------------------------ */
-/* Returned strings are static and never NULL. */
+/* The names and messages returned below are static strings and never NULL. */
 
 /** Capitalized prayer name such as "Fajr". */
 const char *muslimtify_prayer_name(MuslimtifyPrayerType type);

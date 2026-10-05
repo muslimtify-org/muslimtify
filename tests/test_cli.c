@@ -17,8 +17,6 @@
 #include <time.h>
 #include <unistd.h>
 
-// -- test infrastructure -----------------------------------------------------
-
 static char tmpdir[256];
 static char output_file[512];
 static char captured[16384];
@@ -104,8 +102,6 @@ static int run(int argc, char **argv) {
   return ret;
 }
 
-// -- assertion helpers --------------------------------------------------------
-
 static void check_ret(const char *test, int expected) {
   if (last_ret == expected) {
     passed++;
@@ -162,8 +158,6 @@ static bool has_trailing_comma(const char *s) {
   }
   return false;
 }
-
-// -- test groups --------------------------------------------------------------
 
 static void test_version_and_help(void) {
   printf("  version and help...\n");
@@ -1870,8 +1864,6 @@ static void test_time_format(void) {
 
   reset_config();
 }
-
-// -- main ---------------------------------------------------------------------
 
 int main(void) {
   setup();
