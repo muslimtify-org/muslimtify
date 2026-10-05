@@ -146,7 +146,7 @@ int handle_version(int argc, char **argv) {
       printf(" (%s)", info.name);
     printf("\n");
   } else {
-    printf("Method: kemenag (KEMENAG, Indonesia)\n");
+    printf("Method: unknown (the configuration could not be read)\n");
   }
   muslimtify_close(mt);
 
@@ -265,11 +265,7 @@ void cli_print_help(void) {
   /*
    * DAEMON
    */
-#ifdef _WIN32
-  printf("Scheduled Task Commands:\n");
-#else
   printf("Daemon Commands:\n");
-#endif
 
   printf("  %-25s %s\n", "daemon install", "Install and start the daemon");
 
