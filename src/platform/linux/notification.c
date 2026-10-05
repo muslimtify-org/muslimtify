@@ -2,6 +2,7 @@
 
 #include "notification.h"
 #include "audio.h"
+#include "log.h"
 #include "platform.h"
 #include <libnotify/notify.h>
 #include <stdio.h>
@@ -133,11 +134,12 @@ int notify_init_once(const char *app_name) {
 }
 
 // Show a notification. A failure, such as no notification daemon on the session
-// bus, goes to stderr so it reaches the journal under the systemd user service.
+// bus, goes to the log handler, which writes to stderr by default, so it reaches the journal under
+// the systemd user service.
 static void show_notification(NotifyNotification *n) {
   GError *error = NULL;
   if (!notify_notification_show(n, &error)) {
-    fprintf(stderr, "muslimtify: could not show notification: %s\n",
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: could not show notification: %s",
             error ? error->message : "unknown error");
     g_clear_error(&error);
   }

@@ -330,7 +330,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME json COMMAND test_json)
 
-    add_executable(test_string_util tests/test_string_util.c src/core/string_util.c)
+    add_executable(test_string_util tests/test_string_util.c src/core/string_util.c src/core/log.c)
     muslimtify_set_target_defaults(test_string_util)
     add_test(NAME string_util COMMAND test_string_util)
 
@@ -350,6 +350,7 @@ if(BUILD_TESTING)
         add_executable(test_notification_win
             tests/test_notification_win.c
             src/platform/windows/notification_win.c
+            src/core/log.c
         )
         muslimtify_set_target_defaults(test_notification_win)
         target_compile_definitions(test_notification_win PRIVATE MUSLIMTIFY_NOTIFICATION_WIN_TEST)

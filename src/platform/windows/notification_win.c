@@ -3,6 +3,7 @@
 #define COBJMACROS
 
 #include "audio.h"
+#include "log.h"
 #include "notification.h"
 #include "toast_activator.h"
 #include <stdio.h>
@@ -716,7 +717,7 @@ static IToastNotification *create_toast_from_xml(const wchar_t *xml) {
   if (!SUCCEEDED(make_hstring_ref(RuntimeClass_XmlDocument, &hsh_xml_cls, &hs_xml_cls)))
     return NULL;
   if (!SUCCEEDED(RoActivateInstance(hs_xml_cls, &inspectable))) {
-    fprintf(stderr, "muslimtify: failed to create XmlDocument\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to create XmlDocument");
     return NULL;
   }
 
@@ -740,14 +741,14 @@ static IToastNotification *create_toast_from_xml(const wchar_t *xml) {
   hr = xml_io->lpVtbl->LoadXml(xml_io, hs_xml);
   xml_io->lpVtbl->Release(xml_io);
   if (!SUCCEEDED(hr)) {
-    fprintf(stderr, "muslimtify: LoadXml failed\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: LoadXml failed");
     xml_doc->lpVtbl->Release(xml_doc);
     return NULL;
   }
 
   if (!SUCCEEDED(
           g_state.factory->lpVtbl->CreateToastNotification(g_state.factory, xml_doc, &toast))) {
-    fprintf(stderr, "muslimtify: CreateToastNotification failed\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: CreateToastNotification failed");
     xml_doc->lpVtbl->Release(xml_doc);
     return NULL;
   }
@@ -765,7 +766,7 @@ static void send_toast_xml(const wchar_t *xml) {
 
   hr = g_state.notifier->lpVtbl->Show(g_state.notifier, toast);
   if (!SUCCEEDED(hr)) {
-    fprintf(stderr, "muslimtify: toast Show failed\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: toast Show failed");
   }
   toast->lpVtbl->Release(toast);
 }
@@ -828,7 +829,7 @@ int notify_init_once(const char *app_name) {
     return 1;
 
   if (!SUCCEEDED(RoInitialize(RO_INIT_MULTITHREADED))) {
-    fprintf(stderr, "muslimtify: RoInitialize failed\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: RoInitialize failed");
     return 0;
   }
 
@@ -842,12 +843,12 @@ int notify_init_once(const char *app_name) {
   IToastNotificationManagerStatics *mgr = NULL;
 
   if (!SUCCEEDED(make_hstring_ref(RuntimeClass_ToastNotificationManager, &hsh_mgr, &hs_mgr))) {
-    fprintf(stderr, "muslimtify: failed to create manager HSTRING\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to create manager HSTRING");
     goto fail;
   }
   if (!SUCCEEDED(
           RoGetActivationFactory(hs_mgr, &IID_IToastNotificationManagerStatics, (void **)&mgr))) {
-    fprintf(stderr, "muslimtify: failed to get ToastNotificationManager\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to get ToastNotificationManager");
     goto fail;
   }
 
@@ -859,7 +860,7 @@ int notify_init_once(const char *app_name) {
     goto fail;
   }
   if (!SUCCEEDED(mgr->lpVtbl->CreateToastNotifierWithId(mgr, hs_aumid, &g_state.notifier))) {
-    fprintf(stderr, "muslimtify: failed to create ToastNotifier\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to create ToastNotifier");
     mgr->lpVtbl->Release(mgr);
     goto fail;
   }
@@ -873,7 +874,7 @@ int notify_init_once(const char *app_name) {
   }
   if (!SUCCEEDED(RoGetActivationFactory(hs_notif, &IID_IToastNotificationFactory,
                                         (void **)&g_state.factory))) {
-    fprintf(stderr, "muslimtify: failed to get ToastNotificationFactory\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to get ToastNotificationFactory");
     goto fail;
   }
 

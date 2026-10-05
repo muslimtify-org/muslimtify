@@ -2,6 +2,7 @@
 #include "cache.h"
 #include "check_cycle.h"
 #include "json.h"
+#include "log.h"
 #include "platform.h"
 #include "prayer_checker.h"
 #include <math.h>
@@ -25,7 +26,7 @@ static bool cache_trunc_logged = false;
 
 static void cache_log_trunc(const char *field) {
   if (!cache_trunc_logged) {
-    fprintf(stderr, "cache: truncated field %s\n", field ? field : "(unknown)");
+    MT_LOGF(MT_LOG_WARNING, "cache: truncated field %s", field ? field : "(unknown)");
     cache_trunc_logged = true;
   }
 }
@@ -38,10 +39,10 @@ static bool cache_capacity_logged = false;
 static void cache_log_capacity_drop(const char *prayer, int minutes_before) {
   if (!cache_capacity_logged) {
     if (minutes_before == 0) {
-      fprintf(stderr, "cache: capacity reached, dropped %s adhan trigger\n",
+      MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s adhan trigger",
               prayer ? prayer : "(unknown)");
     } else {
-      fprintf(stderr, "cache: capacity reached, dropped %s reminder (%d min before)\n",
+      MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s reminder (%d min before)",
               prayer ? prayer : "(unknown)", minutes_before);
     }
     cache_capacity_logged = true;
@@ -83,7 +84,7 @@ static char *read_file(const char *path) {
     return NULL;
   }
   if (size > MAX_CACHE_FILE_BYTES) {
-    fprintf(stderr, "cache: file too large (%ld bytes), refusing to load\n", size);
+    MT_LOGF(MT_LOG_WARNING, "cache: file too large (%ld bytes), refusing to load", size);
     fclose(f);
     return NULL;
   }
