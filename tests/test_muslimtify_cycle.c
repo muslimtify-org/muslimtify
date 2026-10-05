@@ -2,7 +2,7 @@
 #include "cache.h"
 #include "config.h"
 #include "lib/muslimtify_internal.h"
-#include "muslimtify.h"
+#include "muslimtify_cycle.h"
 #include "platform.h"
 #include "prayer_checker.h"
 #include "prayertimes.h"

@@ -1,5 +1,4 @@
 #include "cli.h"
-#include <curl/curl.h>
 
 #ifdef _WIN32
 #include "toast_activator.h"
@@ -19,11 +18,5 @@ int main(int argc, char **argv) {
   }
 #endif
 
-  curl_global_init(CURL_GLOBAL_DEFAULT);
-
-  int result = cli_run(argc, argv);
-
-  curl_global_cleanup();
-
-  return result;
+  return cli_run(argc, argv);
 }

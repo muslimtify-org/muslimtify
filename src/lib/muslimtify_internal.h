@@ -2,7 +2,7 @@
 #define MUSLIMTIFY_INTERNAL_H
 
 #include "config.h"
-#include "muslimtify.h"
+#include "muslimtify_cycle.h"
 #include "platform.h"
 #include <stdbool.h>
 #include <time.h>

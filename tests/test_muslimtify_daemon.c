@@ -1,6 +1,5 @@
 #define _GNU_SOURCE
 #include "lib/muslimtify_internal.h"
-#include "log.h"
 #include "muslimtify.h"
 #include "platform.h"
 #include <stdbool.h>
@@ -255,7 +254,7 @@ static void test_install_failures(void) {
     check_bool("no binary is named", result.binary_path[0] == '\0');
     check_bool("systemctl was not called", !file_exists(fake_log));
   }
-  mt_log_set_handler(mt_log_stderr, NULL);
+  muslimtify_set_log_handler(muslimtify_log_stderr, NULL);
 
   // A home that is a regular file: the unit directory cannot be created. The
   // reason is logged, which would clutter the test output, so discard it here.
@@ -270,7 +269,7 @@ static void test_install_failures(void) {
   check_bool("an unwritable home is reported",
              muslimtify_daemon_install_binary(daemon_bin, &result) == MUSLIMTIFY_ERR_DAEMON_UNIT);
   check_bool("no unit path on that failure", result.unit_path[0] == '\0');
-  mt_log_set_handler(mt_log_stderr, NULL);
+  muslimtify_set_log_handler(muslimtify_log_stderr, NULL);
   setenv("HOME", home_dir, 1);
 }
 

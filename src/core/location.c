@@ -108,8 +108,27 @@ CURLcode location_harden_curl(CURL *curl) {
 
 int location_parse_ipinfo(Config *cfg, char *body);
 
+// libcurl's global state is initialised once, by the library, on the first
+// lookup, so no host program has to know libcurl is involved. libcurl requires
+// this to happen before other threads use it, which the public header states.
+static bool ensure_curl_global(void) {
+  static bool ready = false;
+  if (ready)
+    return true;
+  CURLcode rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+  if (rc != CURLE_OK) {
+    MT_LOGF(MT_LOG_ERROR, "Error: Failed to initialize libcurl: %s", curl_easy_strerror(rc));
+    return false;
+  }
+  (void)atexit(curl_global_cleanup);
+  ready = true;
+  return true;
+}
+
 static int location_fetch_ipinfo(Config *cfg) {
   if (!cfg)
+    return -1;
+  if (!ensure_curl_global())
     return -1;
 
   CURL *curl = curl_easy_init();
@@ -206,7 +225,7 @@ int location_parse_ipinfo(Config *cfg, char *body) {
   cfg->longitude = lon;
 
   // Parse timezone. Reject a hostile/garbage value from the network before it
-  // reaches setenv("TZ")/tzset() or gets persisted to config.
+  // reaches the zone lookup or gets persisted to config.
   char *tz_str = get_value(ctx, "timezone", body);
   if (tz_str) {
     if (!timezone_exists(tz_str)) {

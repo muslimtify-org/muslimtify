@@ -12,10 +12,10 @@ extern "C" {
 
 /**
  * Compute the UTC offset (in hours) for IANA timezone `tz_name` at the
- * moment `when`. Reads the system tzdb via libc, so DST and historical
- * zone changes are honored. Returns 0.0 if `tz_name` is NULL.
+ * moment `when`. Reads the system tz database, so DST and historical zone
+ * changes are honored. Returns 0.0 if `tz_name` is NULL or unknown.
  *
- * Not thread-safe: temporarily mutates the process-wide TZ env var.
+ * Touches no process-wide state, so it may run on any thread.
  */
 double parse_timezone_offset(const char *tz_name, time_t when);
 
