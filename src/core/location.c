@@ -206,7 +206,7 @@ int location_parse_ipinfo(Config *cfg, char *body) {
   cfg->longitude = lon;
 
   // Parse timezone. Reject a hostile/garbage value from the network before it
-  // reaches setenv("TZ")/tzset() or gets persisted to config.
+  // reaches the zone lookup or gets persisted to config.
   char *tz_str = get_value(ctx, "timezone", body);
   if (tz_str) {
     if (!timezone_exists(tz_str)) {

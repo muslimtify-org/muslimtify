@@ -62,6 +62,38 @@ static void test_northern_dst(void) {
   check("America/Los_Angeles", SUMMER, "Jul (PDT)", -7.0);
 }
 
+#ifndef _WIN32
+// The library's answer must match what libc gives under the same zone. The
+// expected value is computed here, by the one code path that may set TZ.
+static double libc_offset(const char *zone, time_t when) {
+  const char *old = getenv("TZ");
+  char *saved = old ? strdup(old) : NULL;
+  setenv("TZ", zone, 1);
+  tzset();
+  struct tm lt;
+  localtime_r(&when, &lt);
+  double hours = (double)lt.tm_gmtoff / 3600.0;
+  if (saved) {
+    setenv("TZ", saved, 1);
+    free(saved);
+  } else {
+    unsetenv("TZ");
+  }
+  tzset();
+  return hours;
+}
+
+static void test_matches_libc(void) {
+  printf("\n-- Agreement with libc --\n");
+  static const char *const zones[] = {"Europe/London", "Asia/Kathmandu", "Pacific/Chatham",
+                                      "America/New_York", "Australia/Lord_Howe"};
+  for (size_t i = 0; i < sizeof(zones) / sizeof(zones[0]); i++) {
+    check(zones[i], WINTER, "Jan vs libc", libc_offset(zones[i], WINTER));
+    check(zones[i], SUMMER, "Jul vs libc", libc_offset(zones[i], SUMMER));
+  }
+}
+#endif
+
 static void test_no_dst_fixed(void) {
   printf("\n-- Fixed-offset zones (no DST) --\n");
   check("Asia/Jakarta", WINTER, "Jan", 7.0);
@@ -731,6 +763,9 @@ int main(void) {
   printf("=== parse_timezone_offset tests ===\n");
 
   test_northern_dst();
+#ifndef _WIN32
+  test_matches_libc();
+#endif
   test_no_dst_fixed();
   test_fractional_offsets();
   test_southern_dst();
