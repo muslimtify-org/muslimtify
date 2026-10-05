@@ -1,4 +1,4 @@
-#include "muslimtify.h"
+#include "muslimtify_cycle.h"
 
 #include "cache.h"
 #include "check_cycle.h"

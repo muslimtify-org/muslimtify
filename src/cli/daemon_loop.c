@@ -10,7 +10,7 @@ int seconds_until_next_minute(time_t now) {
 
 #ifndef MUSLIMTIFY_DAEMON_LOOP_TEST
 
-#include "muslimtify.h"
+#include "muslimtify_cycle.h"
 
 #include <signal.h>
 #include <stdio.h>
