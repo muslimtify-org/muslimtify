@@ -153,7 +153,7 @@ static int daemon_install_handler(int argc, char **argv) {
 
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
   /* Auto-detect location and calculation method only when the config still
-   * needs a location, the same condition location_prepare uses. Coordinates
+   * needs a location, the same condition the check cycle uses. Coordinates
    * and a method the user set by hand are kept. */
   Config cfg;
   if (config_load(&cfg) != 0) {

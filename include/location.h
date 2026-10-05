@@ -78,8 +78,8 @@ GpsStatus location_fetch_gps(Config *cfg);
 const char *gps_status_message(GpsStatus st);
 
 /**
- * Orchestrator core with injected sources (test seam, mirrors
- * location_refresh_with). When cfg->use_gps is set it calls gps() first, and
+ * Orchestrator core with injected sources (test seam behind
+ * location_detect). When cfg->use_gps is set it calls gps() first, and
  * the returned status selects one of four behaviors:
  *   - GPS_OK: return immediately; ipinfo is not called.
  *   - GPS_NO_DAEMON / GPS_NO_DEVICE / GPS_UNAVAILABLE: structural failure.
@@ -105,49 +105,12 @@ int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(C
 int location_detect(Config *cfg, GpsStatus *gps_status);
 
 /**
- * Quiet helper that ensures location data exists.
- * Returns: 0 on success, -1 on failure.
- * This function does not print user-facing status lines.
- */
-int location_prepare(Config *cfg);
-
-/**
- * Force a fresh location lookup from ipinfo.io, ignoring any cached
- * coordinates, and persist the result. Unlike location_prepare(), this does
- * NOT skip when coordinates are already set — it always re-fetches. Intended
- * to run once at daemon startup so a machine that moved between boots picks
- * up its new location.
- *
- * Fail-safe by design:
- *   - If auto_detect is disabled, this is a no-op (returns 0), leaving a
- *     manually-set location untouched. Note the converse: with auto_detect
- *     enabled, any hand-edited coordinates are replaced on each refresh — set
- *     auto_detect=false (e.g. via `location set`) to pin coordinates.
- *   - If the network fetch fails, the passed-in config is left unmodified
- *     and -1 is returned, so a boot with no network keeps the last known
- *     good location instead of wiping it to 0,0.
- *
- * On success `*cfg` is updated (latitude/longitude/timezone/country) and
- * saved to disk. The calculation_method is intentionally left as-is.
- *
- * Returns 0 on success or when auto_detect is off, -1 on fetch/save failure.
- */
-int location_refresh(Config *cfg);
-
-/**
  * Pure, network-free staleness check for the daemon check cycle. Returns true
  * iff auto-detect is on, the interval is enabled (> 0), and the saved location
  * is at least `refresh_interval` seconds old. `updated_at == 0` (never fetched)
  * with a positive interval is always stale.
  */
 bool location_is_stale(const Config *cfg, int64_t now);
-
-/**
- * CLI-facing wrapper around location preparation.
- * Prints status lines to stderr when auto-detect runs, so stdout stays clean
- * for `show --json` and `--headless`.
- */
-int ensure_location(Config *cfg);
 
 /**
  * Auto-detect: fetch location via ipinfo and set calculation_method from the

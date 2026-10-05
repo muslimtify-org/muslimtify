@@ -197,7 +197,7 @@ int cache_load(PrayerCache *cache) {
 
     // A trigger object missing any key means the file is corrupt. Reject the
     // whole cache rather than continuing with a silently short trigger list:
-    // run_check_cycle treats a failed load as invalid and rebuilds from config.
+    // muslimtify_run_cycle treats a failed load as invalid and rebuilds from config.
     char *prayer = get_value(ctx, "prayer", obj_start);
     char *minute_str = get_value(ctx, "minute", obj_start);
     char *mb_str = get_value(ctx, "minutes_before", obj_start);

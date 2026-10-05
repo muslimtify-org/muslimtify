@@ -81,6 +81,12 @@ const char *muslimtify_get_error(MuslimtifyError err) {
     return "Location access is turned off";
   case MUSLIMTIFY_ERR_GPS_UNAVAILABLE:
     return "GPS is not available in this build";
+  case MUSLIMTIFY_ERR_NOTIFY_INIT:
+    return "Failed to initialize notification system";
+  case MUSLIMTIFY_ERR_NO_UPCOMING_PRAYER:
+    return "No upcoming prayers enabled";
+  case MUSLIMTIFY_ERR_ADHAN_NOT_PLAYING:
+    return "No adhan is currently playing";
   default:
     return "Unknown error";
   }

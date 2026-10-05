@@ -175,7 +175,7 @@ static int daemon_install_handler(int argc, char **argv) {
   if (result == 0) {
     printf("Scheduled task 'muslimtify' created successfully.\n");
     /* Location and calculation method are auto-detected lazily on the first
-       scheduled run (see location_prepare in check_cycle). Avoid any network
+       scheduled run (see muslimtify_run_cycle in src/lib/muslimtify_cycle.c). Avoid any network
        I/O here so silent/unattended installs (e.g. winget) never block. */
     printf("Prayer times will be checked every minute.\n");
   }

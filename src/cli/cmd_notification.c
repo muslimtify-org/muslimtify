@@ -1,16 +1,10 @@
 #include "cli_internal.h"
-#include "config.h"
 #include "display.h"
-#include "location.h"
-#include "notification.h"
-#include "platform.h"
-#include "prayer_checker.h"
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 static int notification_test(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
@@ -22,48 +16,29 @@ static int notification_test(int argc, char **argv) {
   if (cli_reject_extra_args("notification test", argc - consumed, argv + consumed))
     return 1;
 
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Error: Failed to load config\n");
+  Muslimtify *mt = NULL;
+  if (cli_open(&mt))
+    return 1;
+  if (cli_ensure_location(mt)) {
+    muslimtify_close(mt);
     return 1;
   }
-  if (ensure_location(&cfg) != 0)
-    return 1;
 
-  time_t now = time(NULL);
-  struct tm tm_buf;
-  platform_localtime(&now, &tm_buf);
-  struct tm *tm_now = &tm_buf;
+  int time_format = muslimtify_time_format(mt);
+  MuslimtifyNext sent;
+  MuslimtifyError err = muslimtify_notify_test(mt, consumed == 1, &sent);
+  muslimtify_close(mt);
 
-  struct PrayerTimes times =
-      prayer_times_for_config(&cfg, tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday);
-
-  NextPrayer next = prayer_get_next(&cfg, tm_now, &times);
-  if (next.type == PRAYER_NONE) {
+  if (err == MUSLIMTIFY_ERR_NO_UPCOMING_PRAYER) {
     fprintf(stderr, "No upcoming prayers enabled.\n");
     return 1;
   }
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
 
-  if (!notify_init_once("Muslimtify")) {
-    fprintf(stderr, "Error: Failed to initialize notification system\n");
-    return 1;
-  }
-
-  char time_str[16];
-  format_time_cfg(&cfg, next.time, time_str, sizeof(time_str));
-  const char *sound_preset =
-      strcmp(cfg.notification_sound, "off") != 0 ? cfg.notification_sound_alarm : NULL;
-  if (argc > 0 && strcmp(argv[0], "--adhan") == 0) {
-    // Use the next prayer's configured adhan; notify_adhan falls back to the
-    // bundled adhan when the configured path is empty.
-    const PrayerConfig *pcfg = prayer_get_config(&cfg, next.type);
-    notify_adhan(prayer_get_name(next.type), time_str, pcfg ? pcfg->adhan : "");
-  } else {
-    notify_prayer(prayer_get_name(next.type), time_str, 0, cfg.notification_urgency, sound_preset);
-  }
-
-  notify_cleanup();
-  printf("Sent test notification for %s at %s\n", prayer_get_name(next.type), time_str);
+  char time_str[MUSLIMTIFY_TIME_STR_SIZE];
+  muslimtify_format_time(&sent.time, time_format, time_str, sizeof(time_str));
+  printf("Sent test notification for %s at %s\n", muslimtify_prayer_name(sent.prayer), time_str);
   return 0;
 }
 
@@ -299,7 +274,7 @@ static int notif_adhan(int argc, char **argv) {
   if (argc > 0 && strcmp(argv[0], "stop") == 0) {
     if (cli_reject_extra_args("notification --adhan stop", argc - 1, argv + 1))
       return 1;
-    if (notify_adhan_stop() == 0)
+    if (muslimtify_adhan_stop() == MUSLIMTIFY_OK)
       printf("Adhan playback stopped\n");
     else
       printf("No adhan is currently playing\n");

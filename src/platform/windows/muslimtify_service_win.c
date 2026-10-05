@@ -1,6 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 
-#include "check_cycle.h"
+#include "muslimtify.h"
 
 #include <curl/curl.h>
 #include <windows.h>
@@ -15,7 +15,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
     return 1;
   }
 
-  int result = run_check_cycle();
+  int result = muslimtify_run_cycle(NULL) == MUSLIMTIFY_OK ? 0 : 1;
 
   curl_global_cleanup();
 

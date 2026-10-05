@@ -10,7 +10,7 @@ int seconds_until_next_minute(time_t now) {
 
 #ifndef MUSLIMTIFY_DAEMON_LOOP_TEST
 
-#include "check_cycle.h"
+#include "muslimtify.h"
 
 #include <signal.h>
 #include <stdio.h>
@@ -42,7 +42,15 @@ int run_daemon_loop(void) {
   fflush(stdout);
 
   while (!g_stop) {
-    if (run_check_cycle() != 0) {
+    MuslimtifyCycle cycle;
+    MuslimtifyError err = muslimtify_run_cycle(&cycle);
+    const char *warning = muslimtify_detection_warning(&cycle.detection);
+    if (warning)
+      fprintf(stderr, "%s\n", warning);
+    if (cycle.refresh_failed)
+      fprintf(stderr, "check: location refresh failed, using cached location\n");
+    if (err != MUSLIMTIFY_OK) {
+      fprintf(stderr, "Error: %s\n", muslimtify_get_error(err));
       fprintf(stderr, "muslimtify daemon: check cycle reported an error, continuing\n");
     }
     if (g_stop)

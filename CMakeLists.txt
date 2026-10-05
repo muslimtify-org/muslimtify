@@ -133,13 +133,11 @@ add_library(muslimtify_core OBJECT
     src/core/check_cycle.c
     src/core/miniaudio.c
     src/core/audio.c
-    # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
-    # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
-    $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
     src/core/prayertimes.c
     src/lib/muslimtify.c
     src/lib/muslimtify_settings.c
     src/lib/muslimtify_location.c
+    src/lib/muslimtify_cycle.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/posix/platform_posix.c>
@@ -162,6 +160,9 @@ add_library(muslimtify_cli OBJECT
     src/cli/cmd_method.c
     src/cli/cmd_notification.c
     src/cli/cmd_timeformat.c
+    # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
+    # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
+    $<$<NOT:$<BOOL:${WIN32}>>:src/cli/daemon_loop.c>
 )
 muslimtify_set_target_defaults(muslimtify_cli)
 
@@ -255,6 +256,12 @@ if(BUILD_TESTING)
         target_link_libraries(test_muslimtify muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME muslimtify COMMAND test_muslimtify)
 
+        add_executable(test_muslimtify_cycle tests/test_muslimtify_cycle.c)
+        muslimtify_set_target_defaults(test_muslimtify_cycle)
+        target_include_directories(test_muslimtify_cycle PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_muslimtify_cycle muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        add_test(NAME muslimtify_cycle COMMAND test_muslimtify_cycle)
+
         add_executable(test_offset_bound tests/test_offset_bound.c)
         muslimtify_set_target_defaults(test_offset_bound)
         target_include_directories(test_offset_bound PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
@@ -274,7 +281,7 @@ if(BUILD_TESTING)
 
         add_executable(test_daemon_loop
             tests/test_daemon_loop.c
-            src/core/daemon_loop.c
+            src/cli/daemon_loop.c
         )
         muslimtify_set_target_defaults(test_daemon_loop)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)

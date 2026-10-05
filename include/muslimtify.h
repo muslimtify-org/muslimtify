@@ -44,7 +44,10 @@ typedef enum {
   MUSLIMTIFY_ERR_GPS_NO_DAEMON,
   MUSLIMTIFY_ERR_GPS_NO_DEVICE,
   MUSLIMTIFY_ERR_GPS_NO_PERMISSION,
-  MUSLIMTIFY_ERR_GPS_UNAVAILABLE
+  MUSLIMTIFY_ERR_GPS_UNAVAILABLE,
+  MUSLIMTIFY_ERR_NOTIFY_INIT,
+  MUSLIMTIFY_ERR_NO_UPCOMING_PRAYER,
+  MUSLIMTIFY_ERR_ADHAN_NOT_PLAYING
 } MuslimtifyError;
 
 typedef enum {
@@ -153,6 +156,15 @@ typedef struct {
   MuslimtifyError gps;             /* MUSLIMTIFY_OK, or why GPS was not used */
   bool gps_disabled;               /* true when detection switched GPS off */
 } MuslimtifyDetection;
+
+/* What one muslimtify_run_cycle call did. */
+typedef struct {
+  bool detected;                 /* a first-run detection ran and was saved */
+  bool refreshed;                /* a stale location was re-detected and saved */
+  bool refresh_failed;           /* a stale refresh failed, the stored location was kept */
+  MuslimtifyDetection detection; /* outcome of that detection or refresh, when one ran */
+  int notifications;             /* notifications sent in this cycle */
+} MuslimtifyCycle;
 
 /* -- Handle lifecycle ------------------------------------------------------ */
 
@@ -342,6 +354,35 @@ MuslimtifyError muslimtify_set_method_from_country(Muslimtify *mt);
  * accepted. Returns MUSLIMTIFY_ERR_INVALID_COUNTRY for anything else.
  */
 MuslimtifyError muslimtify_check_country(const char *iso2);
+
+/* -- Notifications ---------------------------------------------------------- */
+
+/**
+ * Run one notification check for the current minute: load the config, detect
+ * the location on a first run, refresh it when it is older than the refresh
+ * interval, then send every notification that is due and play the adhan where
+ * it is enabled. Call it once a minute. Takes no handle, because it reads the
+ * config from disk each time, which is what makes saved settings take effect.
+ * Blocks while an adhan plays, so call it off the UI thread.
+ *
+ * *out, when not NULL, is filled even on an error return. A failed stale
+ * refresh is not an error: the cycle continues and sets out->refresh_failed.
+ */
+MuslimtifyError muslimtify_run_cycle(MuslimtifyCycle *out);
+
+/**
+ * Send a notification now for the next prayer, or play its adhan when adhan is
+ * true, which blocks while it plays. *sent, when not NULL, receives the prayer
+ * and time that were announced. Returns MUSLIMTIFY_ERR_NO_UPCOMING_PRAYER when
+ * no enabled prayer is ahead.
+ */
+MuslimtifyError muslimtify_notify_test(Muslimtify *mt, bool adhan, MuslimtifyNext *sent);
+
+/**
+ * Stop an adhan that is playing. Returns MUSLIMTIFY_ERR_ADHAN_NOT_PLAYING when
+ * there is none to stop.
+ */
+MuslimtifyError muslimtify_adhan_stop(void);
 
 /* -- Names, parsing and formatting ------------------------------------------ */
 /* Returned strings are static and never NULL. */
