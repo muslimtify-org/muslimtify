@@ -505,59 +505,45 @@ static char *json_find_key(JsonSlice key, char *JSON_RESTRICT json) {
 
   const char *cursor = json;
   int depth = 0;
-  bool in_string = false;
-  bool escaped = false;
 
   while (*cursor) {
     char current_char = *cursor;
 
-    if (in_string) {
-      if (escaped) {
-        escaped = false;
-      } else if (current_char == JSON_ESCAPE_CHAR) {
-        escaped = true;
-      } else if (current_char == JSON_STRING_QUOTE) {
-        in_string = false;
-      }
-
-      cursor++;
-      continue;
-    }
-
     switch (current_char) {
-    case JSON_STRING_QUOTE:
-      if (depth == 1) {
-        const char *key_start = cursor + 1;
-        const char *key_end = key_start;
+    case JSON_STRING_QUOTE: {
+      // Every string token is consumed whole, at any depth. Only a string at
+      // depth 1 that is followed by ':' is a key and gets compared, so a value
+      // equal to the key is never mistaken for it, and a document truncated
+      // right after a string stops here instead of being scanned past its end.
+      const char *str_start = cursor + 1;
+      const char *str_end = str_start;
 
-        while (*key_end) {
-          if (*key_end == JSON_ESCAPE_CHAR) {
-            key_end++;
-            if (!*key_end) {
-              break;
-            }
-          } else if (*key_end == JSON_STRING_QUOTE) {
+      while (*str_end) {
+        if (*str_end == JSON_ESCAPE_CHAR) {
+          str_end++;
+          if (!*str_end) {
             break;
           }
-          key_end++;
+        } else if (*str_end == JSON_STRING_QUOTE) {
+          break;
         }
+        str_end++;
+      }
 
-        if (*key_end != JSON_STRING_QUOTE) {
-          return NULL;
-        }
+      if (*str_end != JSON_STRING_QUOTE) {
+        return NULL;
+      }
 
-        JsonSlice candidate = json_slice_from_range(key_start, key_end);
+      const char *after = skip_whitespace(str_end + 1);
+      if (depth == 1 && *after == JSON_KEY_VALUE_SEP) {
+        JsonSlice candidate = json_slice_from_range(str_start, str_end);
         if (json_slice_equals(candidate, key)) {
-          cursor = skip_whitespace(key_end + 1);
-
-          if (*cursor == JSON_KEY_VALUE_SEP) {
-            cursor = skip_whitespace(cursor + 1);
-            return (char *)cursor;
-          }
+          return (char *)skip_whitespace(after + 1);
         }
       }
-      in_string = true;
-      break;
+      cursor = str_end + 1;
+      continue;
+    }
     case JSON_ARRAY_OPEN:
     case JSON_OBJECT_OPEN:
       depth++;
