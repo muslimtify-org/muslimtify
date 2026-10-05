@@ -242,6 +242,9 @@ MuslimtifyMadhab muslimtify_get_madhab(const Muslimtify *mt);
 /** The configured display format, 12 or 24. A NULL handle gives 24. */
 int muslimtify_time_format(const Muslimtify *mt);
 
+/** Path of the config file. Static string, never NULL. */
+const char *muslimtify_config_path(void);
+
 /** Number of selectable calculation methods. */
 size_t muslimtify_method_count(void);
 

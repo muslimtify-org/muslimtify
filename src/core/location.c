@@ -321,25 +321,6 @@ int location_detect(Config *cfg, GpsStatus *gps_status) {
   return location_fetch_core(cfg, location_fetch_gps, location_fetch_ipinfo, gps_status);
 }
 
-int location_fetch(Config *cfg) {
-  GpsStatus st = GPS_OK;
-  int rc = location_detect(cfg, &st);
-  const char *message = gps_status_message(st);
-  if (message)
-    fprintf(stderr, "%s\n", message);
-  return rc;
-}
-
-int config_auto_detect(Config *cfg) {
-  if (!cfg)
-    return -1;
-  if (location_fetch(cfg) != 0)
-    return -1;
-  copy_string(cfg->calculation_method, sizeof(cfg->calculation_method),
-              method_to_string(country_default_method(cfg->country)));
-  return 0;
-}
-
 bool location_is_stale(const Config *cfg, int64_t now) {
   if (!cfg || !cfg->auto_detect)
     return false;

@@ -394,6 +394,10 @@ static void test_calculation_setters(void) {
   check_bool("set shafi", muslimtify_set_madhab(mt, MUSLIMTIFY_MADHAB_SHAFI) == MUSLIMTIFY_OK &&
                               muslimtify_get_madhab(mt) == MUSLIMTIFY_MADHAB_SHAFI);
   check_bool("NULL handle is shafi", muslimtify_get_madhab(NULL) == MUSLIMTIFY_MADHAB_SHAFI);
+  check_bool("config path is set",
+             muslimtify_config_path() != NULL && muslimtify_config_path()[0] != '\0');
+  check_bool("config path is the core path",
+             strcmp(muslimtify_config_path(), config_get_path()) == 0);
 
   check_bool("set 12", muslimtify_set_time_format(mt, 12) == MUSLIMTIFY_OK &&
                            muslimtify_time_format(mt) == 12);

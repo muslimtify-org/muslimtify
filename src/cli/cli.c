@@ -1,6 +1,5 @@
 #include "cli.h"
 #include "cli_internal.h"
-#include "config.h"
 #include "util.h"
 #include "version.h"
 #include <stdbool.h>
@@ -325,7 +324,7 @@ void cli_print_help(void) {
   printf("\n");
 
   printf("Config File:\n");
-  printf("  %s\n", config_get_path());
+  printf("  %s\n", muslimtify_config_path());
 }
 
 int cli_run(int argc, char **argv) {

@@ -235,6 +235,11 @@ MuslimtifyMadhab muslimtify_get_madhab(const Muslimtify *mt) {
   return MUSLIMTIFY_MADHAB_SHAFI;
 }
 
+const char *muslimtify_config_path(void) {
+  const char *path = config_get_path();
+  return path ? path : "";
+}
+
 /* -- Location setters ------------------------------------------------------- */
 
 MuslimtifyError muslimtify_set_coordinates(Muslimtify *mt, double latitude, double longitude) {

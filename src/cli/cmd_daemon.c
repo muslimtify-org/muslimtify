@@ -13,11 +13,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#ifndef MUSLIMTIFY_CMD_DAEMON_TEST
-#include "location.h"
-#include "prayertimes.h"
-#endif
-
 // -- helpers -----------------------------------------------------------------
 
 static int systemctl_user(const char *const *args) {
@@ -98,6 +93,59 @@ int build_service_unit(const char *binary_path, char *buffer, size_t buffer_size
   return written;
 }
 
+#ifndef MUSLIMTIFY_CMD_DAEMON_TEST
+// Auto-detect location and calculation method only when the config still needs
+// a location, the same condition the check cycle uses. Coordinates and a method
+// the user set by hand are kept. Nothing here fails the install: a problem is a
+// warning, and the service is still set up.
+static void daemon_auto_setup(void) {
+  Muslimtify *mt = NULL;
+  if (muslimtify_open(&mt) != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Warning: Failed to load config, skipping auto-detect\n");
+    return;
+  }
+
+  MuslimtifyLocation loc;
+  MuslimtifyMethodInfo method;
+
+  if (!muslimtify_location_needs_detect(mt)) {
+    if (muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK &&
+        muslimtify_get_method(mt, &method) == MUSLIMTIFY_OK)
+      printf("✓ Using saved location %.4f, %.4f and method %s\n", loc.latitude, loc.longitude,
+             method.key);
+    muslimtify_close(mt);
+    return;
+  }
+
+  printf("Detecting location...\n");
+  MuslimtifyDetection detection;
+  if (muslimtify_detect_location(mt, &detection) != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Warning: Failed to detect location, skipping auto-detect\n");
+    muslimtify_close(mt);
+    return;
+  }
+  cli_print_gps_warning(&detection);
+  muslimtify_set_method_from_country(mt);
+
+  if (muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK) {
+    if (loc.city[0] != '\0')
+      printf("✓ Location detected: %s, %s\n", loc.city, loc.country);
+    else
+      printf("✓ Location detected: %.4f, %.4f\n", loc.latitude, loc.longitude);
+  }
+
+  if (muslimtify_save(mt) != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Warning: Failed to save config\n");
+  } else if (muslimtify_get_method(mt, &method) == MUSLIMTIFY_OK) {
+    printf("✓ Method auto-detected: %s", method.key);
+    if (method.name[0] != '\0')
+      printf(" (%s)", method.name);
+    printf("\n");
+  }
+  muslimtify_close(mt);
+}
+#endif
+
 // -- sub-handlers ------------------------------------------------------------
 
 static int daemon_install_handler(int argc, char **argv) {
@@ -152,38 +200,7 @@ static int daemon_install_handler(int argc, char **argv) {
   remove(timer_path);
 
 #ifndef MUSLIMTIFY_CMD_DAEMON_TEST
-  /* Auto-detect location and calculation method only when the config still
-   * needs a location, the same condition the check cycle uses. Coordinates
-   * and a method the user set by hand are kept. */
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Warning: Failed to load config, skipping auto-detect\n");
-  } else if (!config_location_needs_detect(&cfg)) {
-    printf("✓ Using saved location %.4f, %.4f and method %s\n", cfg.latitude, cfg.longitude,
-           cfg.calculation_method);
-  } else {
-    printf("Detecting location...\n");
-    if (config_auto_detect(&cfg) != 0) {
-      fprintf(stderr, "Warning: Failed to detect location, skipping auto-detect\n");
-    } else {
-      if (cfg.city[0] != '\0') {
-        printf("✓ Location detected: %s, %s\n", cfg.city, cfg.country);
-      } else {
-        printf("✓ Location detected: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
-      }
-
-      if (config_save(&cfg) != 0) {
-        fprintf(stderr, "Warning: Failed to save config\n");
-      } else {
-        CalcMethod m = method_from_string(cfg.calculation_method);
-        const MethodParams *p = method_params_get(m);
-        printf("✓ Method auto-detected: %s", cfg.calculation_method);
-        if (p)
-          printf(" (%s)", p->name);
-        printf("\n");
-      }
-    }
-  }
+  daemon_auto_setup();
 #endif
 
   if (systemctl_user((const char *[]){"daemon-reload", NULL}) != 0) {
