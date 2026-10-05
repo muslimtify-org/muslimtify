@@ -128,6 +128,7 @@ add_library(muslimtify_core OBJECT
     src/core/cache.c
     src/core/location.c
     src/core/string_util.c
+    src/core/log.c
     src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
@@ -262,6 +263,10 @@ if(BUILD_TESTING)
         target_link_libraries(test_muslimtify_cycle muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME muslimtify_cycle COMMAND test_muslimtify_cycle)
 
+        add_executable(test_log tests/test_log.c src/core/log.c)
+        muslimtify_set_target_defaults(test_log)
+        add_test(NAME log COMMAND test_log)
+
         add_executable(test_offset_bound tests/test_offset_bound.c)
         muslimtify_set_target_defaults(test_offset_bound)
         target_include_directories(test_offset_bound PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
@@ -325,7 +330,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME json COMMAND test_json)
 
-    add_executable(test_string_util tests/test_string_util.c src/core/string_util.c)
+    add_executable(test_string_util tests/test_string_util.c src/core/string_util.c src/core/log.c)
     muslimtify_set_target_defaults(test_string_util)
     add_test(NAME string_util COMMAND test_string_util)
 
@@ -345,6 +350,7 @@ if(BUILD_TESTING)
         add_executable(test_notification_win
             tests/test_notification_win.c
             src/platform/windows/notification_win.c
+            src/core/log.c
         )
         muslimtify_set_target_defaults(test_notification_win)
         target_compile_definitions(test_notification_win PRIVATE MUSLIMTIFY_NOTIFICATION_WIN_TEST)

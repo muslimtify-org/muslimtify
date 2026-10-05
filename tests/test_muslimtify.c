@@ -4,6 +4,7 @@
 #include "country.h"
 #include "lib/muslimtify_internal.h"
 #include "location.h"
+#include "log.h"
 #include "muslimtify.h"
 #include "prayertimes.h"
 #include <limits.h>
@@ -1185,6 +1186,92 @@ static void test_strings(void) {
   check_bool("NULL time", strcmp(buf, "--:--") == 0);
 }
 
+static int log_calls;
+static bool log_saw_invalid_json;
+static bool log_saw_error_level;
+static void *log_seen_user_data;
+
+static void record_log(MuslimtifyLogLevel level, const char *message, void *user_data) {
+  log_calls++;
+  log_seen_user_data = user_data;
+  if (strstr(message, "is not valid JSON") != NULL) {
+    log_saw_invalid_json = true;
+    log_saw_error_level = level == MUSLIMTIFY_LOG_ERROR;
+  }
+}
+
+// Run muslimtify_open with file descriptor 2 redirected into a temporary file,
+// and return what reached stderr.
+static MuslimtifyError open_capturing_stderr(char *captured, size_t cap) {
+  captured[0] = '\0';
+  fflush(stderr);
+  FILE *capture = tmpfile();
+  if (!capture)
+    return MUSLIMTIFY_ERR_NO_MEMORY;
+  int saved = dup(STDERR_FILENO);
+  dup2(fileno(capture), STDERR_FILENO);
+
+  Muslimtify *mt = NULL;
+  MuslimtifyError err = muslimtify_open(&mt);
+  muslimtify_close(mt);
+
+  fflush(stderr);
+  dup2(saved, STDERR_FILENO);
+  close(saved);
+  rewind(capture);
+  size_t n = fread(captured, 1, cap - 1, capture);
+  captured[n] = '\0';
+  fclose(capture);
+  return err;
+}
+
+// Must run last: it breaks the config file on purpose.
+static void test_log_handler(void) {
+  printf("  log handler...\n");
+
+  FILE *f = fopen(config_get_path(), "w");
+  check_bool("config file opened for corruption", f != NULL);
+  if (!f)
+    return;
+  fputs("{not json", f);
+  fclose(f);
+
+  char captured[2048];
+  int marker = 0;
+
+  // A handler receives the reason, and stderr stays empty.
+  log_calls = 0;
+  log_saw_invalid_json = false;
+  log_saw_error_level = false;
+  log_seen_user_data = NULL;
+  muslimtify_set_log_handler(record_log, &marker);
+  check_bool("open fails on a broken config",
+             open_capturing_stderr(captured, sizeof(captured)) == MUSLIMTIFY_ERR_CONFIG_LOAD);
+  check_bool("the handler was called", log_calls >= 1);
+  check_bool("it was told the config is not valid JSON", log_saw_invalid_json);
+  check_bool("as an error", log_saw_error_level);
+  check_bool("with the registered user data", log_seen_user_data == &marker);
+  check_bool("nothing reached stderr", captured[0] == '\0');
+
+  // A NULL handler discards everything.
+  log_calls = 0;
+  muslimtify_set_log_handler(NULL, NULL);
+  check_bool("open still fails",
+             open_capturing_stderr(captured, sizeof(captured)) == MUSLIMTIFY_ERR_CONFIG_LOAD);
+  check_bool("no handler was called", log_calls == 0);
+  check_bool("and stderr stayed empty", captured[0] == '\0');
+
+  // Back to the default, which is what a program that never sets a handler gets.
+  mt_log_set_handler(mt_log_stderr, NULL);
+  check_bool("open fails once more",
+             open_capturing_stderr(captured, sizeof(captured)) == MUSLIMTIFY_ERR_CONFIG_LOAD);
+  check_bool("the default writes the reason to stderr",
+             strstr(captured, "is not valid JSON") != NULL);
+
+  Config restored = config_default();
+  check_bool("config restored", config_save(&restored) == 0);
+}
+
 int main(void) {
   printf("Running muslimtify library tests...\n");
   setup();
@@ -1209,6 +1296,7 @@ int main(void) {
   test_prayer_settings();
   test_next();
   test_strings();
+  test_log_handler();
   teardown();
 
   printf("\nResults: %d passed, %d failed\n", passed, failed);

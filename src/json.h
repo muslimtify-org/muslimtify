@@ -114,6 +114,13 @@ void json_write_escaped(FILE *f, const char *s);
 #define JSON_KEY_VALUE_SEP ':'
 #define JSON_VALUE_SEP ','
 
+// Where the parser reports misuse and allocation failures. Define JSON_LOG
+// before including this header to send them somewhere else. It is called like
+// printf, with a format that has no trailing newline.
+#ifndef JSON_LOG
+#define JSON_LOG(...) (fprintf(stderr, __VA_ARGS__), fputc('\n', stderr))
+#endif
+
 #ifndef ARENA_BLOCK_SIZE
 #define ARENA_BLOCK_SIZE (1024UL * 4)
 #endif
@@ -152,7 +159,7 @@ typedef struct JsonUtf8 {
 static Region *json_region_create(size_t block_size) {
   Region *region = (Region *)malloc(sizeof(Region) + block_size);
   if (!region) {
-    fprintf(stderr, "Memory allocation fail, Buy more RAM LOL!\n");
+    JSON_LOG("Memory allocation fail, Buy more RAM LOL!");
     return NULL;
   }
 
@@ -354,7 +361,7 @@ static bool json_safe_add(size_t a, size_t b, size_t *result) {
 static JsonArena *json_alloc_init(void) {
   JsonArena *arena = (JsonArena *)malloc(sizeof(JsonArena));
   if (arena == NULL) {
-    fprintf(stderr, "Memory allocation fail, Buy more RAM LOL!\n");
+    JSON_LOG("Memory allocation fail, Buy more RAM LOL!");
     return NULL;
   }
 
@@ -366,7 +373,7 @@ static JsonArena *json_alloc_init(void) {
 
 static void *json_alloc(JsonArena *arena, size_t size, size_t alignment) {
   if (!arena || size == 0 || alignment == 0) {
-    fprintf(stderr, "Invalid arguments to json_alloc\n");
+    JSON_LOG("Invalid arguments to json_alloc");
     return NULL;
   }
 
@@ -447,7 +454,7 @@ static inline const char *skip_whitespace(const char *cursor) {
 
 static const char *find_matching_bracket(const char *start, char open_bracket) {
   if (*start != open_bracket) {
-    fprintf(stderr, "expected '%c'\n", open_bracket);
+    JSON_LOG("expected '%c'", open_bracket);
     return NULL;
   }
 
@@ -473,7 +480,7 @@ static const char *find_matching_bracket(const char *start, char open_bracket) {
         depth++;
         // Enforce depth limit
         if (depth > JSON_DEPTH_LIMIT) {
-          fprintf(stderr, "depth exceeds limit %d\n", JSON_DEPTH_LIMIT);
+          JSON_LOG("depth exceeds limit %d", JSON_DEPTH_LIMIT);
           return NULL;
         }
       } else if (*cursor == close_bracket) {
@@ -486,13 +493,13 @@ static const char *find_matching_bracket(const char *start, char open_bracket) {
     cursor++;
   }
 
-  fprintf(stderr, "no matching '%c'\n", close_bracket);
+  JSON_LOG("no matching '%c'", close_bracket);
   return NULL;
 }
 
 static char *json_find_key(JsonSlice key, char *JSON_RESTRICT json) {
   if (!key.ptr || !json) {
-    fprintf(stderr, "Invalid arguments, expected key and raw json\n");
+    JSON_LOG("Invalid arguments, expected key and raw json");
     return NULL;
   }
 
@@ -555,7 +562,7 @@ static char *json_find_key(JsonSlice key, char *JSON_RESTRICT json) {
     case JSON_OBJECT_OPEN:
       depth++;
       if (depth > JSON_DEPTH_LIMIT) {
-        fprintf(stderr, "depth exceeds limit %d\n", JSON_DEPTH_LIMIT);
+        JSON_LOG("depth exceeds limit %d", JSON_DEPTH_LIMIT);
         return NULL;
       }
       break;
@@ -577,7 +584,7 @@ static char *json_extract_value(JsonArena *JSON_RESTRICT arena,
                                 const char *JSON_RESTRICT value_start) {
 
   if (!value_start || !arena) {
-    fprintf(stderr, "Expected JsonArena and value_start");
+    JSON_LOG("Expected JsonArena and value_start");
     return NULL;
   }
 
@@ -720,13 +727,13 @@ static char *json_extract_value(JsonArena *JSON_RESTRICT arena,
 JsonContext *json_begin(void) {
   JsonArena *arena = json_alloc_init();
   if (!arena) {
-    fprintf(stderr, "Cannot allocate memory arena for json_begin\n");
+    JSON_LOG("Cannot allocate memory arena for json_begin");
     return NULL;
   }
 
   JsonContext *ctx = json_alloc(arena, sizeof(JsonContext), JSON_ALIGNOF(JsonContext));
   if (!ctx) {
-    fprintf(stderr, "Cannot create JsonContext, please check your RAM usage\n");
+    JSON_LOG("Cannot create JsonContext, please check your RAM usage");
     json_alloc_free(arena);
     return NULL;
   }
@@ -746,7 +753,7 @@ void json_end(JsonContext *ctx) {
 static inline char *get_obj(JsonArena *JSON_RESTRICT arena, char *JSON_RESTRICT json,
                             const char *JSON_RESTRICT key) {
   if (!json || !arena || !key) {
-    fprintf(stderr, "Invalid arguments to get_obj\n");
+    JSON_LOG("Invalid arguments to get_obj");
     return NULL;
   }
 

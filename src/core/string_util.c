@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "string_util.h"
+#include "log.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -130,7 +131,7 @@ int parse_tokens(const char *input, char *scratch, size_t scratch_size, const ch
 
 static bool log_invalid_once(const char *name, bool *logged_flag, const char *detail) {
   if (!*logged_flag) {
-    fprintf(stderr, "string_util: %s %s\n", name, detail);
+    MT_LOGF(MT_LOG_WARNING, "string_util: %s %s", name, detail);
     *logged_flag = true;
   }
   return false;
