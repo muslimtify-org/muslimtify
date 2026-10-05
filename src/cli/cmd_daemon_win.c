@@ -79,14 +79,13 @@ static int run_schtasks(const char *args) {
      installer/validation timeout. */
   DWORD wait_status = WaitForSingleObject(pi.hProcess, 60000);
 
-  DWORD exit_code;
+  DWORD exit_code = 1;
   if (wait_status == WAIT_TIMEOUT) {
     fprintf(stderr, "Error: schtasks did not complete within 60 seconds\n");
     TerminateProcess(pi.hProcess, 1);
     WaitForSingleObject(pi.hProcess, 5000);
+  } else if (!GetExitCodeProcess(pi.hProcess, &exit_code)) {
     exit_code = 1;
-  } else {
-    GetExitCodeProcess(pi.hProcess, &exit_code);
   }
   CloseHandle(pi.hProcess);
   CloseHandle(pi.hThread);

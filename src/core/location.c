@@ -225,9 +225,13 @@ int location_parse_ipinfo(Config *cfg, char *body) {
   // actual city) and feeds nothing functional in the calculation pipeline.
 
   // Parse country
+  // Only a two-letter code is a country. Anything else from the network is
+  // dropped rather than persisted and later printed.
   char *country_str = get_value(ctx, "country", body);
   if (country_str) {
-    if (!copy_string(cfg->country, sizeof(cfg->country), country_str)) {
+    if (!country_is_valid_alpha2(country_str)) {
+      MT_LOGF(MT_LOG_WARNING, "location: ignoring invalid country from API");
+    } else if (!copy_string(cfg->country, sizeof(cfg->country), country_str)) {
       location_log_trunc("country");
     }
   }

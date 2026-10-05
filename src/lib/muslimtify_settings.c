@@ -275,8 +275,13 @@ MuslimtifyError muslimtify_set_city(Muslimtify *mt, const char *city) {
     return MUSLIMTIFY_ERR_INVALID_ARG;
   size_t cap = sizeof(mt->cfg.city);
   size_t len = strlen(city);
-  if (len >= cap)
+  if (len >= cap) {
     len = cap - 1;
+    // Never cut inside a UTF-8 sequence: back up over continuation bytes so
+    // the stored name stays valid text.
+    while (len > 0 && ((unsigned char)city[len] & 0xC0) == 0x80)
+      len--;
+  }
   memcpy(mt->cfg.city, city, len);
   mt->cfg.city[len] = '\0';
   return MUSLIMTIFY_OK;
