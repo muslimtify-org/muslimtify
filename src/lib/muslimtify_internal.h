@@ -43,6 +43,29 @@ MuslimtifyError muslimtify_detect_location_with(Muslimtify *mt,
 MuslimtifyError muslimtify_set_gps_with(Muslimtify *mt, bool enabled, GpsStatus (*probe)(Config *),
                                         bool *has_fix);
 
+/* What a cycle calls to reach the outside world. Tests supply stand-ins that
+   record the calls. notify_init returns non-zero on success. */
+typedef struct {
+  int (*detect)(Config *, GpsStatus *);
+  int (*notify_init)(const char *app_name);
+  void (*notify_prayer)(const char *prayer_name, const char *time_str, int minutes_before,
+                        const char *urgency, const char *sound_preset);
+  void (*notify_adhan)(const char *prayer_name, const char *time_str, const char *path);
+  void (*notify_cleanup)(void);
+} MuslimtifyCycleHooks;
+
+/**
+ * muslimtify_run_cycle with the outside world and the time supplied. `now` is
+ * the local date and minute to work with, `now_epoch` the instant used to
+ * decide whether the stored location is stale.
+ */
+MuslimtifyError muslimtify_run_cycle_at(const MuslimtifyCycleHooks *hooks, const struct tm *now,
+                                        time_t now_epoch, MuslimtifyCycle *out);
+
+/** muslimtify_notify_test with the outside world and the time supplied. */
+MuslimtifyError muslimtify_notify_test_at(Muslimtify *mt, const MuslimtifyCycleHooks *hooks,
+                                          const struct tm *now, bool adhan, MuslimtifyNext *sent);
+
 #ifdef __cplusplus
 }
 #endif
