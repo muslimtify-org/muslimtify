@@ -66,6 +66,10 @@ MuslimtifyError muslimtify_run_cycle_at(const MuslimtifyCycleHooks *hooks, const
 MuslimtifyError muslimtify_notify_test_at(Muslimtify *mt, const MuslimtifyCycleHooks *hooks,
                                           const struct tm *now, bool adhan, MuslimtifyNext *sent);
 
+/** muslimtify_daemon_install with the program to run supplied. */
+MuslimtifyError muslimtify_daemon_install_binary(const char *daemon_binary,
+                                                 MuslimtifyDaemonInstall *out);
+
 #ifdef __cplusplus
 }
 #endif

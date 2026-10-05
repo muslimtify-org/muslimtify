@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include "lib/muslimtify_internal.h"
 #include "log.h"
 #include "muslimtify.h"
 #include "platform.h"
@@ -166,8 +167,10 @@ static void test_install(void) {
   clear_log();
   MuslimtifyDaemonInstall result;
   memset(&result, 0x5a, sizeof(result));
-  check_bool("install succeeds", muslimtify_daemon_install(daemon_bin, &result) == MUSLIMTIFY_OK);
+  check_bool("install succeeds",
+             muslimtify_daemon_install_binary(daemon_bin, &result) == MUSLIMTIFY_OK);
   check_bool("unit path reported", strcmp(result.unit_path, unit_file) == 0);
+  check_bool("chosen binary reported", strcmp(result.binary_path, daemon_bin) == 0);
   check_bool("no legacy timer reported", !result.legacy_timer_disabled);
   check_bool("unit file written", file_exists(unit_file));
 
@@ -184,34 +187,34 @@ static void test_install(void) {
   fake_fails("");
   clear_log();
   check_bool("install over a legacy timer",
-             muslimtify_daemon_install(daemon_bin, &result) == MUSLIMTIFY_OK);
+             muslimtify_daemon_install_binary(daemon_bin, &result) == MUSLIMTIFY_OK);
   check_bool("legacy timer reported", result.legacy_timer_disabled);
   check_bool("legacy timer disabled", log_has("--user disable --now muslimtify.timer"));
 
   // The result is optional.
   fake_fails("is-enabled:muslimtify.timer");
   check_bool("NULL result is accepted",
-             muslimtify_daemon_install(daemon_bin, NULL) == MUSLIMTIFY_OK);
+             muslimtify_daemon_install_binary(daemon_bin, NULL) == MUSLIMTIFY_OK);
 
-  // NULL means the muslimtify program beside the running executable, and never
-  // the running executable itself. Whether that sibling exists depends on what
-  // else was built, so both outcomes are checked.
-  char sibling[2048];
-  snprintf(sibling, sizeof(sibling), "%s/muslimtify", platform_exe_dir());
-  MuslimtifyError null_err = muslimtify_daemon_install(NULL, &result);
-  if (access(sibling, X_OK) == 0) {
+  // The public function chooses the program itself, from a fixed list of
+  // places. What it finds depends on this machine, so both outcomes are
+  // checked, and one thing holds either way: it never picks this test program.
+  MuslimtifyError search_err = muslimtify_daemon_install(&result);
+  if (search_err == MUSLIMTIFY_OK) {
+    const char *slash = strrchr(result.binary_path, '/');
+    check_bool("a program was chosen", result.binary_path[0] == '/');
+    check_bool("it is named muslimtify", slash != NULL && strcmp(slash + 1, "muslimtify") == 0);
+    check_bool("it is executable", access(result.binary_path, X_OK) == 0);
     char expected[4096];
-    snprintf(expected, sizeof(expected), "ExecStart=%s daemon run\n", sibling);
+    snprintf(expected, sizeof(expected), "ExecStart=%s daemon run\n", result.binary_path);
     read_file(unit_file, unit, sizeof(unit));
-    check_bool("NULL installs the sibling program", null_err == MUSLIMTIFY_OK);
-    check_bool("unit runs the sibling", strstr(unit, expected) != NULL);
+    check_bool("the unit runs the chosen program", strstr(unit, expected) != NULL);
   } else {
-    check_bool("NULL without a sibling is refused", null_err == MUSLIMTIFY_ERR_DAEMON_BINARY);
+    check_bool("no program found is reported", search_err == MUSLIMTIFY_ERR_DAEMON_BINARY);
+    check_bool("and none is named", result.binary_path[0] == '\0');
   }
-  char self_line[4096];
-  snprintf(self_line, sizeof(self_line), "ExecStart=%s daemon run\n", platform_exe_path());
-  read_file(unit_file, unit, sizeof(unit));
-  check_bool("the service never runs this test program", strstr(unit, self_line) == NULL);
+  check_bool("it never chooses this test program",
+             strcmp(result.binary_path, platform_exe_path()) != 0);
 }
 
 static void test_install_failures(void) {
@@ -222,14 +225,14 @@ static void test_install_failures(void) {
   fake_fails("is-enabled:muslimtify.timer daemon-reload");
   clear_log();
   check_bool("reload failure is reported",
-             muslimtify_daemon_install(daemon_bin, &result) == MUSLIMTIFY_ERR_DAEMON_RELOAD);
+             muslimtify_daemon_install_binary(daemon_bin, &result) == MUSLIMTIFY_ERR_DAEMON_RELOAD);
   check_bool("the unit was still written", strcmp(result.unit_path, unit_file) == 0);
   check_bool("enable was not attempted", !log_has("--user enable --now muslimtify.service"));
 
   fake_fails("is-enabled:muslimtify.timer enable");
   clear_log();
   check_bool("enable failure is reported",
-             muslimtify_daemon_install(daemon_bin, &result) == MUSLIMTIFY_ERR_DAEMON_ENABLE);
+             muslimtify_daemon_install_binary(daemon_bin, &result) == MUSLIMTIFY_ERR_DAEMON_ENABLE);
   check_bool("reload ran before it", log_has("--user daemon-reload"));
 
   fake_fails("is-enabled:muslimtify.timer");
@@ -243,9 +246,10 @@ static void test_install_failures(void) {
     memset(&result, 0x5a, sizeof(result));
     char label[128];
     snprintf(label, sizeof(label), "%s is refused", bad_labels[i]);
-    check_bool(label,
-               muslimtify_daemon_install(bad_binaries[i], &result) == MUSLIMTIFY_ERR_DAEMON_BINARY);
+    check_bool(label, muslimtify_daemon_install_binary(bad_binaries[i], &result) ==
+                          MUSLIMTIFY_ERR_DAEMON_BINARY);
     check_bool("nothing was written", !file_exists(unit_file) && result.unit_path[0] == '\0');
+    check_bool("no binary is named", result.binary_path[0] == '\0');
     check_bool("systemctl was not called", !file_exists(fake_log));
   }
   mt_log_set_handler(mt_log_stderr, NULL);
@@ -261,7 +265,7 @@ static void test_install_failures(void) {
   setenv("HOME", not_a_dir, 1);
   muslimtify_set_log_handler(NULL, NULL);
   check_bool("an unwritable home is reported",
-             muslimtify_daemon_install(daemon_bin, &result) == MUSLIMTIFY_ERR_DAEMON_UNIT);
+             muslimtify_daemon_install_binary(daemon_bin, &result) == MUSLIMTIFY_ERR_DAEMON_UNIT);
   check_bool("no unit path on that failure", result.unit_path[0] == '\0');
   mt_log_set_handler(mt_log_stderr, NULL);
   setenv("HOME", home_dir, 1);
@@ -274,7 +278,7 @@ static void test_uninstall(void) {
 
   // Installed, enabled and running, no legacy timer.
   fake_fails("is-enabled:muslimtify.timer");
-  check_bool("install first", muslimtify_daemon_install(daemon_bin, NULL) == MUSLIMTIFY_OK);
+  check_bool("install first", muslimtify_daemon_install_binary(daemon_bin, NULL) == MUSLIMTIFY_OK);
   clear_log();
   memset(&result, 0x5a, sizeof(result));
   check_bool("uninstall succeeds", muslimtify_daemon_uninstall(&result) == MUSLIMTIFY_OK);
@@ -349,7 +353,7 @@ static void test_status(void) {
   check_bool("running implies installed", st.installed);
 
   fake_fails("is-enabled:muslimtify.timer");
-  check_bool("install", muslimtify_daemon_install(daemon_bin, NULL) == MUSLIMTIFY_OK);
+  check_bool("install", muslimtify_daemon_install_binary(daemon_bin, NULL) == MUSLIMTIFY_OK);
   fake_fails(NOTHING_THERE);
   check_bool("status again", muslimtify_daemon_status(&st) == MUSLIMTIFY_OK);
   check_bool("user file alone", st.installed == expected_installed(false, false) && st.installed &&

@@ -187,8 +187,10 @@ typedef struct {
 } PlatformDaemonStatus;
 
 typedef struct {
-  char unit_path[PLATFORM_DAEMON_PATH_MAX]; /* the service file written, "" if none */
-  bool legacy_timer_disabled;               /* an old timer unit was switched off */
+  char binary_path[PLATFORM_DAEMON_PATH_MAX]; /* the program the service runs, "" if none was found
+                                               */
+  char unit_path[PLATFORM_DAEMON_PATH_MAX];   /* the service file written, "" if none */
+  bool legacy_timer_disabled;                 /* an old timer unit was switched off */
 } PlatformDaemonInstall;
 
 typedef struct {
@@ -203,12 +205,13 @@ typedef struct {
 
 /**
  * Register the background service for the current user and start it. The
- * service runs `binary_path daemon run`. A NULL binary_path means the program
- * named muslimtify beside the running executable. Either way it must be an
- * existing file the caller may execute, or nothing is installed and
- * PLATFORM_DAEMON_BINARY_INVALID is returned. *out is zeroed first and then
- * filled as the call proceeds, so on a failure it shows how far it got. Prints
- * nothing: failure detail goes to the log handler.
+ * service runs `binary_path daemon run`. A NULL binary_path, which is what
+ * every caller but a test passes, means the muslimtify program found in a fixed
+ * list of known locations. Either way it must be an existing file the caller
+ * may execute, or nothing is installed and PLATFORM_DAEMON_BINARY_INVALID is
+ * returned. *out is zeroed first and then filled as the call proceeds, so on a
+ * failure it shows how far it got. Prints nothing: failure detail goes to the
+ * log handler.
  */
 PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDaemonInstall *out);
 

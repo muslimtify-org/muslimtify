@@ -1,5 +1,6 @@
 #include "muslimtify.h"
 
+#include "lib/muslimtify_internal.h"
 #include "platform.h"
 
 #include <stdio.h>
@@ -29,17 +30,23 @@ static MuslimtifyError daemon_error(PlatformDaemonResult result) {
   return MUSLIMTIFY_ERR_UNSUPPORTED;
 }
 
-MuslimtifyError muslimtify_daemon_install(const char *daemon_binary, MuslimtifyDaemonInstall *out) {
+MuslimtifyError muslimtify_daemon_install_binary(const char *daemon_binary,
+                                                 MuslimtifyDaemonInstall *out) {
   if (out)
     memset(out, 0, sizeof(*out));
 
   PlatformDaemonInstall result;
   MuslimtifyError err = daemon_error(platform_daemon_install(daemon_binary, &result));
   if (out) {
+    snprintf(out->binary_path, sizeof(out->binary_path), "%s", result.binary_path);
     snprintf(out->unit_path, sizeof(out->unit_path), "%s", result.unit_path);
     out->legacy_timer_disabled = result.legacy_timer_disabled;
   }
   return err;
+}
+
+MuslimtifyError muslimtify_daemon_install(MuslimtifyDaemonInstall *out) {
+  return muslimtify_daemon_install_binary(NULL, out);
 }
 
 MuslimtifyError muslimtify_daemon_uninstall(MuslimtifyDaemonUninstall *out) {

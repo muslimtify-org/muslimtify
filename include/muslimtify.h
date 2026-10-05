@@ -183,8 +183,9 @@ typedef struct {
 
 /* What muslimtify_daemon_install did. */
 typedef struct {
-  char unit_path[MUSLIMTIFY_PATH_SIZE]; /* the service file that was written, "" if none */
-  bool legacy_timer_disabled;           /* an old muslimtify.timer was switched off */
+  char binary_path[MUSLIMTIFY_PATH_SIZE]; /* the program the service runs, "" if none was found */
+  char unit_path[MUSLIMTIFY_PATH_SIZE];   /* the service file that was written, "" if none */
+  bool legacy_timer_disabled;             /* an old muslimtify.timer was switched off */
 } MuslimtifyDaemonInstall;
 
 /* What muslimtify_daemon_uninstall did. */
@@ -416,16 +417,16 @@ MuslimtifyError muslimtify_adhan_stop(void);
    where managing the service through the library is not implemented yet. */
 
 /**
- * Register the service for the current user and start it. It runs
- * `daemon_binary daemon run`, so daemon_binary is the path of the muslimtify
- * command line program. NULL means the program named muslimtify in the same
- * directory as the running executable, which is what a frontend installed
- * beside it wants. The binary must be an existing file the caller may execute,
- * otherwise nothing is installed and MUSLIMTIFY_ERR_DAEMON_BINARY is returned.
- * *out, when not NULL, is filled even on an error return and shows how far the
- * call got.
+ * Register the service for the current user and start it. The service runs the
+ * muslimtify command line program with `daemon run`. The caller does not say
+ * which program: the library uses the first one it finds beside the running
+ * executable, in the directory this build installs to, in /usr/local/bin or in
+ * /usr/bin. If there is none, nothing is installed and
+ * MUSLIMTIFY_ERR_DAEMON_BINARY is returned. *out, when not NULL, is filled even
+ * on an error return and shows how far the call got, including which program
+ * was chosen.
  */
-MuslimtifyError muslimtify_daemon_install(const char *daemon_binary, MuslimtifyDaemonInstall *out);
+MuslimtifyError muslimtify_daemon_install(MuslimtifyDaemonInstall *out);
 
 /**
  * Stop the service, switch it off and delete its files. Succeeds when nothing

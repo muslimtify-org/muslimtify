@@ -4,6 +4,7 @@
 
 #include "log.h"
 #include "platform.h"
+#include "version.h"
 
 #include <errno.h>
 #include <pwd.h>
@@ -105,30 +106,50 @@ static bool unit_file_path(const char *home, const char *name, char *out, size_t
   return n > 0 && (size_t)n < cap;
 }
 
-// The program the service will run. NULL means the muslimtify program beside
-// the running executable, so a frontend installed next to the command line
-// tool gets the right one without knowing its path, and never gets itself.
-// Returns NULL, after logging why, when there is no such executable file.
-static const char *resolve_daemon_binary(const char *binary_path, char *buffer, size_t cap) {
-  if (!binary_path) {
-    const char *dir = platform_exe_dir();
-    int n = (dir && dir[0] != '\0') ? snprintf(buffer, cap, "%s/muslimtify", dir) : -1;
-    if (n <= 0 || (size_t)n >= cap) {
-      MT_LOGF(MT_LOG_ERROR, "Error: Cannot locate the muslimtify program beside this one");
-      return NULL;
-    }
-    binary_path = buffer;
-  }
-  if (binary_path[0] == '\0' || access(binary_path, X_OK) != 0) {
-    MT_LOGF(MT_LOG_ERROR, "Error: %s is not an executable program", binary_path);
-    return NULL;
-  }
+static bool is_executable_file(const char *path) {
   struct stat st;
-  if (stat(binary_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+  return path[0] != '\0' && access(path, X_OK) == 0 && stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
+const char *daemon_find_binary(const char *const *candidates, size_t count) {
+  for (size_t i = 0; i < count; i++) {
+    if (candidates[i] && is_executable_file(candidates[i]))
+      return candidates[i];
+  }
+  return NULL;
+}
+
+// The program the service will run. The caller does not choose it: it is the
+// muslimtify program found in a fixed list of places, so a frontend can never
+// install itself, or anything else, as the service. A test passes a path of its
+// own. Returns NULL, after logging why, when there is no usable program.
+static const char *resolve_daemon_binary(const char *binary_path, char *sibling, size_t cap) {
+  if (binary_path) {
+    if (is_executable_file(binary_path))
+      return binary_path;
     MT_LOGF(MT_LOG_ERROR, "Error: %s is not an executable program", binary_path);
     return NULL;
   }
-  return binary_path;
+
+  // Beside the running program first: that is the command line tool itself, a
+  // frontend installed next to it, or a build run from its build directory.
+  // Then where this build installs to, then the usual system locations.
+  const char *candidates[4];
+  size_t count = 0;
+  const char *dir = platform_exe_dir();
+  if (dir && dir[0] != '\0') {
+    int n = snprintf(sibling, cap, "%s/muslimtify", dir);
+    if (n > 0 && (size_t)n < cap)
+      candidates[count++] = sibling;
+  }
+  candidates[count++] = MUSLIMTIFY_INSTALL_BINDIR "/muslimtify";
+  candidates[count++] = "/usr/local/bin/muslimtify";
+  candidates[count++] = "/usr/bin/muslimtify";
+
+  const char *found = daemon_find_binary(candidates, count);
+  if (!found)
+    MT_LOGF(MT_LOG_ERROR, "Error: Cannot find the muslimtify program in any known location");
+  return found;
 }
 
 PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDaemonInstall *out) {
@@ -138,6 +159,7 @@ PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDa
   binary_path = resolve_daemon_binary(binary_path, sibling, sizeof(sibling));
   if (!binary_path)
     return PLATFORM_DAEMON_BINARY_INVALID;
+  snprintf(out->binary_path, sizeof(out->binary_path), "%s", binary_path);
 
   const char *home = get_home();
   if (!home)

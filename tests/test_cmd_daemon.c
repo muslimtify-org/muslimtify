@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static int total = 0;
@@ -59,11 +60,48 @@ static void test_unit_in_dirs(void) {
   rmdir(second);
 }
 
+static void test_find_binary(void) {
+  char dir[] = "/tmp/mt_findbin_XXXXXX";
+  if (!mkdtemp(dir)) {
+    report_result("temporary directory created", false);
+    return;
+  }
+  char missing[600], plain[600], exec[600];
+  snprintf(missing, sizeof(missing), "%s/missing", dir);
+  snprintf(plain, sizeof(plain), "%s/plain", dir);
+  snprintf(exec, sizeof(exec), "%s/exec", dir);
+  const char *files[2] = {plain, exec};
+  const mode_t modes[2] = {0644, 0755};
+  for (int i = 0; i < 2; i++) {
+    FILE *f = fopen(files[i], "w");
+    if (f)
+      fclose(f);
+    chmod(files[i], modes[i]);
+  }
+
+  const char *all[] = {missing, plain, exec};
+  report_result("the executable file is returned", daemon_find_binary(all, 3) == exec);
+  report_result("missing and non-executable give NULL", daemon_find_binary(all, 2) == NULL);
+  const char *exec_first[] = {exec, plain};
+  report_result("the first qualifying path wins", daemon_find_binary(exec_first, 2) == exec);
+  const char *with_dir[] = {dir, exec};
+  report_result("a directory is skipped", daemon_find_binary(with_dir, 2) == exec);
+  const char *with_null[] = {NULL, exec};
+  report_result("a NULL entry is skipped", daemon_find_binary(with_null, 2) == exec);
+  report_result("a count of 0 gives NULL", daemon_find_binary(all, 0) == NULL);
+
+  unlink(plain);
+  unlink(exec);
+  rmdir(dir);
+}
+
 int main(void) {
   printf("test_build_service_unit\n");
   test_build_service_unit();
   printf("test_unit_in_dirs\n");
   test_unit_in_dirs();
+  printf("test_find_binary\n");
+  test_find_binary();
 
   if (failures == 0) {
     printf("All %d tests passed.\n", total);
