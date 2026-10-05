@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "lib/muslimtify_internal.h"
+#include "log.h"
 #include "platform.h"
 #include "prayer_checker.h"
 #include "prayertimes.h"
@@ -12,6 +13,9 @@
 
 _Static_assert((int)MUSLIMTIFY_PRAYER_COUNT == PRAYER_COUNT, "prayer enums must match");
 _Static_assert(MUSLIMTIFY_MAX_REMINDERS == MAX_REMINDERS, "reminder capacity must match");
+_Static_assert((int)MUSLIMTIFY_LOG_WARNING == (int)MT_LOG_WARNING &&
+                   (int)MUSLIMTIFY_LOG_ERROR == (int)MT_LOG_ERROR,
+               "log levels must match");
 
 // Largest day shift muslimtify_today accepts: more days than years 1-9999 span,
 // which keeps the day serial far from overflowing.
@@ -332,4 +336,21 @@ MuslimtifyError muslimtify_next(const Muslimtify *mt, MuslimtifyNext *out) {
   struct tm now;
   local_now(&now);
   return muslimtify_next_at(mt, &now, out);
+}
+
+static MuslimtifyLogHandler log_handler = NULL;
+static void *log_user_data = NULL;
+
+// Core calls this with its own level type, and it passes the message on to the
+// handler the frontend registered.
+static void log_adapter(MtLogLevel level, const char *message, void *user_data) {
+  (void)user_data;
+  if (log_handler)
+    log_handler((MuslimtifyLogLevel)level, message, log_user_data);
+}
+
+void muslimtify_set_log_handler(MuslimtifyLogHandler handler, void *user_data) {
+  log_handler = handler;
+  log_user_data = user_data;
+  mt_log_set_handler(handler ? log_adapter : NULL, NULL);
 }

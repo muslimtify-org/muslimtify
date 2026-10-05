@@ -408,6 +408,27 @@ void muslimtify_format_time(const MuslimtifyTime *time, int time_format, char *o
 /** Message for an error code. */
 const char *muslimtify_get_error(MuslimtifyError err);
 
+typedef enum {
+  MUSLIMTIFY_LOG_WARNING, /* something was off, and the operation carried on */
+  MUSLIMTIFY_LOG_ERROR    /* the operation that was asked for failed */
+} MuslimtifyLogLevel;
+
+typedef void (*MuslimtifyLogHandler)(MuslimtifyLogLevel level, const char *message,
+                                     void *user_data);
+
+/**
+ * Receive the library's diagnostic messages. Until this is called they are
+ * written to stderr, one per line. With a handler set nothing is written to
+ * stderr: each message goes to the handler as a string with no trailing
+ * newline, valid only during the call, on the thread that produced it. A NULL
+ * handler discards every message.
+ *
+ * The messages give the reason behind a failure a function only reports as a
+ * code, and warn about things that did not fail. The setting is process-wide.
+ * Set it once at startup, before other threads use the library.
+ */
+void muslimtify_set_log_handler(MuslimtifyLogHandler handler, void *user_data);
+
 #ifdef __cplusplus
 }
 #endif

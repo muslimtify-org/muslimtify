@@ -128,6 +128,7 @@ add_library(muslimtify_core OBJECT
     src/core/cache.c
     src/core/location.c
     src/core/string_util.c
+    src/core/log.c
     src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
@@ -261,6 +262,10 @@ if(BUILD_TESTING)
         target_include_directories(test_muslimtify_cycle PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
         target_link_libraries(test_muslimtify_cycle muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME muslimtify_cycle COMMAND test_muslimtify_cycle)
+
+        add_executable(test_log tests/test_log.c src/core/log.c)
+        muslimtify_set_target_defaults(test_log)
+        add_test(NAME log COMMAND test_log)
 
         add_executable(test_offset_bound tests/test_offset_bound.c)
         muslimtify_set_target_defaults(test_offset_bound)
