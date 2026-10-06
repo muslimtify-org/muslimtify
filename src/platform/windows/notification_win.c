@@ -975,6 +975,10 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
   free(resolved_utf8);
 }
 
+/* The Windows adhan is stopped through the named event in notify_adhan_stop,
+   and the scheduled task receives no stop signal, so there is nothing to do. */
+void notify_adhan_interrupt(void) {}
+
 /* Signal an in-progress adhan (started by notify_adhan, possibly in another
    process such as the scheduled-task daemon) to stop. Returns 0 if a running
    adhan was signaled, -1 if none is playing. */

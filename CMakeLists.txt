@@ -275,6 +275,13 @@ if(BUILD_TESTING)
         target_link_libraries(test_muslimtify_daemon muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME muslimtify_daemon COMMAND test_muslimtify_daemon)
 
+        add_executable(test_notification_interrupt tests/test_notification_interrupt.c)
+        muslimtify_set_target_defaults(test_notification_interrupt)
+        target_include_directories(test_notification_interrupt PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_notification_interrupt muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        add_test(NAME notification_interrupt COMMAND test_notification_interrupt)
+        set_tests_properties(notification_interrupt PROPERTIES ENVIRONMENT "DBUS_SESSION_BUS_ADDRESS=disabled:")
+
         add_executable(test_offset_bound tests/test_offset_bound.c)
         muslimtify_set_target_defaults(test_offset_bound)
         target_include_directories(test_offset_bound PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
