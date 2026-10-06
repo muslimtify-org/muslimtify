@@ -62,6 +62,7 @@ static int location_set_run(Muslimtify *mt, const LocationSetArgs *a) {
   // Coordinates go first: moving them resets the city, the country and the
   // timezone, which the setters below then override.
   bool coords_changed = a->lat_str || a->lon_str;
+  bool gps_was_on = loc.gps;
   if (coords_changed && !loc.is_set && !(a->lat_str && a->lon_str)) {
     fprintf(stderr, "Error: No location is set yet, so both --lat and --long are required\n");
     return 1;
@@ -106,6 +107,8 @@ static int location_set_run(Muslimtify *mt, const LocationSetArgs *a) {
   // Concise confirmation: report only the fields the user actually changed.
   if (coords_changed)
     printf("Coordinates updated to %.4f, %.4f\n", loc.latitude, loc.longitude);
+  if (coords_changed && gps_was_on)
+    printf("GPS turned off, because the location is now set by hand\n");
   if (a->city)
     printf("City updated to %s\n", loc.city);
   if (a->country)
@@ -367,9 +370,16 @@ static int location_gps_run(Muslimtify *mt, int argc, char **argv) {
     err = muslimtify_set_gps(mt, false, NULL);
     if (err == MUSLIMTIFY_OK)
       err = muslimtify_save(mt);
+    if (err == MUSLIMTIFY_OK)
+      err = muslimtify_get_location(mt, &loc);
     if (err != MUSLIMTIFY_OK)
       return cli_fail(err);
-    printf("GPS disabled; using ipinfo network geolocation.\n");
+    // Only automatic location falls back to the network. A location set by
+    // hand stays as it is.
+    if (loc.auto_detect)
+      printf("GPS disabled; using ipinfo network geolocation.\n");
+    else
+      printf("GPS disabled.\n");
     return 0;
   }
 

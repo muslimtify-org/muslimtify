@@ -446,6 +446,11 @@ int config_load(Config *cfg) {
       cfg->auto_detect = strcmp(auto_detect_str, "true") == 0;
     if (use_gps_str)
       cfg->use_gps = strcmp(use_gps_str, "true") == 0;
+    // GPS is a source for automatic location, so it means nothing with
+    // auto-detect off. A file that says otherwise, from an older version or a
+    // hand edit, is read as GPS off.
+    if (!cfg->auto_detect)
+      cfg->use_gps = false;
     if (city_str) {
       if (!copy_string(cfg->city, sizeof(cfg->city), city_str)) {
         log_truncation("city");
