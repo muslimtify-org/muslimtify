@@ -153,7 +153,7 @@ static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, "    \"timezone\": ");
   json_write_escaped(f, cfg->timezone);
   fprintf(f, ",\n");
-  fprintf(f, "    \"timezone_offset\": %.1f,\n", cfg->timezone_offset);
+  fprintf(f, "    \"timezone_offset\": %.6f,\n", cfg->timezone_offset);
   fprintf(f, "    \"auto_detect\": %s,\n", cfg->auto_detect ? "true" : "false");
   fprintf(f, "    \"use_gps\": %s,\n", cfg->use_gps ? "true" : "false");
   fprintf(f, "    \"updated_at\": %lld,\n", (long long)cfg->updated_at);
@@ -218,8 +218,8 @@ static int write_json_file(FILE *f, const Config *cfg) {
   json_write_escaped(f, cfg->madhab);
   if (strcmp(cfg->calculation_method, "custom") == 0) {
     fprintf(f, ",\n");
-    fprintf(f, "    \"fajr_angle\": %.1f,\n", cfg->fajr_angle);
-    fprintf(f, "    \"isha_angle\": %.1f\n", cfg->isha_angle);
+    fprintf(f, "    \"fajr_angle\": %.6f,\n", cfg->fajr_angle);
+    fprintf(f, "    \"isha_angle\": %.6f\n", cfg->isha_angle);
   } else {
     fprintf(f, "\n");
   }

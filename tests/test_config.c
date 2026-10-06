@@ -255,7 +255,7 @@ static void test_round_trip(void) {
   check_bool("rt latitude", fabs(in.latitude - out.latitude) < 0.001);
   check_bool("rt longitude", fabs(in.longitude - out.longitude) < 0.001);
   check_bool("rt timezone", strcmp(in.timezone, out.timezone) == 0);
-  check_bool("rt tz_offset", fabs(in.timezone_offset - out.timezone_offset) < 0.1);
+  check_bool("rt tz_offset", fabs(in.timezone_offset - out.timezone_offset) < 1e-9);
   check_bool("rt auto_detect", in.auto_detect == out.auto_detect);
   check_bool("rt use_gps", in.use_gps == out.use_gps);
   check_bool("rt city", strcmp(in.city, out.city) == 0);
@@ -276,6 +276,28 @@ static void test_round_trip(void) {
   check_bool("rt fajr adhan", strcmp(in.fajr.adhan, "/tmp/custom-fajr.mp3") == 0);
   check_bool("rt fajr adhan_enabled", in.fajr.adhan_enabled == false);
   check_bool("rt dhuhr adhan default empty", in.dhuhr.adhan[0] == '\0');
+}
+
+// A quarter-hour zone and fractional custom angles must come back as saved.
+// One decimal used to turn 5.75 into 5.8 and 19.25 into 19.2.
+static void test_precision_round_trip(void) {
+  printf("  fractional offset and angles round-trip...\n");
+
+  Config out = config_default();
+  out.latitude = 27.7;
+  out.longitude = 85.3;
+  strncpy(out.timezone, "Asia/Kathmandu", sizeof(out.timezone) - 1);
+  out.timezone_offset = 5.75;
+  strncpy(out.calculation_method, "custom", sizeof(out.calculation_method) - 1);
+  out.fajr_angle = 19.25;
+  out.isha_angle = 19.125;
+  check_bool("precision save ok", config_save(&out) == 0);
+
+  Config in;
+  check_bool("precision load ok", config_load(&in) == 0);
+  check_bool("quarter-hour offset survives", fabs(in.timezone_offset - 5.75) < 1e-9);
+  check_bool("fajr angle survives", fabs(in.fajr_angle - 19.25) < 1e-9);
+  check_bool("isha angle survives", fabs(in.isha_angle - 19.125) < 1e-9);
 }
 
 static void test_offset_apply(void) {
@@ -917,6 +939,7 @@ int main(void) {
   test_default();
   test_path_resolution();
   test_round_trip();
+  test_precision_round_trip();
   test_sound_migration();
   test_offset_apply();
   test_offset_keeps_day();
