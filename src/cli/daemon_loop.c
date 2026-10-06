@@ -11,6 +11,7 @@ int seconds_until_next_minute(time_t now) {
 #ifndef MUSLIMTIFY_DAEMON_LOOP_TEST
 
 #include "muslimtify_cycle.h"
+#include "notification.h"
 
 #include <signal.h>
 #include <stdio.h>
@@ -18,9 +19,13 @@ int seconds_until_next_minute(time_t now) {
 
 static volatile sig_atomic_t g_stop = 0;
 
+// Both calls only write a flag, so the handler stays async-signal-safe. The
+// second one ends an adhan that may be playing, which is what lets the cycle
+// return, save its cache and let the loop see g_stop.
 static void handle_stop_signal(int signum) {
   (void)signum;
   g_stop = 1;
+  notify_adhan_interrupt();
 }
 
 /* Sleep until the next wall-clock minute boundary (<=60s), returning early when

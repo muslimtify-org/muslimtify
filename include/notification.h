@@ -29,6 +29,13 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
 int notify_adhan_stop(void);
 
 /**
+ * Ask a playing adhan to stop. Safe to call from a signal handler: it only
+ * sets a flag, and notify_adhan returns within its poll interval. A no-op
+ * when nothing is playing.
+ */
+void notify_adhan_interrupt(void);
+
+/**
  * Send a prayer time notification with formatted time
  * minutes_before: 0 for exact time, >0 for reminder
  * sound_preset: "reminder", "alarm", "default", or NULL to silence.

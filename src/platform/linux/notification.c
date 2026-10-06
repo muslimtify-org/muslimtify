@@ -5,6 +5,7 @@
 #include "log.h"
 #include "platform.h"
 #include <libnotify/notify.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -152,9 +153,22 @@ void notify_send(const char *title, const char *message) {
   g_object_unref(G_OBJECT(n));
 }
 
+// Set from a signal handler, read by the poll below. Never cleared: the
+// daemon loop exits after the cycle that saw it, and a command line process
+// that plays a test adhan never sets it.
+static volatile sig_atomic_t g_adhan_interrupt = 0;
+
+void notify_adhan_interrupt(void) {
+  g_adhan_interrupt = 1;
+}
+
 static gboolean adhan_poll_cb(gpointer user_data) {
-  if (!audio_is_playing())
+  if (g_adhan_interrupt) {
+    audio_stop();
     g_main_loop_quit((GMainLoop *)user_data);
+  } else if (!audio_is_playing()) {
+    g_main_loop_quit((GMainLoop *)user_data);
+  }
   return G_SOURCE_CONTINUE;
 }
 
