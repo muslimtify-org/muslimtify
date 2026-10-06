@@ -282,10 +282,10 @@ MuslimtifyError muslimtify_method_at(size_t index, MuslimtifyMethodInfo *out);
    nothing. Changes stay in memory until muslimtify_save. */
 
 /**
- * Set both coordinates. Moving the location also turns auto-detect off, clears
- * the city and country, and sets the timezone from the system timezone. Call
- * muslimtify_set_city, muslimtify_set_country and muslimtify_set_timezone
- * after this, not before.
+ * Set both coordinates. Moving the location also turns auto-detect and GPS
+ * off, clears the city and country, and sets the timezone from the system
+ * timezone. Call muslimtify_set_city, muslimtify_set_country and
+ * muslimtify_set_timezone after this, not before.
  */
 MuslimtifyError muslimtify_set_coordinates(Muslimtify *mt, double latitude, double longitude);
 
@@ -368,7 +368,9 @@ const char *muslimtify_detection_warning(const MuslimtifyDetection *detection);
  * Turn the GPS location source on or off. Turning it on probes the receiver
  * first: a fix stores its coordinates and sets *has_fix, a receiver with no fix
  * yet still enables, and any other outcome returns a MUSLIMTIFY_ERR_GPS_* code
- * and changes nothing. has_fix may be NULL.
+ * and changes nothing. Turning it on also turns auto-detect on, so the
+ * location is refreshed from the receiver, or by IP lookup while it has no
+ * fix. Turning it off leaves auto-detect as it is. has_fix may be NULL.
  */
 MuslimtifyError muslimtify_set_gps(Muslimtify *mt, bool enabled, bool *has_fix);
 

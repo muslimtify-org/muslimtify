@@ -97,8 +97,12 @@ MuslimtifyError muslimtify_set_gps_with(Muslimtify *mt, bool enabled, GpsStatus 
   // Probe into a copy: only a real fix may move the stored coordinates.
   Config candidate = mt->cfg;
   GpsStatus status = probe(&candidate);
+  // Turning GPS on means the location is detected automatically, receiver
+  // first, so auto-detect goes on with it. Otherwise a location set by hand
+  // would leave GPS switched on and never consulted again.
   if (status == GPS_OK) {
     candidate.use_gps = true;
+    candidate.auto_detect = true;
     mt->cfg = candidate;
     if (has_fix)
       *has_fix = true;
@@ -107,6 +111,7 @@ MuslimtifyError muslimtify_set_gps_with(Muslimtify *mt, bool enabled, GpsStatus 
   if (status == GPS_NO_FIX) {
     // A receiver is present, so GPS engages once it gets a fix.
     mt->cfg.use_gps = true;
+    mt->cfg.auto_detect = true;
     if (has_fix)
       *has_fix = false;
     return MUSLIMTIFY_OK;

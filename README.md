@@ -200,7 +200,7 @@ a local socket on `127.0.0.1:2947`, with no `libgps` build dependency. On Window
 they come from the WinRT Geolocator, which needs location access enabled in
 Settings. `location gps on` probes the receiver first and refuses to enable if
 none is reachable, so a missing daemon fails immediately rather than degrading
-silently later. Whenever GPS has no fix, `ipinfo.io` is used instead. GPS
+silently later. Whenever GPS has no fix, `ipinfo.io` is used instead. Turning GPS on also turns automatic location on, so coordinates you set by hand are replaced at the next refresh, and setting coordinates by hand turns GPS off. GPS
 supplies coordinates only, so the timezone is still taken from the host system.
 
 The timezone itself is validated when you set it. A name the system cannot

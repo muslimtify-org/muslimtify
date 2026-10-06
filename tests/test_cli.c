@@ -1865,6 +1865,46 @@ static void test_time_format(void) {
   reset_config();
 }
 
+// GPS belongs to automatic location, and the messages say what is true for
+// the stored state.
+static void test_location_gps_messages(void) {
+  printf("test_location_gps_messages\n");
+
+  // Manual location: nothing falls back to the network.
+  reset_config();
+  run(4, (char *[]){"m", "location", "gps", "off", NULL});
+  check_ret("gps off manual ret", 0);
+  check_contains("gps off manual msg", "GPS disabled.");
+  check_bool("gps off manual does not mention ipinfo", strstr(captured, "ipinfo") == NULL);
+
+  // Automatic location: turning GPS off leaves the network lookup.
+  Config cfg;
+  config_load(&cfg);
+  cfg.auto_detect = true;
+  cfg.use_gps = true;
+  config_save(&cfg);
+  run(4, (char *[]){"m", "location", "gps", "off", NULL});
+  check_ret("gps off auto ret", 0);
+  check_contains("gps off auto msg", "using ipinfo network geolocation");
+
+  // Setting coordinates by hand turns GPS off and says so.
+  config_load(&cfg);
+  cfg.auto_detect = true;
+  cfg.use_gps = true;
+  config_save(&cfg);
+  run(5, (char *[]){"m", "location", "set", "--lat=-7.25", "--long=112.75", NULL});
+  check_ret("set over gps ret", 0);
+  check_contains("set over gps msg", "GPS turned off");
+  config_load(&cfg);
+  check_bool("set over gps stored", !cfg.use_gps && !cfg.auto_detect);
+
+  // With GPS already off there is nothing to report.
+  run(5, (char *[]){"m", "location", "set", "--lat=-7.30", "--long=112.70", NULL});
+  check_ret("set without gps ret", 0);
+  check_bool("set without gps is silent about GPS", strstr(captured, "GPS") == NULL);
+  reset_config();
+}
+
 int main(void) {
   setup();
 
@@ -1873,6 +1913,7 @@ int main(void) {
   test_output_helpers();
   test_location();
   test_location_auto_args();
+  test_location_gps_messages();
   test_removed_top_level();
   test_show();
   test_show_date_bounds();

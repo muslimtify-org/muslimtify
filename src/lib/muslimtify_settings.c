@@ -245,7 +245,10 @@ MuslimtifyError muslimtify_set_coordinates(Muslimtify *mt, double latitude, doub
   Config *cfg = &mt->cfg;
   cfg->latitude = latitude;
   cfg->longitude = longitude;
+  // Coordinates set by hand switch detection off, GPS included, so the stored
+  // flags never claim a receiver is in use while nothing reads it.
   cfg->auto_detect = false;
+  cfg->use_gps = false;
   // The labels and the zone described the old place. The zone is re-derived
   // from the host so the offset stays correct until the caller sets one.
   // get_system_timezone leaves "UTC" behind when it cannot read the zone.

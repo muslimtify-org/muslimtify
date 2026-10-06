@@ -787,6 +787,7 @@ static void test_set_gps(void) {
   MuslimtifyLocation loc;
   bool has_fix = true;
   check_bool("read before", muslimtify_get_location(mt, &before) == MUSLIMTIFY_OK);
+  check_bool("starts with auto-detect off", !before.auto_detect);
 
   // Each structural problem refuses to enable and changes nothing.
   const struct {
@@ -814,6 +815,7 @@ static void test_set_gps(void) {
   check_bool("no fix reported", !has_fix);
   check_bool("read", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
   check_bool("GPS on, coordinates kept", loc.gps && loc.latitude == before.latitude);
+  check_bool("enabling without a fix turns auto-detect on", loc.auto_detect);
 
   // Turning it off never asks the receiver.
   stub_gps_calls = 0;
@@ -821,6 +823,16 @@ static void test_set_gps(void) {
   check_bool("disable", muslimtify_set_gps_with(mt, false, stub_gps, &has_fix) == MUSLIMTIFY_OK);
   check_bool("disable does not probe", stub_gps_calls == 0 && !has_fix);
   check_bool("read off", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK && !loc.gps);
+  check_bool("disabling leaves auto-detect on", loc.auto_detect);
+
+  // Coordinates set by hand turn detection off, GPS included.
+  stub_gps_status = GPS_NO_FIX;
+  check_bool("enable once more",
+             muslimtify_set_gps_with(mt, true, stub_gps, NULL) == MUSLIMTIFY_OK);
+  check_bool("set coordinates by hand",
+             muslimtify_set_coordinates(mt, -6.9, 107.6) == MUSLIMTIFY_OK);
+  check_bool("read manual", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
+  check_bool("manual coordinates turn auto-detect and GPS off", !loc.auto_detect && !loc.gps);
 
   // A fix enables and stores where the receiver says it is.
   stub_gps_status = GPS_OK;
@@ -830,6 +842,7 @@ static void test_set_gps(void) {
   check_bool("fix reported", has_fix);
   check_bool("read fix", muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK);
   check_bool("GPS on with the fix stored", loc.gps && loc.latitude == 1.5 && loc.longitude == 2.5);
+  check_bool("enabling with a fix turns auto-detect on", loc.auto_detect);
 
   check_bool("has_fix is optional",
              muslimtify_set_gps_with(mt, true, stub_gps, NULL) == MUSLIMTIFY_OK);
