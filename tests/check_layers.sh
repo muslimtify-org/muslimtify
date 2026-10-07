@@ -8,7 +8,7 @@ status=0
 for layer in "$@"; do
   for f in "$root/$layer"/*.c "$root/$layer"/*.h; do
     [ -e "$f" ] || continue
-    for inc in $(sed -n 's/^#include "\([^"]*\)".*/\1/p' "$f"); do
+    for inc in $(sed -n 's/^[[:space:]]*#[[:space:]]*include[[:space:]]*"\([^"]*\)".*/\1/p' "$f"); do
       case "$allowed" in *" $inc "*) continue ;; esac
       [ -e "$root/$layer/$inc" ] && continue
       echo "$f includes $inc, which is not the library API, a platform interface or its own header"
