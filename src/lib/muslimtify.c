@@ -105,6 +105,8 @@ const char *muslimtify_get_error(MuslimtifyError err) {
     return "Failed to enable muslimtify.service";
   case MUSLIMTIFY_ERR_CACHE_SAVE:
     return "Cannot write the trigger cache, so notifications may repeat";
+  case MUSLIMTIFY_ERR_DAEMON_MANAGER:
+    return "The service manager refused the request";
   default:
     return "Unknown error";
   }

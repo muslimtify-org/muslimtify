@@ -410,6 +410,7 @@ static void test_messages(void) {
   const MuslimtifyError codes[] = {
       MUSLIMTIFY_ERR_UNSUPPORTED, MUSLIMTIFY_ERR_DAEMON_BINARY, MUSLIMTIFY_ERR_NO_HOME,
       MUSLIMTIFY_ERR_DAEMON_UNIT, MUSLIMTIFY_ERR_DAEMON_RELOAD, MUSLIMTIFY_ERR_DAEMON_ENABLE,
+      MUSLIMTIFY_ERR_DAEMON_MANAGER,
   };
   for (size_t i = 0; i < sizeof(codes) / sizeof(codes[0]); i++) {
     const char *message = muslimtify_get_error(codes[i]);
