@@ -13,8 +13,8 @@ add_library(muslimtify_cli OBJECT
     cmd_method.c
     cmd_notification.c
     cmd_timeformat.c
-    # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
-    # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
+    # daemon_loop.c is POSIX-only (sigaction/nanosleep); the Windows scheduled
+    # task runs muslimtify-service.exe and never calls run_daemon_loop.
     $<$<NOT:$<BOOL:${WIN32}>>:daemon_loop.c>
 )
 muslimtify_set_target_defaults(muslimtify_cli)
