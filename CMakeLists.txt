@@ -276,6 +276,12 @@ if(BUILD_TESTING)
         target_include_directories(test_daemon_loop PRIVATE ${PROJECT_SOURCE_DIR}/src/cli)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)
         add_test(NAME daemon_loop COMMAND test_daemon_loop)
+
+        # A presentation layer may include only muslimtify.h, muslimtify_cycle.h,
+        # the platform interface headers and its own headers. Each layer directory
+        # is listed here, so adding one means adding it to this line.
+        add_test(NAME layers
+            COMMAND sh ${PROJECT_SOURCE_DIR}/tests/check_layers.sh ${PROJECT_SOURCE_DIR} src/cli)
     endif()
 
     # test_location is cross-platform; its parse_timezone_offset target lives

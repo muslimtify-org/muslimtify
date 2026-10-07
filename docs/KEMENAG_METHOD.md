@@ -883,7 +883,7 @@ Lihat implementasi lengkap di:
   muslimtify-org/libmuslim, jangan diubah di repo ini.
 - `src/core/prayertimes.c` - Satu translation unit yang mengaktifkan implementasi dengan
   `#define PRAYERTIMES_IMPLEMENTATION`
-- `src/muslimtify.c` - Entry point aplikasi
+- `src/cli/main.c` - Entry point aplikasi
 
 ### Kompilasi
 
