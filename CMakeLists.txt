@@ -168,6 +168,8 @@ add_library(muslimtify_cli OBJECT
     $<$<NOT:$<BOOL:${WIN32}>>:src/cli/daemon_loop.c>
 )
 muslimtify_set_target_defaults(muslimtify_cli)
+# The CLI's own headers, for the binary and for test_cli, which link this target.
+target_include_directories(muslimtify_cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/cli)
 
 if(WIN32)
     target_include_directories(muslimtify_core PRIVATE ${curl_SOURCE_DIR}/include)
@@ -192,7 +194,7 @@ endif()
 
 # -- Main executable ----------------------------------------------------------
 
-add_executable(muslimtify src/muslimtify.c)
+add_executable(muslimtify src/cli/main.c)
 muslimtify_set_target_defaults(muslimtify)
 
 if(WIN32)
@@ -304,6 +306,7 @@ if(BUILD_TESTING)
             src/cli/daemon_loop.c
         )
         muslimtify_set_target_defaults(test_daemon_loop)
+        target_include_directories(test_daemon_loop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cli)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)
         add_test(NAME daemon_loop COMMAND test_daemon_loop)
     endif()
@@ -360,6 +363,7 @@ if(BUILD_TESTING)
             src/platform/windows/platform_win.c
         )
         muslimtify_set_target_defaults(test_cmd_daemon_win)
+        target_include_directories(test_cmd_daemon_win PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cli)
         add_test(NAME cmd_daemon_win COMMAND test_cmd_daemon_win)
 
         add_executable(test_notification_win
