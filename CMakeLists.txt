@@ -217,23 +217,11 @@ if(BUILD_TESTING)
         )
         add_test(NAME cli COMMAND test_cli)
 
-        add_executable(test_config tests/test_config.c)
-        muslimtify_set_target_defaults(test_config)
-        target_include_directories(test_config PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_config muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME config COMMAND test_config)
-
         add_executable(test_muslimtify tests/test_muslimtify.c)
         muslimtify_set_target_defaults(test_muslimtify)
         target_include_directories(test_muslimtify PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
         target_link_libraries(test_muslimtify muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME muslimtify COMMAND test_muslimtify)
-
-        add_executable(test_muslimtify_cycle tests/test_muslimtify_cycle.c)
-        muslimtify_set_target_defaults(test_muslimtify_cycle)
-        target_include_directories(test_muslimtify_cycle PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_muslimtify_cycle muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME muslimtify_cycle COMMAND test_muslimtify_cycle)
 
         add_executable(test_muslimtify_daemon tests/test_muslimtify_daemon.c)
         muslimtify_set_target_defaults(test_muslimtify_daemon)
@@ -309,6 +297,18 @@ if(BUILD_TESTING)
     muslimtify_set_target_defaults(test_log)
     add_test(NAME log COMMAND test_log)
     muslimtify_isolate_test(log)
+
+    add_executable(test_config tests/test_config.c)
+    muslimtify_set_target_defaults(test_config)
+    muslimtify_link_test(test_config)
+    add_test(NAME config COMMAND test_config)
+    muslimtify_isolate_test(config)
+
+    add_executable(test_muslimtify_cycle tests/test_muslimtify_cycle.c)
+    muslimtify_set_target_defaults(test_muslimtify_cycle)
+    muslimtify_link_test(test_muslimtify_cycle)
+    add_test(NAME muslimtify_cycle COMMAND test_muslimtify_cycle)
+    muslimtify_isolate_test(muslimtify_cycle)
 
     # test_location is cross-platform; its parse_timezone_offset target lives
     # in muslimtify_core which links curl on both platforms.

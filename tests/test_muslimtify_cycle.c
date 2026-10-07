@@ -6,12 +6,12 @@
 #include "platform.h"
 #include "prayer_checker.h"
 #include "prayertimes.h"
+#include "test_support.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 static int passed = 0;
 static int failed = 0;
@@ -28,20 +28,16 @@ static void check_bool(const char *test, bool cond) {
 }
 
 static void setup(void) {
-  snprintf(tmpdir, sizeof(tmpdir), "/tmp/mt_cycletest_XXXXXX");
-  if (!mkdtemp(tmpdir)) {
-    fprintf(stderr, "FATAL: mkdtemp failed\n");
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cycletest")) {
+    fprintf(stderr, "FATAL: cannot create a temporary directory\n");
     exit(1);
   }
-  setenv("XDG_CONFIG_HOME", tmpdir, 1);
-  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  test_set_config_home(tmpdir);
+  test_set_cache_home(tmpdir);
 }
 
 static void teardown(void) {
-  char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
-  if (system(cmd) != 0) { /* best-effort cleanup */
-  }
+  test_remove_tree(tmpdir);
 }
 
 typedef struct {
@@ -477,14 +473,18 @@ static void test_cache_gone_and_unwritable(void) {
 
   // The cache directory is read-only, so the cache cannot be written. (Root
   // ignores directory modes, so under root this part proves nothing.)
-  begin(&cfg);
-  char cache_dir[512];
-  snprintf(cache_dir, sizeof(cache_dir), "%s/muslimtify", tmpdir);
-  check_bool("cache dir made read-only", chmod(cache_dir, 0500) == 0);
-  check_bool("the failure is reported",
-             cycle_at(dhuhr, TEST_EPOCH, &cycle) == MUSLIMTIFY_ERR_CACHE_SAVE);
-  check_bool("the prayer was still announced", sent_count == 1 && cycle.notifications == 1);
-  chmod(cache_dir, 0700);
+  if (test_has_posix_modes()) {
+    begin(&cfg);
+    char cache_dir[512];
+    snprintf(cache_dir, sizeof(cache_dir), "%s/muslimtify", tmpdir);
+    check_bool("cache dir made read-only", test_chmod(cache_dir, 0500));
+    check_bool("the failure is reported",
+               cycle_at(dhuhr, TEST_EPOCH, &cycle) == MUSLIMTIFY_ERR_CACHE_SAVE);
+    check_bool("the prayer was still announced", sent_count == 1 && cycle.notifications == 1);
+    test_chmod(cache_dir, 0700);
+  } else {
+    printf("  SKIP: file modes mean nothing here\n");
+  }
 }
 
 static void test_init_failure(void) {
