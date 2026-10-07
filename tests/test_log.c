@@ -1,9 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
 #include "log.h"
+#include "test_support.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
 static int passed = 0;
 static int failed = 0;
@@ -38,27 +38,14 @@ static void reset_record(void) {
 
 // Redirect file descriptor 2 into a temporary file, so a test can read back
 // exactly what reached stderr.
-static FILE *capture_file;
-static int capture_saved_fd;
+static TestCapture capture;
 
 static bool capture_begin(void) {
-  fflush(stderr);
-  capture_file = tmpfile();
-  if (!capture_file)
-    return false;
-  capture_saved_fd = dup(STDERR_FILENO);
-  dup2(fileno(capture_file), STDERR_FILENO);
-  return true;
+  return test_capture_begin(&capture, stderr);
 }
 
 static void capture_end(char *buffer, size_t cap) {
-  fflush(stderr);
-  dup2(capture_saved_fd, STDERR_FILENO);
-  close(capture_saved_fd);
-  rewind(capture_file);
-  size_t n = fread(buffer, 1, cap - 1, capture_file);
-  buffer[n] = '\0';
-  fclose(capture_file);
+  test_capture_end(&capture, buffer, cap);
 }
 
 static void test_handler_receives(void) {

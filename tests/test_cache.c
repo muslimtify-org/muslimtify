@@ -4,16 +4,13 @@
 #include "config.h"
 #include "platform.h"
 #include "prayer_checker.h"
+#include "test_support.h"
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-#ifndef _WIN32
 #include <sys/stat.h>
-#endif
 
 static int passed = 0;
 static int failed = 0;
@@ -527,17 +524,17 @@ static void test_save_load_roundtrip(void) {
   printf("  save/load roundtrip...\n");
 
   // Redirect cache to a temp directory via XDG_CACHE_HOME
-  char tmpdir[] = "/tmp/mt_cache_XXXXXX";
-  if (!mkdtemp(tmpdir)) {
+  char tmpdir[512];
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cache")) {
     fprintf(stderr, "FAIL [mkdtemp]\n");
     failed++;
     return;
   }
-  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  test_set_cache_home(tmpdir);
   cache_reset_path();
   check_bool("cache path starts in tmpdir", strncmp(cache_get_path(), tmpdir, strlen(tmpdir)) == 0);
   check_bool("cache path includes muslimtify dir",
-             strstr(cache_get_path(), "/muslimtify/next_prayer.json") != NULL);
+             test_path_contains(cache_get_path(), "/muslimtify/next_prayer.json"));
 
   {
     // Size cap: an oversize cache file must be refused by cache_load.
@@ -578,12 +575,14 @@ static void test_save_load_roundtrip(void) {
   check_bool("save succeeds", save_ok == 0);
   check_bool("cache file exists", platform_file_exists(cache_get_path()) == 1);
 
-#ifndef _WIN32
   // Owner-only (0600): the cache mirrors config's fchmod hardening.
-  struct stat cache_st;
-  check_bool("cache: stat", stat(cache_get_path(), &cache_st) == 0);
-  check_bool("cache: owner-only (0600)", (cache_st.st_mode & 077) == 0);
-#endif
+  if (test_has_posix_modes()) {
+    struct stat cache_st;
+    check_bool("cache: stat", stat(cache_get_path(), &cache_st) == 0);
+    check_bool("cache: owner-only (0600)", (cache_st.st_mode & 077) == 0);
+  } else {
+    printf("  SKIP: file modes mean nothing here\n");
+  }
 
   PrayerCache loaded = {0};
   int load_ok = cache_load(&loaded);
@@ -600,19 +599,19 @@ static void test_save_load_roundtrip(void) {
   cache_invalidate();
   check_bool("cache file removed", platform_file_exists(cache_get_path()) == 0);
 
-  char tmpdir2[] = "/tmp/mt_cache_reset_XXXXXX";
-  if (!mkdtemp(tmpdir2)) {
+  char tmpdir2[512];
+  if (!test_tmpdir(tmpdir2, sizeof(tmpdir2), "cache_reset")) {
     fprintf(stderr, "FAIL [mkdtemp reset]\n");
     failed++;
-    unsetenv("XDG_CACHE_HOME");
+    test_clear_cache_home();
     return;
   }
-  setenv("XDG_CACHE_HOME", tmpdir2, 1);
+  test_set_cache_home(tmpdir2);
   cache_reset_path();
   check_bool("cache path resets to new tmpdir",
              strncmp(cache_get_path(), tmpdir2, strlen(tmpdir2)) == 0);
   check_bool("cache path still includes muslimtify dir",
-             strstr(cache_get_path(), "/muslimtify/next_prayer.json") != NULL);
+             test_path_contains(cache_get_path(), "/muslimtify/next_prayer.json"));
 
   check_bool("save after reset succeeds", cache_save(&original) == 0);
   PrayerCache reloaded = {0};
@@ -628,11 +627,11 @@ static void test_save_load_roundtrip(void) {
   char dir2[PLATFORM_PATH_MAX];
   snprintf(dir1, sizeof(dir1), "%s/muslimtify", tmpdir);
   snprintf(dir2, sizeof(dir2), "%s/muslimtify", tmpdir2);
-  (void)rmdir(dir1);
-  (void)rmdir(tmpdir);
-  (void)rmdir(dir2);
-  (void)rmdir(tmpdir2);
-  unsetenv("XDG_CACHE_HOME");
+  (void)test_rmdir(dir1);
+  (void)test_rmdir(tmpdir);
+  (void)test_rmdir(dir2);
+  (void)test_rmdir(tmpdir2);
+  test_clear_cache_home();
 }
 
 static void test_build_triggers_carries_adhan(void) {
@@ -676,13 +675,13 @@ static void test_cache_escaping_roundtrip(void) {
   };
 
   for (size_t ci = 0; ci < sizeof(cases) / sizeof(cases[0]); ci++) {
-    char tmpdir[] = "/tmp/mt_cache_esc_XXXXXX";
-    if (!mkdtemp(tmpdir)) {
+    char tmpdir[512];
+    if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cache_esc")) {
       fprintf(stderr, "FAIL [mkdtemp esc]\n");
       failed++;
       return;
     }
-    setenv("XDG_CACHE_HOME", tmpdir, 1);
+    test_set_cache_home(tmpdir);
     cache_reset_path();
 
     PrayerCache original = {0};
@@ -725,7 +724,7 @@ static void test_cache_escaping_roundtrip(void) {
     cache_invalidate();
   }
 
-  unsetenv("XDG_CACHE_HOME");
+  test_clear_cache_home();
   cache_reset_path();
 }
 
@@ -735,13 +734,13 @@ static void test_cache_escaping_roundtrip(void) {
 static void test_cache_load_strict(void) {
   printf("  cache load strictness...\n");
 
-  char tmpdir[] = "/tmp/mt_cache_strict_XXXXXX";
-  if (!mkdtemp(tmpdir)) {
+  char tmpdir[512];
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cache_strict")) {
     fprintf(stderr, "FAIL [mkdtemp strict]\n");
     failed++;
     return;
   }
-  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  test_set_cache_home(tmpdir);
   cache_reset_path();
 
   // Seed a valid cache so the cache directory exists.
@@ -776,7 +775,7 @@ static void test_cache_load_strict(void) {
   check_bool("strict: missing minute rejected", cache_load(&broken) == -1);
 
   cache_invalidate();
-  unsetenv("XDG_CACHE_HOME");
+  test_clear_cache_home();
   cache_reset_path();
 }
 
@@ -785,13 +784,13 @@ static void test_cache_load_strict(void) {
 static void test_cache_reminder_roundtrip(void) {
   printf("  cache reminder roundtrip...\n");
 
-  char tmpdir[] = "/tmp/mt_cache_rem_XXXXXX";
-  if (!mkdtemp(tmpdir)) {
+  char tmpdir[512];
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cache_rem")) {
     fprintf(stderr, "FAIL [mkdtemp reminder]\n");
     failed++;
     return;
   }
-  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  test_set_cache_home(tmpdir);
   cache_reset_path();
 
   PrayerCache original = {0};
@@ -811,7 +810,7 @@ static void test_cache_reminder_roundtrip(void) {
   check_bool("strict: reminder adhan empty", loaded.triggers[0].adhan[0] == '\0');
 
   cache_invalidate();
-  unsetenv("XDG_CACHE_HOME");
+  test_clear_cache_home();
   cache_reset_path();
 }
 
@@ -821,13 +820,13 @@ static void test_cache_reminder_roundtrip(void) {
 static void test_cache_rejects_legacy_and_malformed(void) {
   printf("  cache version + separator validation...\n");
 
-  char tmpdir[] = "/tmp/mt_cache_ver_XXXXXX";
-  if (!mkdtemp(tmpdir)) {
+  char tmpdir[512];
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cache_ver")) {
     fprintf(stderr, "FAIL [mkdtemp version]\n");
     failed++;
     return;
   }
-  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  test_set_cache_home(tmpdir);
   cache_reset_path();
 
   // Seed a valid cache so the directory exists, and confirm the round trip works.
@@ -903,7 +902,7 @@ static void test_cache_rejects_legacy_and_malformed(void) {
   check_bool("version: truncated array rejected", cache_load(&tr) == -1);
 
   cache_invalidate();
-  unsetenv("XDG_CACHE_HOME");
+  test_clear_cache_home();
   cache_reset_path();
 }
 
@@ -1039,13 +1038,13 @@ static void test_consumed_trigger_not_resurrected_by_later_cycle(void) {
 // Otherwise the load fails and muslimtify_run_cycle rebuilds every minute anyway.
 static void test_empty_cache_roundtrip(void) {
   printf("  empty cache roundtrip...\n");
-  char tmpdir[] = "/tmp/mt_cache_empty_XXXXXX";
-  if (!mkdtemp(tmpdir)) {
+  char tmpdir[512];
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cache_empty")) {
     fprintf(stderr, "FAIL [mkdtemp]\n");
     failed++;
     return;
   }
-  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  test_set_cache_home(tmpdir);
   cache_reset_path();
 
   PrayerCache empty = {0};
@@ -1059,41 +1058,43 @@ static void test_empty_cache_roundtrip(void) {
   check_bool("empty cache has no triggers", loaded.trigger_count == 0);
 
   cache_invalidate();
-  rmdir(tmpdir);
+  test_rmdir(tmpdir);
 }
 
 // The cache records which prayers are enabled and when, so its directory and
 // file are owner-only. The directory does not exist before the save, so the
 // save creates it.
 static void test_cache_perms(void) {
-#ifndef _WIN32
-  printf("  cache perms...\n");
-  char tmpdir[] = "/tmp/mt_cache_perms_XXXXXX";
-  if (!mkdtemp(tmpdir)) {
-    fprintf(stderr, "FAIL [mkdtemp]\n");
-    failed++;
-    return;
+  if (test_has_posix_modes()) {
+    printf("  cache perms...\n");
+    char tmpdir[512];
+    if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cache_perms")) {
+      fprintf(stderr, "FAIL [mkdtemp]\n");
+      failed++;
+      return;
+    }
+    test_set_cache_home(tmpdir);
+    cache_reset_path();
+
+    PrayerCache cache = {0};
+    strcpy(cache.date, "2026-04-08");
+    check_bool("perms: cache saves", cache_save(&cache) == 0);
+
+    struct stat st;
+    check_bool("perms: cache file stat", stat(cache_get_path(), &st) == 0);
+    check_bool("perms: cache file owner-only (0600)", (st.st_mode & 0777) == 0600);
+
+    char dir[1024];
+    snprintf(dir, sizeof(dir), "%s/muslimtify", tmpdir);
+    check_bool("perms: cache dir stat", stat(dir, &st) == 0);
+    check_bool("perms: cache dir owner-only (0700)", (st.st_mode & 0777) == 0700);
+
+    cache_invalidate();
+    test_rmdir(dir);
+    test_rmdir(tmpdir);
+  } else {
+    printf("  SKIP: file modes mean nothing here\n");
   }
-  setenv("XDG_CACHE_HOME", tmpdir, 1);
-  cache_reset_path();
-
-  PrayerCache cache = {0};
-  strcpy(cache.date, "2026-04-08");
-  check_bool("perms: cache saves", cache_save(&cache) == 0);
-
-  struct stat st;
-  check_bool("perms: cache file stat", stat(cache_get_path(), &st) == 0);
-  check_bool("perms: cache file owner-only (0600)", (st.st_mode & 0777) == 0600);
-
-  char dir[1024];
-  snprintf(dir, sizeof(dir), "%s/muslimtify", tmpdir);
-  check_bool("perms: cache dir stat", stat(dir, &st) == 0);
-  check_bool("perms: cache dir owner-only (0700)", (st.st_mode & 0777) == 0700);
-
-  cache_invalidate();
-  rmdir(dir);
-  rmdir(tmpdir);
-#endif
 }
 
 int main(void) {
