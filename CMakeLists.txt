@@ -97,10 +97,12 @@ configure_file(systemd/muslimtify.service.in ${CMAKE_BINARY_DIR}/systemd/muslimt
 # -- Helper function ----------------------------------------------------------
 
 function(muslimtify_set_target_defaults target)
+    # PROJECT_SOURCE_DIR, not CMAKE_CURRENT_SOURCE_DIR: inside a function the
+    # latter is the calling directory, and src/cli calls this too.
     target_include_directories(${target} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/vendor
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/vendor
         ${CMAKE_BINARY_DIR}/generated
     )
     if(MSVC)
@@ -153,30 +155,10 @@ add_library(muslimtify_core OBJECT
 )
 muslimtify_set_target_defaults(muslimtify_core)
 
-add_library(muslimtify_cli OBJECT
-    src/cli/cli.c
-    src/cli/display.c
-    src/cli/cmd_show.c
-    src/cli/cmd_location.c
-    src/cli/cmd_prayer.c
-    $<IF:$<BOOL:${WIN32}>,src/cli/cmd_daemon_win.c,src/cli/cmd_daemon.c>
-    src/cli/cmd_method.c
-    src/cli/cmd_notification.c
-    src/cli/cmd_timeformat.c
-    # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
-    # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
-    $<$<NOT:$<BOOL:${WIN32}>>:src/cli/daemon_loop.c>
-)
-muslimtify_set_target_defaults(muslimtify_cli)
-# The CLI's own headers, for the binary and for test_cli, which link this target.
-target_include_directories(muslimtify_cli PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/cli)
-
 if(WIN32)
     target_include_directories(muslimtify_core PRIVATE ${curl_SOURCE_DIR}/include)
-    target_include_directories(muslimtify_cli  PRIVATE ${curl_SOURCE_DIR}/include)
     # Static curl: prevent its headers from emitting __declspec(dllimport).
     target_compile_definitions(muslimtify_core PRIVATE CURL_STATICLIB)
-    target_compile_definitions(muslimtify_cli  PRIVATE CURL_STATICLIB)
     # windows_zones_generated.inc is #included by timezone.c, never compiled on
     # its own. List it so IDEs surface it and CMake tracks it as a build input.
     target_sources(muslimtify_core PRIVATE
@@ -187,27 +169,12 @@ if(WIN32)
 else()
     target_include_directories(muslimtify_core PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-    target_include_directories(muslimtify_cli  PRIVATE
-        ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
     target_link_libraries(muslimtify_core PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 
-# -- Main executable ----------------------------------------------------------
+# -- Presentation layers ------------------------------------------------------
 
-add_executable(muslimtify src/cli/main.c)
-muslimtify_set_target_defaults(muslimtify)
-
-if(WIN32)
-    target_include_directories(muslimtify PRIVATE ${curl_SOURCE_DIR}/include)
-    target_compile_definitions(muslimtify PRIVATE CURL_STATICLIB)
-    target_link_libraries(muslimtify
-        muslimtify_cli muslimtify_core ole32 runtimeobject CURL::libcurl)
-else()
-    target_include_directories(muslimtify PRIVATE
-        ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-    target_link_libraries(muslimtify
-        muslimtify_cli muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-endif()
+add_subdirectory(src/cli)
 
 # -- Testing ------------------------------------------------------------------
 
@@ -306,7 +273,7 @@ if(BUILD_TESTING)
             src/cli/daemon_loop.c
         )
         muslimtify_set_target_defaults(test_daemon_loop)
-        target_include_directories(test_daemon_loop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cli)
+        target_include_directories(test_daemon_loop PRIVATE ${PROJECT_SOURCE_DIR}/src/cli)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)
         add_test(NAME daemon_loop COMMAND test_daemon_loop)
     endif()
@@ -363,7 +330,7 @@ if(BUILD_TESTING)
             src/platform/windows/platform_win.c
         )
         muslimtify_set_target_defaults(test_cmd_daemon_win)
-        target_include_directories(test_cmd_daemon_win PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/cli)
+        target_include_directories(test_cmd_daemon_win PRIVATE ${PROJECT_SOURCE_DIR}/src/cli)
         add_test(NAME cmd_daemon_win COMMAND test_cmd_daemon_win)
 
         add_executable(test_notification_win
@@ -380,7 +347,6 @@ endif()
 
 # -- Install ------------------------------------------------------------------
 
-install(TARGETS muslimtify DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES assets/adhan.mp3
     DESTINATION ${CMAKE_INSTALL_DATADIR}/muslimtify/)
 
