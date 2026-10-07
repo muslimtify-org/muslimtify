@@ -217,12 +217,6 @@ if(BUILD_TESTING)
         )
         add_test(NAME cli COMMAND test_cli)
 
-        add_executable(test_muslimtify tests/test_muslimtify.c)
-        muslimtify_set_target_defaults(test_muslimtify)
-        target_include_directories(test_muslimtify PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_muslimtify muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME muslimtify COMMAND test_muslimtify)
-
         add_executable(test_muslimtify_daemon tests/test_muslimtify_daemon.c)
         muslimtify_set_target_defaults(test_muslimtify_daemon)
         target_include_directories(test_muslimtify_daemon PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
@@ -309,6 +303,12 @@ if(BUILD_TESTING)
     muslimtify_link_test(test_muslimtify_cycle)
     add_test(NAME muslimtify_cycle COMMAND test_muslimtify_cycle)
     muslimtify_isolate_test(muslimtify_cycle)
+
+    add_executable(test_muslimtify tests/test_muslimtify.c)
+    muslimtify_set_target_defaults(test_muslimtify)
+    muslimtify_link_test(test_muslimtify)
+    add_test(NAME muslimtify COMMAND test_muslimtify)
+    muslimtify_isolate_test(muslimtify)
 
     # test_location is cross-platform; its parse_timezone_offset target lives
     # in muslimtify_core which links curl on both platforms.
