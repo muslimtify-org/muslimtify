@@ -170,13 +170,14 @@ GpsStatus platform_get_location(PlatformLatLng *latlong);
  */
 typedef enum {
   PLATFORM_DAEMON_OK = 0,
-  PLATFORM_DAEMON_UNSUPPORTED,   /* this platform has no implementation yet */
-  PLATFORM_DAEMON_NO_HOME,       /* the user's home directory could not be found */
-  PLATFORM_DAEMON_UNIT_FAILED,   /* the service file could not be written */
-  PLATFORM_DAEMON_RELOAD_FAILED, /* the service manager would not reload */
-  PLATFORM_DAEMON_ENABLE_FAILED, /* the service could not be enabled and started */
+  PLATFORM_DAEMON_UNSUPPORTED,    /* this platform has no implementation yet */
+  PLATFORM_DAEMON_NO_HOME,        /* the user's home directory could not be found */
+  PLATFORM_DAEMON_UNIT_FAILED,    /* the service file could not be written */
+  PLATFORM_DAEMON_RELOAD_FAILED,  /* the service manager would not reload */
+  PLATFORM_DAEMON_ENABLE_FAILED,  /* the service could not be enabled and started */
   PLATFORM_DAEMON_BINARY_INVALID, /* the program to run is missing or not executable */
-  PLATFORM_DAEMON_MANAGER_FAILED /* the service manager refused the request or could not be reached */
+  PLATFORM_DAEMON_MANAGER_FAILED  /* the service manager refused the request or could not be reached
+                                   */
 } PlatformDaemonResult;
 
 enum { PLATFORM_DAEMON_PATH_MAX = 512 };

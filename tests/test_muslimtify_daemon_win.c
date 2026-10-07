@@ -215,14 +215,16 @@ static void test_install(void) {
 
   reset();
   check_bool("a missing program is refused",
-             muslimtify_daemon_install_binary(missing_bin, &result) == MUSLIMTIFY_ERR_DAEMON_BINARY);
+             muslimtify_daemon_install_binary(missing_bin, &result) ==
+                 MUSLIMTIFY_ERR_DAEMON_BINARY);
   check_bool("nothing was run for a missing program", log_is_empty());
   check_bool("no activator for a missing program", register_calls == 0);
 
   reset();
   fake_fails("/create");
   check_bool("a failing create is reported",
-             muslimtify_daemon_install_binary(service_bin, &result) == MUSLIMTIFY_ERR_DAEMON_MANAGER);
+             muslimtify_daemon_install_binary(service_bin, &result) ==
+                 MUSLIMTIFY_ERR_DAEMON_MANAGER);
   check_bool("the program is still reported", strcmp(result.binary_path, service_bin) == 0);
   check_bool("no activator after a failing create", register_calls == 0);
 
@@ -238,8 +240,7 @@ static void test_uninstall(void) {
   reset();
   fake_fails("/query");
   MuslimtifyDaemonUninstall result;
-  check_bool("uninstall with nothing there",
-             muslimtify_daemon_uninstall(&result) == MUSLIMTIFY_OK);
+  check_bool("uninstall with nothing there", muslimtify_daemon_uninstall(&result) == MUSLIMTIFY_OK);
   check_bool("nothing was removed", !result.unit_removed);
   check_bool("delete was not called", !log_mentions("/delete"));
   check_bool("the activator is unregistered anyway", unregister_calls == 1);
@@ -295,8 +296,7 @@ static void test_unreachable(void) {
   daemon_win_set_schtasks_path(missing_bin);
 
   MuslimtifyDaemonStatus st;
-  check_bool("status reports it",
-             muslimtify_daemon_status(&st) == MUSLIMTIFY_ERR_DAEMON_MANAGER);
+  check_bool("status reports it", muslimtify_daemon_status(&st) == MUSLIMTIFY_ERR_DAEMON_MANAGER);
   check_bool("status claims nothing", !st.installed && !st.enabled && !st.running);
 
   MuslimtifyDaemonUninstall uninstall;
@@ -304,8 +304,8 @@ static void test_unreachable(void) {
              muslimtify_daemon_uninstall(&uninstall) == MUSLIMTIFY_ERR_DAEMON_MANAGER);
 
   MuslimtifyDaemonInstall install;
-  check_bool("install reports it",
-             muslimtify_daemon_install_binary(service_bin, &install) == MUSLIMTIFY_ERR_DAEMON_MANAGER);
+  check_bool("install reports it", muslimtify_daemon_install_binary(service_bin, &install) ==
+                                       MUSLIMTIFY_ERR_DAEMON_MANAGER);
 
   daemon_win_set_schtasks_path(fake_schtasks);
 }
