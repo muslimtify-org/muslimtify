@@ -121,6 +121,31 @@ function(muslimtify_set_target_defaults target)
     endif()
 endfunction()
 
+# Include and link lines for a test that links the back end. Extra arguments are
+# libraries that go before muslimtify_core, such as muslimtify_cli.
+function(muslimtify_link_test target)
+    if(WIN32)
+        target_include_directories(${target} PRIVATE ${curl_SOURCE_DIR}/include)
+        target_link_libraries(${target}
+            ${ARGN} muslimtify_core CURL::libcurl ole32 runtimeobject)
+    else()
+        target_include_directories(${target} PRIVATE
+            ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(${target}
+            ${ARGN} muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+    endif()
+endfunction()
+
+# On Windows an unset APPDATA or LOCALAPPDATA falls back to the user's profile,
+# so a test that forgot to set its own would reach the real config and cache.
+# Under ctest both point into the build tree instead.
+function(muslimtify_isolate_test name)
+    if(WIN32)
+        set_tests_properties(${name} PROPERTIES ENVIRONMENT
+            "APPDATA=${CMAKE_BINARY_DIR}/test-home;LOCALAPPDATA=${CMAKE_BINARY_DIR}/test-home")
+    endif()
+endfunction()
+
 # -- Object libraries ---------------------------------------------------------
 # muslimtify_core: platform-agnostic + platform abstraction
 # muslimtify_cli : CLI dispatcher + command handlers
@@ -192,12 +217,6 @@ if(BUILD_TESTING)
         )
         add_test(NAME cli COMMAND test_cli)
 
-        add_executable(test_prayer_checker tests/test_prayer_checker.c)
-        muslimtify_set_target_defaults(test_prayer_checker)
-        target_include_directories(test_prayer_checker PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_prayer_checker muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME prayer_checker COMMAND test_prayer_checker)
-
         add_executable(test_config tests/test_config.c)
         muslimtify_set_target_defaults(test_config)
         target_include_directories(test_config PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
@@ -209,18 +228,6 @@ if(BUILD_TESTING)
         target_include_directories(test_cache PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
         target_link_libraries(test_cache muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME cache COMMAND test_cache)
-
-        add_executable(test_check_cycle tests/test_check_cycle.c)
-        muslimtify_set_target_defaults(test_check_cycle)
-        target_include_directories(test_check_cycle PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_check_cycle muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME check_cycle COMMAND test_check_cycle)
-
-        add_executable(test_display tests/test_display.c)
-        muslimtify_set_target_defaults(test_display)
-        target_include_directories(test_display PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_display muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME display COMMAND test_display)
 
         add_executable(test_muslimtify tests/test_muslimtify.c)
         muslimtify_set_target_defaults(test_muslimtify)
@@ -251,12 +258,6 @@ if(BUILD_TESTING)
         add_test(NAME notification_interrupt COMMAND test_notification_interrupt)
         set_tests_properties(notification_interrupt PROPERTIES ENVIRONMENT "DBUS_SESSION_BUS_ADDRESS=disabled:")
 
-        add_executable(test_offset_bound tests/test_offset_bound.c)
-        muslimtify_set_target_defaults(test_offset_bound)
-        target_include_directories(test_offset_bound PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_offset_bound muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME offset_bound COMMAND test_offset_bound)
-
         add_executable(test_cmd_daemon
             tests/test_cmd_daemon.c
             src/platform/linux/daemon.c
@@ -283,6 +284,30 @@ if(BUILD_TESTING)
         add_test(NAME layers
             COMMAND sh ${PROJECT_SOURCE_DIR}/tests/check_layers.sh ${PROJECT_SOURCE_DIR} src/cli)
     endif()
+
+    add_executable(test_prayer_checker tests/test_prayer_checker.c)
+    muslimtify_set_target_defaults(test_prayer_checker)
+    muslimtify_link_test(test_prayer_checker)
+    add_test(NAME prayer_checker COMMAND test_prayer_checker)
+    muslimtify_isolate_test(prayer_checker)
+
+    add_executable(test_check_cycle tests/test_check_cycle.c)
+    muslimtify_set_target_defaults(test_check_cycle)
+    muslimtify_link_test(test_check_cycle)
+    add_test(NAME check_cycle COMMAND test_check_cycle)
+    muslimtify_isolate_test(check_cycle)
+
+    add_executable(test_display tests/test_display.c)
+    muslimtify_set_target_defaults(test_display)
+    muslimtify_link_test(test_display)
+    add_test(NAME display COMMAND test_display)
+    muslimtify_isolate_test(display)
+
+    add_executable(test_offset_bound tests/test_offset_bound.c)
+    muslimtify_set_target_defaults(test_offset_bound)
+    muslimtify_link_test(test_offset_bound)
+    add_test(NAME offset_bound COMMAND test_offset_bound)
+    muslimtify_isolate_test(offset_bound)
 
     # test_location is cross-platform; its parse_timezone_offset target lives
     # in muslimtify_core which links curl on both platforms.
