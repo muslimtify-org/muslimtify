@@ -61,7 +61,8 @@ typedef enum {
   MUSLIMTIFY_ERR_DAEMON_UNIT,
   MUSLIMTIFY_ERR_DAEMON_RELOAD,
   MUSLIMTIFY_ERR_DAEMON_ENABLE,
-  MUSLIMTIFY_ERR_CACHE_SAVE
+  MUSLIMTIFY_ERR_CACHE_SAVE,
+  MUSLIMTIFY_ERR_DAEMON_MANAGER
 } MuslimtifyError;
 
 typedef enum {
@@ -173,9 +174,11 @@ typedef struct {
 
 /* The background service's state. installed is true when a service file exists
    for it, whether muslimtify_daemon_install wrote it or a package provided it,
-   and is always true when the service is enabled or running. */
+   and is always true when the service is enabled or running. On Windows the
+   service is a scheduled task: installed means the task exists, and enabled and
+   running both mean it is not disabled. */
 typedef struct {
-  bool installed; /* a service file for it exists */
+  bool installed; /* a service file or scheduled task for it exists */
   bool enabled;   /* the service manager starts it at login */
   bool running;   /* it is active right now */
 } MuslimtifyDaemonStatus;
@@ -183,16 +186,18 @@ typedef struct {
 /* What muslimtify_daemon_install did. */
 typedef struct {
   char binary_path[MUSLIMTIFY_PATH_SIZE]; /* the program the service runs, "" if none was found */
-  char unit_path[MUSLIMTIFY_PATH_SIZE];   /* the service file that was written, "" if none */
+  char unit_path[MUSLIMTIFY_PATH_SIZE];   /* the service file that was written, "" if none.
+                                             Always "" on Windows */
   bool legacy_timer_disabled;             /* an old muslimtify.timer was switched off */
 } MuslimtifyDaemonInstall;
 
-/* What muslimtify_daemon_uninstall did. */
+/* What muslimtify_daemon_uninstall did. On Windows only unit_removed is used,
+   and it means the scheduled task was deleted. */
 typedef struct {
   bool stopped;               /* it was running and was stopped */
   bool disabled;              /* it was enabled and was disabled */
   bool legacy_timer_disabled; /* an old muslimtify.timer was switched off */
-  bool unit_removed;          /* the service file was deleted */
+  bool unit_removed;          /* the service file or scheduled task was deleted */
   bool timer_removed;         /* an old timer file was deleted */
   char unit_path[MUSLIMTIFY_PATH_SIZE];
   char timer_path[MUSLIMTIFY_PATH_SIZE];
@@ -401,18 +406,19 @@ MuslimtifyError muslimtify_notify_test(Muslimtify *mt, bool adhan, MuslimtifyNex
 MuslimtifyError muslimtify_adhan_stop(void);
 
 /* The background service that checks for due prayers once a minute. These
-   three take no handle. They return MUSLIMTIFY_ERR_UNSUPPORTED on a platform
-   where managing the service through the library is not implemented yet. */
+   three take no handle. On Linux it is a systemd user service, on Windows a
+   scheduled task. */
 
 /**
- * Register the service for the current user and start it. The service runs the
- * muslimtify command line program with `daemon run`. The caller does not say
- * which program: the library uses the first one it finds beside the running
- * executable, in the directory this build installs to, in /usr/local/bin or in
- * /usr/bin. If there is none, nothing is installed and
- * MUSLIMTIFY_ERR_DAEMON_BINARY is returned. *out, when not NULL, is filled even
- * on an error return and shows how far the call got, including which program
- * was chosen.
+ * Register the service for the current user and start it. The caller does not
+ * say which program it runs. On Linux it is the muslimtify command line program
+ * with `daemon run`: the first one found beside the running executable, in the
+ * directory this build installs to, in /usr/local/bin or in /usr/bin. On
+ * Windows it is muslimtify-service.exe: the first one found beside the running
+ * executable or in the directory this build installs to. If there is none,
+ * nothing is installed and MUSLIMTIFY_ERR_DAEMON_BINARY is returned. *out, when
+ * not NULL, is filled even on an error return and shows how far the call got,
+ * including which program was chosen.
  */
 MuslimtifyError muslimtify_daemon_install(MuslimtifyDaemonInstall *out);
 
@@ -422,7 +428,10 @@ MuslimtifyError muslimtify_daemon_install(MuslimtifyDaemonInstall *out);
  */
 MuslimtifyError muslimtify_daemon_uninstall(MuslimtifyDaemonUninstall *out);
 
-/** Report whether the service is installed, enabled and running. */
+/**
+ * Report whether the service is installed, enabled and running. Returns
+ * MUSLIMTIFY_ERR_DAEMON_MANAGER when the service manager cannot be asked.
+ */
 MuslimtifyError muslimtify_daemon_status(MuslimtifyDaemonStatus *out);
 
 /* The names and messages returned below are static strings and never NULL. */

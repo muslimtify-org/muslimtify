@@ -24,6 +24,8 @@ static MuslimtifyError daemon_error(PlatformDaemonResult result) {
     return MUSLIMTIFY_ERR_DAEMON_ENABLE;
   case PLATFORM_DAEMON_BINARY_INVALID:
     return MUSLIMTIFY_ERR_DAEMON_BINARY;
+  case PLATFORM_DAEMON_MANAGER_FAILED:
+    return MUSLIMTIFY_ERR_DAEMON_MANAGER;
   }
   // No default label above, so -Wswitch fails the build if a platform result
   // is added without deciding what it maps to.

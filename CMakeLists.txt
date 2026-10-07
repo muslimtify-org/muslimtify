@@ -330,14 +330,24 @@ if(BUILD_TESTING)
     add_test(NAME country COMMAND test_country)
 
     if(WIN32)
-        add_executable(test_cmd_daemon_win
-            tests/test_cmd_daemon_win.c
-            src/cli/cmd_daemon_win.c
+        # The stand-in the daemon test runs in place of schtasks.exe.
+        add_executable(fake_schtasks tests/fake_schtasks.c)
+        muslimtify_set_target_defaults(fake_schtasks)
+
+        # Compiles the daemon sources directly rather than linking
+        # muslimtify_core, so the test can supply its own toast activator
+        # functions and never write to the registry.
+        add_executable(test_muslimtify_daemon_win
+            tests/test_muslimtify_daemon_win.c
+            src/platform/windows/daemon_win.c
+            src/lib/muslimtify_daemon.c
             src/platform/windows/platform_win.c
+            src/core/log.c
         )
-        muslimtify_set_target_defaults(test_cmd_daemon_win)
-        target_include_directories(test_cmd_daemon_win PRIVATE ${PROJECT_SOURCE_DIR}/src/cli)
-        add_test(NAME cmd_daemon_win COMMAND test_cmd_daemon_win)
+        muslimtify_set_target_defaults(test_muslimtify_daemon_win)
+        add_dependencies(test_muslimtify_daemon_win fake_schtasks)
+        add_test(NAME muslimtify_daemon_win
+            COMMAND test_muslimtify_daemon_win $<TARGET_FILE:fake_schtasks>)
 
         add_executable(test_notification_win
             tests/test_notification_win.c
