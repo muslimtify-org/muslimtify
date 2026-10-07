@@ -2,6 +2,7 @@
 
 #include "log.h"
 #include "platform.h"
+#include "platform/windows/platform_win.h"
 #include "toast_activator.h"
 #include "version.h"
 
@@ -23,35 +24,12 @@ void daemon_win_set_schtasks_path(const char *path) {
   snprintf(schtasks_override, sizeof(schtasks_override), "%s", path ? path : "");
 }
 
-static wchar_t *utf8_to_wide(const char *text) {
-  int len;
-  wchar_t *wide;
-
-  if (!text)
-    return NULL;
-
-  len = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
-  if (len <= 0)
-    return NULL;
-
-  wide = (wchar_t *)malloc((size_t)len * sizeof(wchar_t));
-  if (!wide)
-    return NULL;
-
-  if (MultiByteToWideChar(CP_UTF8, 0, text, -1, wide, len) <= 0) {
-    free(wide);
-    return NULL;
-  }
-
-  return wide;
-}
-
 // The schtasks program as a wide path: the stand-in when a test set one, else
 // the one in the system directory. Never a bare name, which CreateProcessW
 // would look for beside the running program and in the current directory first.
 static wchar_t *schtasks_program(void) {
   if (schtasks_override[0] != '\0')
-    return utf8_to_wide(schtasks_override);
+    return platform_win_utf8_to_wide(schtasks_override);
 
   wchar_t dir[MAX_PATH];
   UINT n = GetSystemDirectoryW(dir, MAX_PATH);
@@ -74,7 +52,7 @@ static wchar_t *schtasks_program(void) {
 static int run_schtasks(const char *args, char *output, size_t output_cap, size_t *output_len) {
   int result = -1;
   wchar_t *program = schtasks_program();
-  wchar_t *wide_args = utf8_to_wide(args);
+  wchar_t *wide_args = platform_win_utf8_to_wide(args);
   wchar_t *cmd = NULL;
   HANDLE pipe_read = NULL;
   HANDLE pipe_write = NULL;
@@ -222,7 +200,7 @@ bool daemon_win_task_xml_enabled(const char *xml, size_t length) {
 }
 
 static bool is_file(const char *path) {
-  wchar_t *wide = utf8_to_wide(path);
+  wchar_t *wide = platform_win_utf8_to_wide(path);
   if (!wide)
     return false;
   DWORD attrs = GetFileAttributesW(wide);
