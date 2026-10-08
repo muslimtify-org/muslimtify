@@ -82,10 +82,6 @@ static inline void test_clear_home(const char *name) {
 #endif
 }
 
-static inline void test_clear_config_home(void) {
-  test_clear_home(TEST_CONFIG_HOME_VAR);
-}
-
 static inline void test_clear_cache_home(void) {
   test_clear_home(TEST_CACHE_HOME_VAR);
 }
