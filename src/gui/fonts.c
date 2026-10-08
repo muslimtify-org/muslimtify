@@ -16,9 +16,9 @@ static int resolve_font(char *dst, size_t dst_size, const char *leaf) {
       "/usr/share/muslimtify/fonts",
       NULL,
       NULL,
-      "gui/fonts",
-      "../gui/fonts",
-      "../../gui/fonts",
+      "assets/fonts",
+      "../assets/fonts",
+      "../../assets/fonts",
   };
 
   char xdg_path[PLATFORM_PATH_MAX];

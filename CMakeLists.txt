@@ -90,20 +90,9 @@ else()
     pkg_check_modules(LIBCURL REQUIRED libcurl)
 endif()
 
-# -- ccompose (GUI dependency) ------------------------------------------------
+# -- GUI option ---------------------------------------------------------------
 
 option(BUILD_GUI "Build muslimtify-gui target" ON)
-
-if(BUILD_GUI)
-    set(CCOMPOSE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(CCOMPOSE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(CCOMPOSE_INSTALL OFF CACHE BOOL "" FORCE)
-    FetchContent_Declare(ccompose
-        GIT_REPOSITORY https://github.com/rizukirr/ccompose.git
-        GIT_TAG v0.1.0
-        GIT_SHALLOW TRUE)
-    FetchContent_MakeAvailable(ccompose)
-endif()
 
 # -- Generated version header -------------------------------------------------
 
@@ -223,13 +212,9 @@ endif()
 # -- Presentation layers ------------------------------------------------------
 
 add_subdirectory(src/cli)
-
-# -- GUI ----------------------------------------------------------------------
-
 if(BUILD_GUI)
-    add_subdirectory(gui)
+    add_subdirectory(src/gui)
 endif()
-
 
 # -- Testing ------------------------------------------------------------------
 
@@ -272,10 +257,10 @@ if(BUILD_TESTING)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)
         add_test(NAME daemon_loop COMMAND test_daemon_loop)
 
-        add_executable(test_gui_config tests/test_gui_config.c gui/src/gui_config.c)
+        add_executable(test_gui_config tests/test_gui_config.c src/gui/gui_config.c)
         muslimtify_set_target_defaults(test_gui_config)
         target_include_directories(test_gui_config PRIVATE
-            ${CMAKE_SOURCE_DIR}/gui/include ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+            ${PROJECT_SOURCE_DIR}/src/gui ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
         target_link_libraries(test_gui_config muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME gui_config COMMAND test_gui_config)
 
