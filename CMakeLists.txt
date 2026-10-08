@@ -268,7 +268,7 @@ if(BUILD_TESTING)
         # the platform interface headers and its own headers. Each layer directory
         # is listed here, so adding one means adding it to this line.
         add_test(NAME layers
-            COMMAND sh ${PROJECT_SOURCE_DIR}/tests/check_layers.sh ${PROJECT_SOURCE_DIR} src/cli)
+            COMMAND sh ${PROJECT_SOURCE_DIR}/tests/check_layers.sh ${PROJECT_SOURCE_DIR} src/cli src/gui)
     endif()
 
     add_executable(test_prayer_checker tests/test_prayer_checker.c)

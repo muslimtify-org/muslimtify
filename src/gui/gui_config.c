@@ -2,7 +2,6 @@
 #include "gui_config.h"
 #include "json.h"
 #include "platform.h"
-#include "string_util.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -132,11 +131,9 @@ int gui_config_save(const GuiConfig *cfg) {
     return -1;
   }
 
-  char errbuf[128];
   FILE *f = platform_file_create_private(tmp_path);
   if (!f) {
-    errno_string(errno, errbuf, sizeof(errbuf));
-    fprintf(stderr, "Error: Cannot write %s: %s\n", tmp_path, errbuf);
+    fprintf(stderr, "Error: Cannot write %s: %s\n", tmp_path, strerror(errno));
     return -1;
   }
 
@@ -148,15 +145,13 @@ int gui_config_save(const GuiConfig *cfg) {
     err = errno;
   }
   if (write_err) {
-    errno_string(err, errbuf, sizeof(errbuf));
-    fprintf(stderr, "Error: Failed to write %s: %s\n", tmp_path, errbuf);
+    fprintf(stderr, "Error: Failed to write %s: %s\n", tmp_path, strerror(err));
     platform_file_delete(tmp_path);
     return -1;
   }
 
   if (platform_atomic_rename(tmp_path, path) != 0) {
-    errno_string(errno, errbuf, sizeof(errbuf));
-    fprintf(stderr, "Error: Failed to save %s: %s\n", path, errbuf);
+    fprintf(stderr, "Error: Failed to save %s: %s\n", path, strerror(errno));
     platform_file_delete(tmp_path);
     return -1;
   }

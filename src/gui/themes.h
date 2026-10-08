@@ -1,7 +1,7 @@
 #ifndef MUSLIMTIFY_GUI_THEMES_H
 #define MUSLIMTIFY_GUI_THEMES_H
 
-#include "ccompose.h"
+#include <ccompose.h>
 #include <stdbool.h>
 
 typedef struct {
