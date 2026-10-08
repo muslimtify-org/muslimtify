@@ -151,8 +151,9 @@ static void test_task_action(void) {
   int written = daemon_win_task_action("C:\\Program Files\\Muslimtify\\muslimtify-service.exe",
                                        action, sizeof(action));
   check_bool("builder returns success", written > 0);
-  check_bool("task action is the quoted program",
-             strcmp(action, "\"C:\\Program Files\\Muslimtify\\muslimtify-service.exe\"") == 0);
+  check_bool("task action keeps its quotes through schtasks",
+             strcmp(action, "\"\\\"C:\\Program Files\\Muslimtify\\muslimtify-service.exe\\\"\"") ==
+                 0);
   check_bool("task action does not use powershell", strstr(action, "powershell.exe") == NULL);
   check_bool("task action does not append check", strstr(action, " check") == NULL);
 
@@ -201,7 +202,9 @@ static void test_install(void) {
   check_bool("install succeeds",
              muslimtify_daemon_install_binary(service_bin, &result) == MUSLIMTIFY_OK);
   char expected[1024];
-  snprintf(expected, sizeof(expected), "/create /tn muslimtify /tr %s /sc minute /mo 1 /it /f",
+  // The fake logs its parsed arguments, so the quotes around the path here are
+  // the ones that reach schtasks itself.
+  snprintf(expected, sizeof(expected), "/create /tn muslimtify /tr \"%s\" /sc minute /mo 1 /it /f",
            service_bin);
   check_bool("the task is created with the expected arguments", log_has(expected));
   check_bool("the chosen program is reported", strcmp(result.binary_path, service_bin) == 0);

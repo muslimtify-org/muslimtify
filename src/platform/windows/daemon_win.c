@@ -170,7 +170,10 @@ int daemon_win_task_action(const char *service_path, char *buffer, size_t buffer
   if (!service_path || service_path[0] == '\0' || !buffer || buffer_size == 0)
     return -1;
 
-  int written = snprintf(buffer, buffer_size, "\"%s\"", service_path);
+  // schtasks strips one pair of quotes from /tr while parsing its command
+  // line. With only that pair, a path with a space is stored as a command and
+  // its arguments, so a second, escaped pair travels inside the first.
+  int written = snprintf(buffer, buffer_size, "\"\\\"%s\\\"\"", service_path);
   if (written < 0 || (size_t)written >= buffer_size)
     return -1;
   return written;
