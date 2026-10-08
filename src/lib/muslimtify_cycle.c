@@ -91,7 +91,7 @@ MuslimtifyError muslimtify_run_cycle_at(const MuslimtifyCycleHooks *hooks, const
   // refreshed location means new times, so the day is rebuilt, minus whatever
   // already lies behind: the old location's version of those was handled by
   // earlier cycles, and announcing them again would be noise.
-  PrayerCache cache;
+  PrayerCache cache = {0};
   bool cache_valid = !cycle->refreshed && cache_load(&cache) == 0 &&
                      cache_is_valid_for_today(cache.date, cache.trigger_count, today);
 

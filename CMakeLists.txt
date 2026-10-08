@@ -107,6 +107,9 @@ function(muslimtify_set_target_defaults target)
     )
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
+        # The C runtime marks the standard string and file functions as unsafe
+        # and recommends its own _s variants, which no other platform has.
+        target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
     else()
         target_compile_options(${target} PRIVATE
             -Wall -Wextra -Wpedantic -Wshadow -Wformat=2
@@ -191,6 +194,10 @@ if(WIN32)
     set_source_files_properties(
         src/platform/windows/windows_zones_generated.inc
         PROPERTIES HEADER_FILE_ONLY ON)
+    # miniaudio.h is vendored and not edited here, so its one narrowing
+    # conversion warning is silenced for the file that compiles it.
+    set_source_files_properties(src/core/miniaudio.c
+        PROPERTIES COMPILE_OPTIONS /wd4244)
 else()
     target_include_directories(muslimtify_core PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})

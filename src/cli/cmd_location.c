@@ -154,7 +154,7 @@ static int location_auto_run(Muslimtify *mt, const char *city, const char *count
     err = muslimtify_set_country(mt, country);
   if (err == MUSLIMTIFY_OK)
     err = muslimtify_save(mt);
-  MuslimtifyLocation loc;
+  MuslimtifyLocation loc = {0};
   if (err == MUSLIMTIFY_OK)
     err = muslimtify_get_location(mt, &loc);
   if (err != MUSLIMTIFY_OK)
@@ -354,7 +354,7 @@ static void print_location_gps_help(void) {
 }
 
 static int location_gps_run(Muslimtify *mt, int argc, char **argv) {
-  MuslimtifyLocation loc;
+  MuslimtifyLocation loc = {0};
   MuslimtifyError err;
 
   // No argument: report current state.
