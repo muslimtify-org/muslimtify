@@ -7,12 +7,12 @@
 #include "log.h"
 #include "muslimtify.h"
 #include "prayertimes.h"
+#include "test_support.h"
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 static int passed = 0;
 static int failed = 0;
@@ -40,20 +40,16 @@ static bool all_bytes(const void *p, size_t n, unsigned char v) {
 }
 
 static void setup(void) {
-  snprintf(tmpdir, sizeof(tmpdir), "/tmp/mt_libtest_XXXXXX");
-  if (!mkdtemp(tmpdir)) {
-    fprintf(stderr, "FATAL: mkdtemp failed\n");
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "libtest")) {
+    fprintf(stderr, "FATAL: cannot create a temporary directory\n");
     exit(1);
   }
-  setenv("XDG_CONFIG_HOME", tmpdir, 1);
-  setenv("XDG_CACHE_HOME", tmpdir, 1);
+  test_set_config_home(tmpdir);
+  test_set_cache_home(tmpdir);
 }
 
 static void teardown(void) {
-  char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
-  if (system(cmd) != 0) { /* best-effort cleanup */
-  }
+  test_remove_tree(tmpdir);
 }
 
 typedef struct {
@@ -488,7 +484,11 @@ static void test_adhan_file(void) {
     return;
   fputs("x", f);
   fclose(f);
-  check_bool("symlink created", symlink(file, link) == 0);
+  bool have_link = test_can_symlink();
+  if (have_link)
+    check_bool("symlink created", test_symlink(file, link));
+  else
+    printf("  SKIP: cannot create a symlink here\n");
 
   Config cfg = jakarta_config();
   Muslimtify *mt = NULL;
@@ -505,8 +505,9 @@ static void test_adhan_file(void) {
 
   check_bool("missing file", muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, missing) ==
                                  MUSLIMTIFY_ERR_FILE_NOT_FOUND);
-  check_bool("symlink", muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, link) ==
-                            MUSLIMTIFY_ERR_FILE_IS_SYMLINK);
+  if (have_link)
+    check_bool("symlink", muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, link) ==
+                              MUSLIMTIFY_ERR_FILE_IS_SYMLINK);
   check_bool("directory is refused",
              muslimtify_set_prayer_adhan_file(mt, MUSLIMTIFY_FAJR, tmpdir) != MUSLIMTIFY_OK);
 
@@ -1217,24 +1218,15 @@ static void record_log(MuslimtifyLogLevel level, const char *message, void *user
 // and return what reached stderr.
 static MuslimtifyError open_capturing_stderr(char *captured, size_t cap) {
   captured[0] = '\0';
-  fflush(stderr);
-  FILE *capture = tmpfile();
-  if (!capture)
+  TestCapture capture;
+  if (!test_capture_begin(&capture, stderr))
     return MUSLIMTIFY_ERR_NO_MEMORY;
-  int saved = dup(STDERR_FILENO);
-  dup2(fileno(capture), STDERR_FILENO);
 
   Muslimtify *mt = NULL;
   MuslimtifyError err = muslimtify_open(&mt);
   muslimtify_close(mt);
 
-  fflush(stderr);
-  dup2(saved, STDERR_FILENO);
-  close(saved);
-  rewind(capture);
-  size_t n = fread(captured, 1, cap - 1, capture);
-  captured[n] = '\0';
-  fclose(capture);
+  test_capture_end(&capture, captured, cap);
   return err;
 }
 

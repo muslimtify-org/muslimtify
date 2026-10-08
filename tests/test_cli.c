@@ -9,42 +9,35 @@
 #include "muslimtify.h"
 #include "platform.h"
 #include "prayertimes.h"
+#include "test_support.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <time.h>
-#include <unistd.h>
 
 static char tmpdir[256];
-static char output_file[512];
 static char captured[16384];
 static int passed = 0;
 static int failed = 0;
 static int last_ret = -1;
 
 static void setup(void) {
-  snprintf(tmpdir, sizeof(tmpdir), "/tmp/muslimtify_test_XXXXXX");
-  if (!mkdtemp(tmpdir)) {
-    fprintf(stderr, "FATAL: mkdtemp failed\n");
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "clitest")) {
+    fprintf(stderr, "FATAL: cannot create a temporary directory\n");
     exit(1);
   }
-  setenv("XDG_CONFIG_HOME", tmpdir, 1);
-  snprintf(output_file, sizeof(output_file), "%s/_output.txt", tmpdir);
+  test_set_config_home(tmpdir);
 
-  // Force config_get_path() to pick up our XDG_CONFIG_HOME by creating
+  // Force config_get_path() to pick up our config home by creating
   // the config directory and saving a default config.
   char dir[512];
   snprintf(dir, sizeof(dir), "%s/muslimtify", tmpdir);
-  mkdir(dir, 0755);
+  test_mkdir(dir);
 }
 
 static void teardown(void) {
-  char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
-  if (system(cmd) != 0) { /* best-effort cleanup */
-  }
+  test_remove_tree(tmpdir);
 }
 
 static void reset_config(void) {
@@ -63,40 +56,15 @@ static void reset_config(void) {
 // Run cli_run() with given args, capturing stdout+stderr into `captured`.
 // Returns cli_run() return value.
 static int run(int argc, char **argv) {
-  fflush(stdout);
-  fflush(stderr);
-
-  int saved_out = dup(STDOUT_FILENO);
-  int saved_err = dup(STDERR_FILENO);
-
-  FILE *f = fopen(output_file, "w");
-  if (!f) {
-    fprintf(stderr, "FATAL: cannot open output file\n");
+  TestCapture capture;
+  if (!test_capture_begin(&capture, stdout) || !test_capture_add(&capture, stderr)) {
+    fprintf(stderr, "FATAL: cannot capture output\n");
     exit(1);
   }
-  int fd = fileno(f);
-  dup2(fd, STDOUT_FILENO);
-  dup2(fd, STDERR_FILENO);
 
   int ret = cli_run(argc, argv);
 
-  fflush(stdout);
-  fflush(stderr);
-  dup2(saved_out, STDOUT_FILENO);
-  dup2(saved_err, STDERR_FILENO);
-  close(saved_out);
-  close(saved_err);
-  fclose(f);
-
-  // Read captured output
-  FILE *r = fopen(output_file, "r");
-  if (r) {
-    size_t n = fread(captured, 1, sizeof(captured) - 1, r);
-    captured[n] = '\0';
-    fclose(r);
-  } else {
-    captured[0] = '\0';
-  }
+  test_capture_end(&capture, captured, sizeof(captured));
 
   last_ret = ret;
   return ret;
@@ -966,32 +934,18 @@ static void test_next_after_isha(void) {
   now.tm_min = 0;
 
   // Capture display_next_plain() called directly.
-  fflush(stdout);
-  int saved_out = dup(STDOUT_FILENO);
-  FILE *f = fopen(output_file, "w");
-  if (!f) {
+  TestCapture capture;
+  if (!test_capture_begin(&capture, stdout)) {
     check_bool("next after isha capture open", false);
     return;
   }
-  dup2(fileno(f), STDOUT_FILENO);
   Muslimtify *mt = NULL;
   MuslimtifyNext next;
   if (muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK &&
       muslimtify_next_at(mt, &now, &next) == MUSLIMTIFY_OK)
     display_next_plain(&next, 24);
   muslimtify_close(mt);
-  fflush(stdout);
-  dup2(saved_out, STDOUT_FILENO);
-  close(saved_out);
-  fclose(f);
-  FILE *r = fopen(output_file, "r");
-  if (r) {
-    size_t n = fread(captured, 1, sizeof(captured) - 1, r);
-    captured[n] = '\0';
-    fclose(r);
-  } else {
-    captured[0] = '\0';
-  }
+  test_capture_end(&capture, captured, sizeof(captured));
 
   // Precondition: the chosen date/location actually shifts Fajr by >= 1 min, so
   // "shows tomorrow" is distinguishable from "shows today".
@@ -1365,27 +1319,30 @@ static void test_notification(void) {
       Config cfg;
       config_load(&cfg);
       check_bool("notification adhan set stored abs",
-                 cfg.fajr.adhan[0] == '/' && strstr(cfg.fajr.adhan, "adhan_real.mp3") != NULL);
+                 test_is_absolute_path(cfg.fajr.adhan) &&
+                     strstr(cfg.fajr.adhan, "adhan_real.mp3") != NULL);
     }
 
     run(5, (char *[]){"m", "notification", "--adhan", "set", "/no/such/adhan.mp3", NULL});
     check_ret("notification adhan set missing ret", 1);
 
-#ifndef _WIN32
-    if (symlink(realf, linkf) != 0) {
+    if (!test_can_symlink()) {
+      printf("  SKIP: cannot create a symlink here\n");
+    } else if (!test_symlink(realf, linkf)) {
       check_bool("notification adhan symlink setup", false);
     } else {
       run(5, (char *[]){"m", "notification", "--adhan", "set", linkf, NULL});
       check_ret("notification adhan set symlink ret", 1);
       check_contains("notification adhan set symlink msg", "symlink");
     }
-#endif
   }
 
   // --adhan stop works on every platform (no-op when nothing is playing)
-  run(4, (char *[]){"m", "notification", "--adhan", "stop", NULL});
-  check_ret("notification adhan stop ret", 0);
-  check_contains("notification adhan stop msg", "adhan");
+  if (!test_unsafe_on_windows("would signal the named adhan stop event of an installed app")) {
+    run(4, (char *[]){"m", "notification", "--adhan", "stop", NULL});
+    check_ret("notification adhan stop ret", 0);
+    check_contains("notification adhan stop msg", "adhan");
+  }
 
   // --sound modes + invalid
   run(4, (char *[]){"m", "notification", "--sound", "off", NULL});

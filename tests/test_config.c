@@ -1,16 +1,13 @@
 #define _GNU_SOURCE
 #include "config.h"
 #include "platform.h"
+#include "test_support.h"
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-#ifndef _WIN32
 #include <sys/stat.h>
-#endif
 
 static int passed = 0;
 static int failed = 0;
@@ -27,19 +24,15 @@ static void check_bool(const char *test, bool cond) {
 }
 
 static void setup(void) {
-  snprintf(tmpdir, sizeof(tmpdir), "/tmp/mt_cfgtest_XXXXXX");
-  if (!mkdtemp(tmpdir)) {
-    fprintf(stderr, "FATAL: mkdtemp failed\n");
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cfgtest")) {
+    fprintf(stderr, "FATAL: cannot create a temporary directory\n");
     exit(1);
   }
-  setenv("XDG_CONFIG_HOME", tmpdir, 1);
+  test_set_config_home(tmpdir);
 }
 
 static void teardown(void) {
-  char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
-  if (system(cmd) != 0) { /* best-effort cleanup */
-  }
+  test_remove_tree(tmpdir);
 }
 
 static void test_parse_reminders(void) {
@@ -201,7 +194,7 @@ static void test_path_resolution(void) {
 
   check_bool("config path starts in tmpdir", strncmp(path, tmpdir, strlen(tmpdir)) == 0);
   check_bool("config path includes muslimtify dir",
-             strstr(path, "/muslimtify/config.json") != NULL);
+             test_path_contains(path, "/muslimtify/config.json"));
 }
 
 static void test_round_trip(void) {
@@ -231,7 +224,7 @@ static void test_round_trip(void) {
   strncpy(out.notification_urgency, "critical", sizeof(out.notification_urgency) - 1);
 
   check_bool("config path includes muslimtify dir",
-             strstr(config_get_path(), "/muslimtify/config.json") != NULL);
+             test_path_contains(config_get_path(), "/muslimtify/config.json"));
   check_bool("save ok", config_save(&out) == 0);
   check_bool("config file exists", platform_file_exists(config_get_path()) == 1);
 
@@ -416,8 +409,11 @@ static void test_config_size_cap(void) {
 }
 
 static void test_config_perms(void) {
-#ifndef _WIN32
   printf("  config_perms...\n");
+  if (!test_has_posix_modes()) {
+    printf("  SKIP: file modes mean nothing here\n");
+    return;
+  }
   Config cfg = config_default();
   check_bool("perms: save", config_save(&cfg) == 0);
   struct stat st;
@@ -432,9 +428,6 @@ static void test_config_perms(void) {
     *slash = '\0';
   check_bool("perms: dir stat", stat(dir, &st) == 0);
   check_bool("perms: dir owner-only (0700)", (st.st_mode & 0777) == 0700);
-#else
-  (void)0;
-#endif
 }
 
 static void test_sound_migration(void) {
@@ -732,7 +725,7 @@ static void test_failed_save_closes_file(void) {
   check_bool("failed save: temp path removed", access(tmp_path, F_OK) != 0);
   unlink(tmp_path);
 #else
-  (void)0;
+  printf("  SKIP: needs /dev/full\n");
 #endif
 }
 
@@ -778,13 +771,6 @@ static bool all_five_nan(struct PrayerTimes t) {
   return isnan(t.fajr) && isnan(t.dhuhr) && isnan(t.asr) && isnan(t.maghrib) && isnan(t.isha);
 }
 
-static void slurp_stream(FILE *f, char *buf, size_t cap) {
-  fflush(f);
-  fseek(f, 0, SEEK_SET);
-  size_t n = fread(buf, 1, cap - 1, f);
-  buf[n] = '\0';
-}
-
 // Mutation record. The guard's condition in prayer_times_for_config
 // (src/core/config.c) was replaced by hand with `if (0)`, built with
 // `cmake --build build -j8`, run against
@@ -808,43 +794,32 @@ static void test_invalid_location_blanks_times(void) {
   check_bool("valid config still computes",
              !all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
 
-  FILE *out = tmpfile();
-  FILE *err = tmpfile();
-  check_bool("capture streams open", out != NULL && err != NULL);
-  if (!out || !err)
+  TestCapture out_capture;
+  TestCapture err_capture;
+  bool capturing = test_capture_begin(&out_capture, stdout);
+  if (capturing && !test_capture_begin(&err_capture, stderr)) {
+    test_capture_end(&out_capture, NULL, 0);
+    capturing = false;
+  }
+  check_bool("capture streams open", capturing);
+  if (!capturing)
     return;
-
-  fflush(stdout);
-  fflush(stderr);
-  int saved_out = dup(STDOUT_FILENO);
-  int saved_err = dup(STDERR_FILENO);
-  dup2(fileno(out), STDOUT_FILENO);
-  dup2(fileno(err), STDERR_FILENO);
-
-  cfg.latitude = NAN;
-  struct PrayerTimes first = prayer_times_for_config(&cfg, 2026, 9, 16);
-  fflush(stdout);
-  fflush(stderr);
-
-  FILE *err2 = tmpfile();
-  if (err2)
-    dup2(fileno(err2), STDERR_FILENO);
-  struct PrayerTimes second = prayer_times_for_config(&cfg, 2026, 9, 16);
-  fflush(stderr);
-
-  dup2(saved_out, STDOUT_FILENO);
-  dup2(saved_err, STDERR_FILENO);
-  close(saved_out);
-  close(saved_err);
 
   char out_buf[512];
   char err_buf[512];
   char err2_buf[512];
-  slurp_stream(out, out_buf, sizeof(out_buf));
-  slurp_stream(err, err_buf, sizeof(err_buf));
-  err2_buf[0] = '\0';
-  if (err2)
-    slurp_stream(err2, err2_buf, sizeof(err2_buf));
+
+  cfg.latitude = NAN;
+  struct PrayerTimes first = prayer_times_for_config(&cfg, 2026, 9, 16);
+  test_capture_end(&err_capture, err_buf, sizeof(err_buf));
+
+  bool second_capture = test_capture_begin(&err_capture, stderr);
+  struct PrayerTimes second = prayer_times_for_config(&cfg, 2026, 9, 16);
+  if (second_capture)
+    test_capture_end(&err_capture, err2_buf, sizeof(err2_buf));
+  else
+    err2_buf[0] = '\0';
+  test_capture_end(&out_capture, out_buf, sizeof(out_buf));
 
   check_bool("NaN latitude blanks all five", all_five_nan(first));
   check_bool("second call also blanks", all_five_nan(second));
@@ -853,11 +828,6 @@ static void test_invalid_location_blanks_times(void) {
   check_bool("warning is one line", strchr(err_buf, '\n') == strrchr(err_buf, '\n'));
   check_bool("stdout stayed clean", out_buf[0] == '\0');
   check_bool("warning printed once per process", err2_buf[0] == '\0');
-
-  fclose(out);
-  fclose(err);
-  if (err2)
-    fclose(err2);
 
   // The remaining invalid inputs reuse the same already-warned process.
   cfg.latitude = -6.2088;
