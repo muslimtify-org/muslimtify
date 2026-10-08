@@ -4,7 +4,7 @@ Playbook for agents working in Muslimtify — a C11 CLI that calculates prayer t
 
 ## Toolchain
 - **C11**, no compiler extensions (`CMAKE_C_STANDARD 11`, `CMAKE_C_EXTENSIONS OFF`). GCC/Clang on Linux, MSVC (`/W4`) on Windows.
-- **CMake 3.22+**. Two OBJECT libraries: `muslimtify_core` (`src/core/` + `src/lib/` + platform abstraction, in the top-level `CMakeLists.txt`) and `muslimtify_cli` (`src/cli/`, in `src/cli/CMakeLists.txt`, added with `add_subdirectory`); the `muslimtify` binary's entry point is `src/cli/main.c`.
+- **CMake 3.22+**. Three OBJECT libraries: `muslimtify_core` (`src/core/` + `src/lib/` + platform abstraction, in the top-level `CMakeLists.txt`), `muslimtify_cli` (`src/cli/`, in `src/cli/CMakeLists.txt`) and `muslimtify_gui_lib` (`src/gui/`, in `src/gui/CMakeLists.txt`, behind `BUILD_GUI`), each added with `add_subdirectory`; the `muslimtify` binary's entry point is `src/cli/main.c` and `muslimtify-gui`'s is `src/gui/main.c`.
 - **Notifications:** libnotify (Linux), WinRT toast (Windows). **HTTP:** libcurl (system lib on Linux, FetchContent-vendored on Windows).
 - **Daemon:** a long-running `Type=simple` systemd *user* service that runs `muslimtify daemon run` — a self-scheduling loop (`src/core/daemon_loop.c`). There is no timer. The one-shot cycle is `run_check_cycle()` (`src/core/check_cycle.c`), which the loop calls once per minute and the Windows service (`src/platform/windows/muslimtify_service_win.c`) also calls. It has no CLI command of its own.
 
@@ -20,10 +20,12 @@ Five tests are Linux-only (guarded by `if(NOT WIN32)`): `cmd_daemon`, `muslimtif
 ## Layout
 - `src/core/` — platform-agnostic logic: config, cache, location (ipinfo.io via libcurl), country, prayer_checker, check_cycle, daemon_loop, display.
 - `src/cli/` — a self-contained presentation layer: dispatch (`cli.c`), one `cmd_*.c` per command, its own headers (`cli.h`, `cli_internal.h`, `display.h`, `daemon_loop.h`), its entry point `main.c` and its `CMakeLists.txt`. Daemon is `cmd_daemon.c` (Linux) / `cmd_daemon_win.c` (Windows). It includes `muslimtify.h`, `muslimtify_cycle.h` and the platform interface headers, never a core header.
+- `src/gui/` — the other presentation layer, same shape: widgets (`content.c`, `header.c`, `widgets.c`), `themes.c`, `fonts.c`, its own `gui.json` preference file (`gui_config.c`), its own headers, its entry point `main.c`, its `.clang-format` and its `CMakeLists.txt`, which fetches ccompose. It includes `muslimtify.h`, `json.h` and the platform interface headers, never a core header. The `layers` ctest enforces this for both layers.
 - `src/platform/{linux,windows}/` — notification, platform paths, timezone.
-- `include/` — the back end's headers. `muslimtify.h` is the library API a presentation layer uses, `muslimtify_cycle.h` is the check cycle for the daemon loop only, and `platform.h` and `notification.h` are the platform interfaces. The rest are core headers that only `src/core`, `src/lib` and the tests include. `src/json.h` is a bespoke JSON parser used by config + `tests/test_json.c`.
+- `include/` — the back end's headers. `muslimtify.h` is the library API a presentation layer uses, `muslimtify_cycle.h` is the check cycle for the daemon loop only, and `platform.h` and `notification.h` are the platform interfaces. The rest are core headers that only `src/core`, `src/lib` and the tests include. `json.h` is a bespoke single-header JSON parser that any layer may include; config, the cache, the GUI's preference file and `tests/test_json.c` use it.
 - `vendor/` — vendored upstream sources, already on every target's include path. `prayertimes.h` is the header-only astronomical formulas (see `docs/KEMENAG_METHOD.md`), synced from muslimtify-org/libmuslim, not edited here. `miniaudio.h` likewise. Each is emitted by a dedicated one-line TU under `src/core/`.
 - `.packages/{aur,fedora,debian,winget}` — distro packaging. `systemd/muslimtify.service.in` is a `configure_file` template.
+- `assets/` — the adhan, the icons and the GUI fonts (`assets/fonts/manrope/`), installed under `share/muslimtify/`.
 
 ## Style
 - clang-format: LLVM base, 2-space indent, 100 columns, attach braces, case-sensitive sorted includes (`.clang-format`). CI runs `clang-format --dry-run --Werror`.

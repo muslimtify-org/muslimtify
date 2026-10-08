@@ -92,7 +92,7 @@ endif()
 
 # -- GUI option ---------------------------------------------------------------
 
-option(BUILD_GUI "Build muslimtify-gui target" ON)
+option(BUILD_GUI "Build the graphical frontend" ON)
 
 # -- Generated version header -------------------------------------------------
 
@@ -257,13 +257,6 @@ if(BUILD_TESTING)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)
         add_test(NAME daemon_loop COMMAND test_daemon_loop)
 
-        add_executable(test_gui_config tests/test_gui_config.c src/gui/gui_config.c)
-        muslimtify_set_target_defaults(test_gui_config)
-        target_include_directories(test_gui_config PRIVATE
-            ${PROJECT_SOURCE_DIR}/src/gui ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_gui_config muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME gui_config COMMAND test_gui_config)
-
         # A presentation layer may include only muslimtify.h, muslimtify_cycle.h,
         # the platform interface headers and its own headers. Each layer directory
         # is listed here, so adding one means adding it to this line.
@@ -311,6 +304,13 @@ if(BUILD_TESTING)
     muslimtify_link_test(test_config)
     add_test(NAME config COMMAND test_config)
     muslimtify_isolate_test(config)
+
+    add_executable(test_gui_config tests/test_gui_config.c src/gui/gui_config.c)
+    muslimtify_set_target_defaults(test_gui_config)
+    target_include_directories(test_gui_config PRIVATE ${PROJECT_SOURCE_DIR}/src/gui)
+    muslimtify_link_test(test_gui_config)
+    add_test(NAME gui_config COMMAND test_gui_config)
+    muslimtify_isolate_test(gui_config)
 
     add_executable(test_muslimtify_cycle tests/test_muslimtify_cycle.c)
     muslimtify_set_target_defaults(test_muslimtify_cycle)

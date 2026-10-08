@@ -1,10 +1,11 @@
-#define _GNU_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#include "test_support.h"
+
 #include "gui_config.h"
 #include "platform.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 static int passed = 0;
 static int failed = 0;
@@ -21,24 +22,20 @@ static void check_bool(const char *test, bool cond) {
 }
 
 static void setup(void) {
-  snprintf(tmpdir, sizeof(tmpdir), "/tmp/mt_guicfgtest_XXXXXX");
-  if (!mkdtemp(tmpdir)) {
-    fprintf(stderr, "FATAL: mkdtemp failed\n");
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "guicfg")) {
+    fprintf(stderr, "FATAL: cannot create a temp directory\n");
     exit(1);
   }
-  setenv("XDG_CONFIG_HOME", tmpdir, 1);
+  test_set_config_home(tmpdir);
 }
 
 static void teardown(void) {
-  char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
-  if (system(cmd) != 0) { /* best-effort cleanup */
-  }
+  test_remove_tree(tmpdir);
 }
 
 static void write_raw(const char *content) {
   const char *path = gui_config_get_path();
-  unlink(path);
+  remove(path);
   if (content == NULL)
     return;
 
