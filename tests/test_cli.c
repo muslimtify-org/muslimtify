@@ -1338,7 +1338,7 @@ static void test_notification(void) {
   }
 
   // --adhan stop works on every platform (no-op when nothing is playing)
-  if (!test_known_windows_gap("would signal the named adhan stop event of an installed app")) {
+  if (!test_unsafe_on_windows("would signal the named adhan stop event of an installed app")) {
     run(4, (char *[]){"m", "notification", "--adhan", "stop", NULL});
     check_ret("notification adhan stop ret", 0);
     check_contains("notification adhan stop msg", "adhan");

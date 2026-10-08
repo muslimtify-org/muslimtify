@@ -173,11 +173,12 @@ static inline bool test_symlink(const char *target, const char *link_path) {
 #endif
 }
 
-/* True on Windows, after saying why, for a case the product gets wrong there.
-   Wrap the case in `if (!test_known_windows_gap("reason")) { ... }`. */
-static inline bool test_known_windows_gap(const char *reason) {
+/* True on Windows, after saying why, for a case that would reach outside the
+   test there, such as a named event shared with an installed copy. Wrap the
+   case in `if (!test_unsafe_on_windows("reason")) { ... }`. */
+static inline bool test_unsafe_on_windows(const char *reason) {
 #ifdef _WIN32
-  printf("  SKIP (windows gap): %s\n", reason);
+  printf("  SKIP (unsafe here): %s\n", reason);
   return true;
 #else
   (void)reason;
