@@ -194,6 +194,10 @@ if(WIN32)
     set_source_files_properties(
         src/platform/windows/windows_zones_generated.inc
         PROPERTIES HEADER_FILE_ONLY ON)
+    # miniaudio.h is vendored and not edited here, so its one narrowing
+    # conversion warning is silenced for the file that compiles it.
+    set_source_files_properties(src/core/miniaudio.c
+        PROPERTIES COMPILE_OPTIONS /wd4244)
 else()
     target_include_directories(muslimtify_core PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
