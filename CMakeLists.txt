@@ -107,6 +107,9 @@ function(muslimtify_set_target_defaults target)
     )
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
+        # The C runtime marks the standard string and file functions as unsafe
+        # and recommends its own _s variants, which no other platform has.
+        target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
     else()
         target_compile_options(${target} PRIVATE
             -Wall -Wextra -Wpedantic -Wshadow -Wformat=2
