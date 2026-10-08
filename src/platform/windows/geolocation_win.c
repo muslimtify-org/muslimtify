@@ -129,8 +129,12 @@ GpsStatus platform_get_location(PlatformLatLng *latlong) {
         goto done;
       if (st != Started)
         break;
-      if (GetTickCount() - start > GEO_POLL_DEADLINE_MS)
+      if (GetTickCount() - start > GEO_POLL_DEADLINE_MS) {
+        /* The operation outlived its own timeout. Ask it to stop before it is
+         * released, so the lookup does not keep running unobserved. */
+        info->lpVtbl->Cancel(info);
         goto done; /* stays GPS_NO_FIX: timeout */
+      }
       Sleep(GEO_POLL_MS);
     }
 
