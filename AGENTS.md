@@ -15,7 +15,7 @@ cmake --build build                                  # MSVC: append --config Rel
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R <name> --output-on-failure # single test
 ```
-Many tests are Linux-only (guarded by `if(NOT WIN32)`). Add new tests with `add_executable` + `add_test` in `CMakeLists.txt`.
+Five tests are Linux-only (guarded by `if(NOT WIN32)`): `cmd_daemon`, `muslimtify_daemon`, `daemon_loop`, `notification_interrupt` and `layers`. The rest run on both platforms, and `tests/test_support.h` holds what they need from the operating system. Add new tests with `add_executable` + `add_test` in `CMakeLists.txt`.
 
 ## Layout
 - `src/core/` — platform-agnostic logic: config, cache, location (ipinfo.io via libcurl), country, prayer_checker, check_cycle, daemon_loop, display.
