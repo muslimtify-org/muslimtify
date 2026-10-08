@@ -1,6 +1,7 @@
 #include "location.h"
 #include "country.h"
 #include "json.h"
+#include "log.h"
 #include "platform.h"
 #include "string_util.h"
 #include <curl/curl.h>
@@ -36,7 +37,7 @@ typedef struct {
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
   // Guard against integer overflow in size * nmemb
   if (nmemb != 0 && size > SIZE_MAX / nmemb) {
-    fprintf(stderr, "Error: Response chunk too large\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Response chunk too large");
     return 0;
   }
   size_t realsize = size * nmemb;
@@ -44,13 +45,13 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 
   // Guard against overflow in buf->size + realsize + 1
   if (realsize > SIZE_MAX - buf->size - 1) {
-    fprintf(stderr, "Error: Response too large\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Response too large");
     return 0;
   }
 
   char *ptr = realloc(buf->data, buf->size + realsize + 1);
   if (!ptr) {
-    fprintf(stderr, "Error: Not enough memory for response\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Not enough memory for response");
     return 0;
   }
 
@@ -66,7 +67,7 @@ static bool location_trunc_logged = false;
 
 static void location_log_trunc(const char *field) {
   if (!location_trunc_logged) {
-    fprintf(stderr, "location: truncated field %s\n", field ? field : "(unknown)");
+    MT_LOGF(MT_LOG_WARNING, "location: truncated field %s", field ? field : "(unknown)");
     location_trunc_logged = true;
   }
 }
@@ -107,20 +108,39 @@ CURLcode location_harden_curl(CURL *curl) {
 
 int location_parse_ipinfo(Config *cfg, char *body);
 
+// libcurl's global state is initialised once, by the library, on the first
+// lookup, so no host program has to know libcurl is involved. libcurl requires
+// this to happen before other threads use it, which the public header states.
+static bool ensure_curl_global(void) {
+  static bool ready = false;
+  if (ready)
+    return true;
+  CURLcode rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+  if (rc != CURLE_OK) {
+    MT_LOGF(MT_LOG_ERROR, "Error: Failed to initialize libcurl: %s", curl_easy_strerror(rc));
+    return false;
+  }
+  (void)atexit(curl_global_cleanup);
+  ready = true;
+  return true;
+}
+
 static int location_fetch_ipinfo(Config *cfg) {
   if (!cfg)
+    return -1;
+  if (!ensure_curl_global())
     return -1;
 
   CURL *curl = curl_easy_init();
   if (!curl) {
-    fprintf(stderr, "Error: Failed to initialize libcurl\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Failed to initialize libcurl");
     return -1;
   }
 
   ResponseBuffer response = {0};
   response.data = malloc(1);
   if (!response.data) {
-    fprintf(stderr, "Error: Not enough memory\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Not enough memory");
     curl_easy_cleanup(curl);
     return -1;
   }
@@ -137,7 +157,7 @@ static int location_fetch_ipinfo(Config *cfg) {
   // Fail closed: if the TLS/protocol hardening cannot be applied, do not fall
   // back to an unhardened transfer.
   if (location_harden_curl(curl) != CURLE_OK) {
-    fprintf(stderr, "Error: Failed to apply TLS hardening to curl handle\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Failed to apply TLS hardening to curl handle");
     curl_easy_cleanup(curl);
     free(response.data);
     return -1;
@@ -146,7 +166,7 @@ static int location_fetch_ipinfo(Config *cfg) {
   CURLcode res = curl_easy_perform(curl);
 
   if (res != CURLE_OK) {
-    fprintf(stderr, "Error: Failed to fetch location: %s\n", curl_easy_strerror(res));
+    MT_LOGF(MT_LOG_ERROR, "Error: Failed to fetch location: %s", curl_easy_strerror(res));
     curl_easy_cleanup(curl);
     free(response.data);
     return -1;
@@ -157,7 +177,7 @@ static int location_fetch_ipinfo(Config *cfg) {
   curl_easy_cleanup(curl);
 
   if (http_code != 200) {
-    fprintf(stderr, "Error: Location API returned HTTP %ld\n", http_code);
+    MT_LOGF(MT_LOG_ERROR, "Error: Location API returned HTTP %ld", http_code);
     free(response.data);
     return -1;
   }
@@ -185,7 +205,7 @@ int location_parse_ipinfo(Config *cfg, char *body) {
   char *loc_str = get_value(ctx, "loc", body);
   char *comma = loc_str ? strchr(loc_str, ',') : NULL;
   if (!comma) {
-    fprintf(stderr, "Error: Location API returned no coordinates\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Location API returned no coordinates");
     json_end(ctx);
     return -1;
   }
@@ -197,7 +217,7 @@ int location_parse_ipinfo(Config *cfg, char *body) {
   if (lat_end == loc_str || *lat_end != '\0' || lon_end == comma + 1 || *lon_end != '\0' ||
       !isfinite(lat) || !isfinite(lon) || lat < -90.0 || lat > 90.0 || lon < -180.0 ||
       lon > 180.0) {
-    fprintf(stderr, "Error: Location API returned invalid coordinates\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Location API returned invalid coordinates");
     json_end(ctx);
     return -1;
   }
@@ -205,11 +225,11 @@ int location_parse_ipinfo(Config *cfg, char *body) {
   cfg->longitude = lon;
 
   // Parse timezone. Reject a hostile/garbage value from the network before it
-  // reaches setenv("TZ")/tzset() or gets persisted to config.
+  // reaches the zone lookup or gets persisted to config.
   char *tz_str = get_value(ctx, "timezone", body);
   if (tz_str) {
     if (!timezone_exists(tz_str)) {
-      fprintf(stderr, "location: ignoring invalid/unknown timezone from API\n");
+      MT_LOGF(MT_LOG_WARNING, "location: ignoring invalid/unknown timezone from API");
     } else {
       if (!copy_string(cfg->timezone, sizeof(cfg->timezone), tz_str)) {
         location_log_trunc("timezone");
@@ -224,9 +244,13 @@ int location_parse_ipinfo(Config *cfg, char *body) {
   // actual city) and feeds nothing functional in the calculation pipeline.
 
   // Parse country
+  // Only a two-letter code is a country. Anything else from the network is
+  // dropped rather than persisted and later printed.
   char *country_str = get_value(ctx, "country", body);
   if (country_str) {
-    if (!copy_string(cfg->country, sizeof(cfg->country), country_str)) {
+    if (!country_is_valid_alpha2(country_str)) {
+      MT_LOGF(MT_LOG_WARNING, "location: ignoring invalid country from API");
+    } else if (!copy_string(cfg->country, sizeof(cfg->country), country_str)) {
       location_log_trunc("country");
     }
   }
@@ -287,146 +311,38 @@ GpsStatus location_fetch_gps(Config *cfg) {
   return GPS_OK; // country intentionally left unchanged
 }
 
-int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *)) {
+int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *),
+                        GpsStatus *gps_status) {
   if (!cfg)
     return -1;
 
+  GpsStatus st = GPS_OK;
   if (cfg->use_gps) {
-    GpsStatus st = gps(cfg);
-    if (st == GPS_OK)
+    st = gps(cfg);
+    if (st == GPS_OK) {
+      if (gps_status)
+        *gps_status = st;
       return 0; // GPS fix wins
+    }
 
     // Structural failure: the daemon or hardware is genuinely gone and will not
-    // come back on its own. Warn once and auto-disable so we stop paying the
-    // probe cost every cycle; whoever saves *cfg persists use_gps.
-    if (st == GPS_NO_DAEMON || st == GPS_NO_DEVICE || st == GPS_UNAVAILABLE) {
-      fprintf(stderr, "%s\n", gps_status_message(st));
+    // come back on its own. Auto-disable so we stop paying the probe cost every
+    // cycle; whoever saves *cfg persists use_gps.
+    if (st == GPS_NO_DAEMON || st == GPS_NO_DEVICE || st == GPS_UNAVAILABLE)
       cfg->use_gps = false;
-    } else if (st == GPS_NO_PERMISSION) {
-      // Fixable by the user in OS settings, so warn but stay enabled: the next
-      // fetch after they grant access succeeds with no further action. Cheap to
-      // retry — a denied Windows lookup fails in roughly 50ms.
-      fprintf(stderr, "%s\n", gps_status_message(st));
-    }
-    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled and silent, and fall
-    // through to ipinfo for this cycle; GPS is retried on the next fetch.
+    // GPS_NO_PERMISSION: fixable by the user in OS settings, so stay enabled:
+    // the next fetch after they grant access succeeds with no further action.
+    // GPS_NO_FIX: transient (e.g. indoors). Stay enabled, and fall through to
+    // ipinfo for this cycle; GPS is retried on the next fetch.
   }
 
+  if (gps_status)
+    *gps_status = st;
   return ipinfo(cfg);
 }
 
-int location_fetch(Config *cfg) {
-  return location_fetch_core(cfg, location_fetch_gps, location_fetch_ipinfo);
-}
-
-int config_auto_detect(Config *cfg) {
-  if (!cfg)
-    return -1;
-  if (location_fetch(cfg) != 0)
-    return -1;
-  copy_string(cfg->calculation_method, sizeof(cfg->calculation_method),
-              method_to_string(country_default_method(cfg->country)));
-  return 0;
-}
-
-int location_prepare(Config *cfg) {
-  if (!cfg)
-    return -1;
-
-  if (config_location_needs_detect(cfg)) {
-    if (location_fetch(cfg) != 0) {
-      return -1;
-    }
-
-    if (config_save(cfg) != 0) {
-      fprintf(stderr, "Error: Failed to save config\n");
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-/* Core of ensure_location with the prepare step injected, so tests can check
- * where the status lines go without a network round-trip. Non-static (declared
- * test-only) to keep the seam out of the public header.
- *
- * Status lines go to stderr: `show --json` and `--headless` reach this path,
- * and their stdout must stay machine-readable on a first run. */
-int ensure_location_with(Config *cfg, int (*prepare)(Config *)) {
-  if (!cfg)
-    return -1;
-
-  if (config_location_needs_detect(cfg)) {
-    fprintf(stderr, "Detecting location...\n");
-    if (prepare(cfg) != 0) {
-      fprintf(stderr, "Error: Failed to detect location\n");
-      return -1;
-    }
-
-    fprintf(stderr, "✓ Location detected: ");
-    if (cfg->city[0] != '\0') {
-      fprintf(stderr, "%s, %s\n", cfg->city, cfg->country);
-    } else {
-      fprintf(stderr, "%.4f, %.4f\n", cfg->latitude, cfg->longitude);
-    }
-
-    return 0;
-  }
-
-  int prepare_result = prepare(cfg);
-  if (prepare_result < 0) {
-    fprintf(stderr, "Error: Failed to detect location\n");
-    return -1;
-  }
-
-  if (prepare_result == 1) {
-    fprintf(stderr, "Detecting location...\n");
-    fprintf(stderr, "✓ Location detected: ");
-    if (cfg->city[0] != '\0') {
-      fprintf(stderr, "%s, %s\n", cfg->city, cfg->country);
-    } else {
-      fprintf(stderr, "%.4f, %.4f\n", cfg->latitude, cfg->longitude);
-    }
-  }
-
-  return 0;
-}
-
-int ensure_location(Config *cfg) {
-  return ensure_location_with(cfg, location_prepare);
-}
-
-/* Core of location_refresh with the fetch step injected, so tests can drive the
- * copy-then-commit fail-safe deterministically without a network round-trip.
- * Non-static (declared test-only) to keep the seam out of the public header. */
-int location_refresh_with(Config *cfg, int (*fetch)(Config *)) {
-  if (!cfg)
-    return -1;
-
-  /* Respect a manually-configured location: only auto-detected setups get
-   * refreshed. */
-  if (!cfg->auto_detect)
-    return 0;
-
-  /* Fetch into a copy so a failed/partial lookup cannot clobber the cached
-   * coordinates. The struct holds only fixed-size fields, so a shallow copy
-   * is a complete snapshot. */
-  Config candidate = *cfg;
-  if (fetch(&candidate) != 0)
-    return -1; /* keep *cfg (last known good) untouched */
-
-  *cfg = candidate;
-  if (config_save(cfg) != 0) {
-    fprintf(stderr, "Error: Failed to save refreshed location\n");
-    return -1;
-  }
-
-  return 0;
-}
-
-int location_refresh(Config *cfg) {
-  return location_refresh_with(cfg, location_fetch);
+int location_detect(Config *cfg, GpsStatus *gps_status) {
+  return location_fetch_core(cfg, location_fetch_gps, location_fetch_ipinfo, gps_status);
 }
 
 bool location_is_stale(const Config *cfg, int64_t now) {

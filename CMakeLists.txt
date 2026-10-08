@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22...3.31)
-project(muslimtify VERSION 0.4.2 LANGUAGES C)
+project(muslimtify VERSION 0.4.3 LANGUAGES C)
 
 # -- Default build type --------------------------------------------------------
 
@@ -113,14 +113,19 @@ configure_file(systemd/muslimtify.service.in ${CMAKE_BINARY_DIR}/systemd/muslimt
 # -- Helper function ----------------------------------------------------------
 
 function(muslimtify_set_target_defaults target)
+    # PROJECT_SOURCE_DIR, not CMAKE_CURRENT_SOURCE_DIR: inside a function the
+    # latter is the calling directory, and src/cli calls this too.
     target_include_directories(${target} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/vendor
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/vendor
         ${CMAKE_BINARY_DIR}/generated
     )
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
+        # The C runtime marks the standard string and file functions as unsafe
+        # and recommends its own _s variants, which no other platform has.
+        target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
     else()
         target_compile_options(${target} PRIVATE
             -Wall -Wextra -Wpedantic -Wshadow -Wformat=2
@@ -135,6 +140,31 @@ function(muslimtify_set_target_defaults target)
     endif()
 endfunction()
 
+# Include and link lines for a test that links the back end. Extra arguments are
+# libraries that go before muslimtify_core, such as muslimtify_cli.
+function(muslimtify_link_test target)
+    if(WIN32)
+        target_include_directories(${target} PRIVATE ${curl_SOURCE_DIR}/include)
+        target_link_libraries(${target}
+            ${ARGN} muslimtify_core CURL::libcurl ole32 runtimeobject)
+    else()
+        target_include_directories(${target} PRIVATE
+            ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(${target}
+            ${ARGN} muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+    endif()
+endfunction()
+
+# On Windows an unset APPDATA or LOCALAPPDATA falls back to the user's profile,
+# so a test that forgot to set its own would reach the real config and cache.
+# Under ctest both point into the build tree instead.
+function(muslimtify_isolate_test name)
+    if(WIN32)
+        set_tests_properties(${name} PROPERTIES ENVIRONMENT
+            "APPDATA=${CMAKE_BINARY_DIR}/test-home;LOCALAPPDATA=${CMAKE_BINARY_DIR}/test-home")
+    endif()
+endfunction()
+
 # -- Object libraries ---------------------------------------------------------
 # muslimtify_core: platform-agnostic + platform abstraction
 # muslimtify_cli : CLI dispatcher + command handlers
@@ -144,20 +174,23 @@ add_library(muslimtify_core OBJECT
     src/core/cache.c
     src/core/location.c
     src/core/string_util.c
+    src/core/log.c
     src/core/country.c
     src/core/prayer_checker.c
     src/core/check_cycle.c
     src/core/miniaudio.c
     src/core/audio.c
-    # daemon_loop.c is POSIX-only (sigaction/nanosleep); Windows uses the
-    # Task Scheduler path in cmd_daemon_win.c and never calls run_daemon_loop.
-    $<$<NOT:$<BOOL:${WIN32}>>:src/core/daemon_loop.c>
     src/core/prayertimes.c
-    src/core/display.c
+    src/lib/muslimtify.c
+    src/lib/muslimtify_settings.c
+    src/lib/muslimtify_location.c
+    src/lib/muslimtify_cycle.c
+    src/lib/muslimtify_daemon.c
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/notification_win.c,src/platform/linux/notification.c>
     $<$<BOOL:${WIN32}>:src/platform/windows/toast_activator_win.c>
     $<IF:$<BOOL:${WIN32}>,src/platform/windows/platform_win.c,src/platform/posix/platform_posix.c>
     $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/platform_linux.c>
+    $<IF:$<BOOL:${WIN32}>,src/platform/windows/daemon_win.c,src/platform/linux/daemon.c>
     # Exactly one location provider is compiled per platform, so
     # platform_get_location has a single definition and core code needs no ifdefs.
     $<$<NOT:$<BOOL:${WIN32}>>:src/platform/linux/gpsd_client.c>
@@ -166,24 +199,10 @@ add_library(muslimtify_core OBJECT
 )
 muslimtify_set_target_defaults(muslimtify_core)
 
-add_library(muslimtify_cli OBJECT
-    src/cli/cli.c
-    src/cli/cmd_show.c
-    src/cli/cmd_location.c
-    src/cli/cmd_prayer.c
-    $<IF:$<BOOL:${WIN32}>,src/cli/cmd_daemon_win.c,src/cli/cmd_daemon.c>
-    src/cli/cmd_method.c
-    src/cli/cmd_notification.c
-    src/cli/cmd_timeformat.c
-)
-muslimtify_set_target_defaults(muslimtify_cli)
-
 if(WIN32)
     target_include_directories(muslimtify_core PRIVATE ${curl_SOURCE_DIR}/include)
-    target_include_directories(muslimtify_cli  PRIVATE ${curl_SOURCE_DIR}/include)
     # Static curl: prevent its headers from emitting __declspec(dllimport).
     target_compile_definitions(muslimtify_core PRIVATE CURL_STATICLIB)
-    target_compile_definitions(muslimtify_cli  PRIVATE CURL_STATICLIB)
     # windows_zones_generated.inc is #included by timezone.c, never compiled on
     # its own. List it so IDEs surface it and CMake tracks it as a build input.
     target_sources(muslimtify_core PRIVATE
@@ -191,30 +210,19 @@ if(WIN32)
     set_source_files_properties(
         src/platform/windows/windows_zones_generated.inc
         PROPERTIES HEADER_FILE_ONLY ON)
+    # miniaudio.h is vendored and not edited here, so its one narrowing
+    # conversion warning is silenced for the file that compiles it.
+    set_source_files_properties(src/core/miniaudio.c
+        PROPERTIES COMPILE_OPTIONS /wd4244)
 else()
     target_include_directories(muslimtify_core PRIVATE
-        ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-    target_include_directories(muslimtify_cli  PRIVATE
         ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
     target_link_libraries(muslimtify_core PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 endif()
 
-# -- Main executable ----------------------------------------------------------
+# -- Presentation layers ------------------------------------------------------
 
-add_executable(muslimtify src/muslimtify.c)
-muslimtify_set_target_defaults(muslimtify)
-
-if(WIN32)
-    target_include_directories(muslimtify PRIVATE ${curl_SOURCE_DIR}/include)
-    target_compile_definitions(muslimtify PRIVATE CURL_STATICLIB)
-    target_link_libraries(muslimtify
-        muslimtify_cli muslimtify_core ole32 runtimeobject CURL::libcurl)
-else()
-    target_include_directories(muslimtify PRIVATE
-        ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-    target_link_libraries(muslimtify
-        muslimtify_cli muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-endif()
+add_subdirectory(src/cli)
 
 # -- GUI ----------------------------------------------------------------------
 
@@ -231,66 +239,36 @@ if(BUILD_TESTING)
     enable_testing()
 
     if(NOT WIN32)
-        add_executable(test_cli tests/test_cli.c)
-        muslimtify_set_target_defaults(test_cli)
-        target_include_directories(test_cli PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_cli
-            muslimtify_cli muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m
-        )
-        add_test(NAME cli COMMAND test_cli)
+        add_executable(test_muslimtify_daemon tests/test_muslimtify_daemon.c)
+        muslimtify_set_target_defaults(test_muslimtify_daemon)
+        target_include_directories(test_muslimtify_daemon PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_muslimtify_daemon muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        add_test(NAME muslimtify_daemon COMMAND test_muslimtify_daemon)
 
-        add_executable(test_prayer_checker tests/test_prayer_checker.c)
-        muslimtify_set_target_defaults(test_prayer_checker)
-        target_include_directories(test_prayer_checker PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_prayer_checker muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME prayer_checker COMMAND test_prayer_checker)
-
-        add_executable(test_config tests/test_config.c)
-        muslimtify_set_target_defaults(test_config)
-        target_include_directories(test_config PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_config muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME config COMMAND test_config)
-
-        add_executable(test_cache tests/test_cache.c)
-        muslimtify_set_target_defaults(test_cache)
-        target_include_directories(test_cache PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_cache muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME cache COMMAND test_cache)
-
-        add_executable(test_check_cycle tests/test_check_cycle.c)
-        muslimtify_set_target_defaults(test_check_cycle)
-        target_include_directories(test_check_cycle PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_check_cycle muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME check_cycle COMMAND test_check_cycle)
-
-        add_executable(test_display tests/test_display.c)
-        muslimtify_set_target_defaults(test_display)
-        target_include_directories(test_display PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_display muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME display COMMAND test_display)
-
-        add_executable(test_offset_bound tests/test_offset_bound.c)
-        muslimtify_set_target_defaults(test_offset_bound)
-        target_include_directories(test_offset_bound PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_link_libraries(test_offset_bound muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
-        add_test(NAME offset_bound COMMAND test_offset_bound)
+        add_executable(test_notification_interrupt tests/test_notification_interrupt.c)
+        muslimtify_set_target_defaults(test_notification_interrupt)
+        target_include_directories(test_notification_interrupt PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
+        target_link_libraries(test_notification_interrupt muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
+        add_test(NAME notification_interrupt COMMAND test_notification_interrupt)
+        set_tests_properties(notification_interrupt PROPERTIES ENVIRONMENT "DBUS_SESSION_BUS_ADDRESS=disabled:")
 
         add_executable(test_cmd_daemon
             tests/test_cmd_daemon.c
-            src/cli/cmd_daemon.c
+            src/platform/linux/daemon.c
             src/platform/posix/platform_posix.c
             src/platform/linux/platform_linux.c
+            src/core/log.c
         )
         muslimtify_set_target_defaults(test_cmd_daemon)
         target_include_directories(test_cmd_daemon PRIVATE ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
-        target_compile_definitions(test_cmd_daemon PRIVATE MUSLIMTIFY_CMD_DAEMON_TEST)
         add_test(NAME cmd_daemon COMMAND test_cmd_daemon)
 
         add_executable(test_daemon_loop
             tests/test_daemon_loop.c
-            src/core/daemon_loop.c
+            src/cli/daemon_loop.c
         )
         muslimtify_set_target_defaults(test_daemon_loop)
+        target_include_directories(test_daemon_loop PRIVATE ${PROJECT_SOURCE_DIR}/src/cli)
         target_compile_definitions(test_daemon_loop PRIVATE MUSLIMTIFY_DAEMON_LOOP_TEST)
         add_test(NAME daemon_loop COMMAND test_daemon_loop)
 
@@ -300,7 +278,72 @@ if(BUILD_TESTING)
             ${CMAKE_SOURCE_DIR}/gui/include ${LIBNOTIFY_INCLUDE_DIRS} ${LIBCURL_INCLUDE_DIRS})
         target_link_libraries(test_gui_config muslimtify_core ${LIBNOTIFY_LIBRARIES} ${LIBCURL_LIBRARIES} m)
         add_test(NAME gui_config COMMAND test_gui_config)
+
+        # A presentation layer may include only muslimtify.h, muslimtify_cycle.h,
+        # the platform interface headers and its own headers. Each layer directory
+        # is listed here, so adding one means adding it to this line.
+        add_test(NAME layers
+            COMMAND sh ${PROJECT_SOURCE_DIR}/tests/check_layers.sh ${PROJECT_SOURCE_DIR} src/cli)
     endif()
+
+    add_executable(test_prayer_checker tests/test_prayer_checker.c)
+    muslimtify_set_target_defaults(test_prayer_checker)
+    muslimtify_link_test(test_prayer_checker)
+    add_test(NAME prayer_checker COMMAND test_prayer_checker)
+    muslimtify_isolate_test(prayer_checker)
+
+    add_executable(test_check_cycle tests/test_check_cycle.c)
+    muslimtify_set_target_defaults(test_check_cycle)
+    muslimtify_link_test(test_check_cycle)
+    add_test(NAME check_cycle COMMAND test_check_cycle)
+    muslimtify_isolate_test(check_cycle)
+
+    add_executable(test_display tests/test_display.c)
+    muslimtify_set_target_defaults(test_display)
+    muslimtify_link_test(test_display)
+    add_test(NAME display COMMAND test_display)
+    muslimtify_isolate_test(display)
+
+    add_executable(test_offset_bound tests/test_offset_bound.c)
+    muslimtify_set_target_defaults(test_offset_bound)
+    muslimtify_link_test(test_offset_bound)
+    add_test(NAME offset_bound COMMAND test_offset_bound)
+    muslimtify_isolate_test(offset_bound)
+
+    add_executable(test_cache tests/test_cache.c)
+    muslimtify_set_target_defaults(test_cache)
+    muslimtify_link_test(test_cache)
+    add_test(NAME cache COMMAND test_cache)
+    muslimtify_isolate_test(cache)
+
+    add_executable(test_log tests/test_log.c src/core/log.c)
+    muslimtify_set_target_defaults(test_log)
+    add_test(NAME log COMMAND test_log)
+    muslimtify_isolate_test(log)
+
+    add_executable(test_config tests/test_config.c)
+    muslimtify_set_target_defaults(test_config)
+    muslimtify_link_test(test_config)
+    add_test(NAME config COMMAND test_config)
+    muslimtify_isolate_test(config)
+
+    add_executable(test_muslimtify_cycle tests/test_muslimtify_cycle.c)
+    muslimtify_set_target_defaults(test_muslimtify_cycle)
+    muslimtify_link_test(test_muslimtify_cycle)
+    add_test(NAME muslimtify_cycle COMMAND test_muslimtify_cycle)
+    muslimtify_isolate_test(muslimtify_cycle)
+
+    add_executable(test_muslimtify tests/test_muslimtify.c)
+    muslimtify_set_target_defaults(test_muslimtify)
+    muslimtify_link_test(test_muslimtify)
+    add_test(NAME muslimtify COMMAND test_muslimtify)
+    muslimtify_isolate_test(muslimtify)
+
+    add_executable(test_cli tests/test_cli.c)
+    muslimtify_set_target_defaults(test_cli)
+    muslimtify_link_test(test_cli muslimtify_cli)
+    add_test(NAME cli COMMAND test_cli)
+    muslimtify_isolate_test(cli)
 
     # test_location is cross-platform; its parse_timezone_offset target lives
     # in muslimtify_core which links curl on both platforms.
@@ -339,7 +382,7 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME json COMMAND test_json)
 
-    add_executable(test_string_util tests/test_string_util.c src/core/string_util.c)
+    add_executable(test_string_util tests/test_string_util.c src/core/string_util.c src/core/log.c)
     muslimtify_set_target_defaults(test_string_util)
     add_test(NAME string_util COMMAND test_string_util)
 
@@ -348,17 +391,29 @@ if(BUILD_TESTING)
     add_test(NAME country COMMAND test_country)
 
     if(WIN32)
-        add_executable(test_cmd_daemon_win
-            tests/test_cmd_daemon_win.c
-            src/cli/cmd_daemon_win.c
+        # The stand-in the daemon test runs in place of schtasks.exe.
+        add_executable(fake_schtasks tests/fake_schtasks.c)
+        muslimtify_set_target_defaults(fake_schtasks)
+
+        # Compiles the daemon sources directly rather than linking
+        # muslimtify_core, so the test can supply its own toast activator
+        # functions and never write to the registry.
+        add_executable(test_muslimtify_daemon_win
+            tests/test_muslimtify_daemon_win.c
+            src/platform/windows/daemon_win.c
+            src/lib/muslimtify_daemon.c
             src/platform/windows/platform_win.c
+            src/core/log.c
         )
-        muslimtify_set_target_defaults(test_cmd_daemon_win)
-        add_test(NAME cmd_daemon_win COMMAND test_cmd_daemon_win)
+        muslimtify_set_target_defaults(test_muslimtify_daemon_win)
+        add_dependencies(test_muslimtify_daemon_win fake_schtasks)
+        add_test(NAME muslimtify_daemon_win
+            COMMAND test_muslimtify_daemon_win $<TARGET_FILE:fake_schtasks>)
 
         add_executable(test_notification_win
             tests/test_notification_win.c
             src/platform/windows/notification_win.c
+            src/core/log.c
         )
         muslimtify_set_target_defaults(test_notification_win)
         target_compile_definitions(test_notification_win PRIVATE MUSLIMTIFY_NOTIFICATION_WIN_TEST)
@@ -369,7 +424,6 @@ endif()
 
 # -- Install ------------------------------------------------------------------
 
-install(TARGETS muslimtify DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES assets/adhan.mp3
     DESTINATION ${CMAKE_INSTALL_DATADIR}/muslimtify/)
 

@@ -1,7 +1,5 @@
 #include "cli.h"
 #include "cli_internal.h"
-#include "config.h"
-#include "prayertimes.h"
 #include "util.h"
 #include "version.h"
 #include <stdbool.h>
@@ -30,7 +28,51 @@ int cli_unknown_prayer(const char *name) {
   return 1;
 }
 
-// --- migration stubs for removed top-level commands -----------------------
+int cli_fail(MuslimtifyError err) {
+  fprintf(stderr, "Error: %s\n", muslimtify_get_error(err));
+  return 1;
+}
+
+int cli_fail_value(MuslimtifyError err, const char *value) {
+  fprintf(stderr, "Error: %s '%s'\n", muslimtify_get_error(err), value);
+  return 1;
+}
+
+int cli_open(Muslimtify **mt) {
+  MuslimtifyError err = muslimtify_open(mt);
+  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
+}
+
+void cli_print_gps_warning(const MuslimtifyDetection *detection) {
+  const char *warning = muslimtify_detection_warning(detection);
+  if (warning)
+    fprintf(stderr, "%s\n", warning);
+}
+
+int cli_ensure_location(Muslimtify *mt) {
+  if (!muslimtify_location_needs_detect(mt))
+    return 0;
+
+  fprintf(stderr, "Detecting location...\n");
+  MuslimtifyDetection detection;
+  MuslimtifyError err = muslimtify_detect_location(mt, &detection);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+  cli_print_gps_warning(&detection);
+
+  MuslimtifyLocation loc;
+  err = muslimtify_save(mt);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_get_location(mt, &loc);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  if (loc.city[0] != '\0')
+    fprintf(stderr, "✓ Location detected: %s, %s\n", loc.city, loc.country);
+  else
+    fprintf(stderr, "✓ Location detected: %.4f, %.4f\n", loc.latitude, loc.longitude);
+  return 0;
+}
 
 static int removed_enable(int a, char **v) {
   (void)a;
@@ -64,8 +106,6 @@ static int removed_sound(int a, char **v) {
   return 1;
 }
 
-// --- top-level dispatch table -----------------------
-
 static const CommandEntry top_commands[] = {
     {"show", handle_show},
     {"location", handle_location},
@@ -88,8 +128,6 @@ static const CommandEntry top_commands[] = {
     {"-h", handle_help},
 };
 
-// --- version / help -----------------------
-
 int handle_version(int argc, char **argv) {
   if (cli_wants_help(argc, argv)) {
     printf("Usage: muslimtify version\n");
@@ -100,17 +138,17 @@ int handle_version(int argc, char **argv) {
 
   printf("Muslimtify v%s\n", MUSLIMTIFY_VERSION);
   printf("Prayer Time Notification Daemon\n\n");
-  Config cfg;
-  if (config_load(&cfg) == 0) {
-    CalcMethod m = method_from_string(cfg.calculation_method);
-    const MethodParams *p = method_params_get(m);
-    printf("Method: %s", cfg.calculation_method);
-    if (p)
-      printf(" (%s)", p->name);
+  Muslimtify *mt = NULL;
+  MuslimtifyMethodInfo info;
+  if (muslimtify_open(&mt) == MUSLIMTIFY_OK && muslimtify_get_method(mt, &info) == MUSLIMTIFY_OK) {
+    printf("Method: %s", info.key);
+    if (info.name[0] != '\0')
+      printf(" (%s)", info.name);
     printf("\n");
   } else {
-    printf("Method: kemenag (KEMENAG, Indonesia)\n");
+    printf("Method: unknown (the configuration could not be read)\n");
   }
+  muslimtify_close(mt);
 
   return 0;
 }
@@ -122,8 +160,6 @@ int handle_help(int argc, char **argv) {
   cli_print_help();
   return 0;
 }
-
-// --- public API -----------------------
 
 void cli_print_help(void) {
   printf("Muslimtify - Cross-platform Prayer Time Notification Daemon\n\n");
@@ -229,11 +265,7 @@ void cli_print_help(void) {
   /*
    * DAEMON
    */
-#ifdef _WIN32
-  printf("Scheduled Task Commands:\n");
-#else
   printf("Daemon Commands:\n");
-#endif
 
   printf("  %-25s %s\n", "daemon install", "Install and start the daemon");
 
@@ -280,7 +312,7 @@ void cli_print_help(void) {
   printf("\n");
 
   printf("Config File:\n");
-  printf("  %s\n", config_get_path());
+  printf("  %s\n", muslimtify_config_path());
 }
 
 int cli_run(int argc, char **argv) {

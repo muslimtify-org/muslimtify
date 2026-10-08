@@ -1,6 +1,7 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
 
@@ -163,6 +164,76 @@ typedef enum {
  * Geolocator. Returns GPS_OK with *latlong written, or a GpsStatus failure code.
  */
 GpsStatus platform_get_location(PlatformLatLng *latlong);
+
+/**
+ * Outcome of a platform_daemon_* call.
+ */
+typedef enum {
+  PLATFORM_DAEMON_OK = 0,
+  PLATFORM_DAEMON_UNSUPPORTED,    /* this platform has no implementation yet */
+  PLATFORM_DAEMON_NO_HOME,        /* the user's home directory could not be found */
+  PLATFORM_DAEMON_UNIT_FAILED,    /* the service file could not be written */
+  PLATFORM_DAEMON_RELOAD_FAILED,  /* the service manager would not reload */
+  PLATFORM_DAEMON_ENABLE_FAILED,  /* the service could not be enabled and started */
+  PLATFORM_DAEMON_BINARY_INVALID, /* the program to run is missing or not executable */
+  PLATFORM_DAEMON_MANAGER_FAILED  /* the service manager refused the request or could not be reached
+                                   */
+} PlatformDaemonResult;
+
+enum { PLATFORM_DAEMON_PATH_MAX = 512 };
+
+typedef struct {
+  bool installed; /* a service file for it exists */
+  bool enabled;   /* the service manager starts it at login */
+  bool running;   /* it is active right now */
+} PlatformDaemonStatus;
+
+typedef struct {
+  char binary_path[PLATFORM_DAEMON_PATH_MAX]; /* the program the service runs, "" if none was found
+                                               */
+  char unit_path[PLATFORM_DAEMON_PATH_MAX];   /* the service file written, "" if none */
+  bool legacy_timer_disabled;                 /* an old timer unit was switched off */
+} PlatformDaemonInstall;
+
+typedef struct {
+  bool stopped;
+  bool disabled;
+  bool legacy_timer_disabled;
+  bool unit_removed;
+  bool timer_removed;
+  char unit_path[PLATFORM_DAEMON_PATH_MAX];
+  char timer_path[PLATFORM_DAEMON_PATH_MAX];
+} PlatformDaemonUninstall;
+
+/**
+ * Register the background service for the current user and start it. On Linux
+ * the service runs `binary_path daemon run` under systemd. On Windows it is a
+ * scheduled task that runs binary_path, the muslimtify-service.exe helper, once
+ * a minute, and the toast activator is registered as well. A NULL binary_path,
+ * which is what every caller but a test passes, means the program found in a
+ * fixed list of known locations. Either way it must be an existing file, on
+ * Linux one the caller may execute, or nothing is installed and
+ * PLATFORM_DAEMON_BINARY_INVALID is returned. *out is zeroed first and then
+ * filled as the call proceeds, so on a failure it shows how far it got. Prints
+ * nothing: failure detail goes to the log handler.
+ */
+PlatformDaemonResult platform_daemon_install(const char *binary_path, PlatformDaemonInstall *out);
+
+/**
+ * Stop the service, switch it off and delete its files, or on Windows delete
+ * the scheduled task and unregister the toast activator. Succeeds when nothing
+ * was installed. *out says what was actually done.
+ */
+PlatformDaemonResult platform_daemon_uninstall(PlatformDaemonUninstall *out);
+
+/**
+ * Report the service's state. On Linux installed is true when a service file
+ * exists in the user's own directory or in a system-wide one, and always when
+ * the service is enabled or running. On Windows installed is true when the
+ * scheduled task exists, and enabled and running are both true when the task is
+ * not disabled.
+ */
+PlatformDaemonResult platform_daemon_status(PlatformDaemonStatus *out);
 
 #ifdef __cplusplus
 }

@@ -29,6 +29,14 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
 int notify_adhan_stop(void);
 
 /**
+ * Tell the notification layer the process is shutting down. A playing adhan
+ * stops within its poll interval, and any adhan started afterwards stops at
+ * its first poll. The request is never withdrawn. Safe to call from a signal
+ * handler: it only sets a flag.
+ */
+void notify_adhan_interrupt(void);
+
+/**
  * Send a prayer time notification with formatted time
  * minutes_before: 0 for exact time, >0 for reminder
  * sound_preset: "reminder", "alarm", "default", or NULL to silence.

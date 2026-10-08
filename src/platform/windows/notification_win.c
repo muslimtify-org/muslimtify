@@ -3,6 +3,7 @@
 #define COBJMACROS
 
 #include "audio.h"
+#include "log.h"
 #include "notification.h"
 #include "toast_activator.h"
 #include <stdio.h>
@@ -10,8 +11,6 @@
 #include <string.h>
 #include <wchar.h>
 #include <windows.h>
-
-/* -- WinRT type declarations ------------------------------------------------ */
 
 /* HSTRING types (from winstring.h) */
 typedef struct HSTRING__ {
@@ -228,8 +227,6 @@ interface IToastNotificationManagerStatics {
   CONST_VTBL struct IToastNotificationManagerStaticsVtbl *lpVtbl;
 };
 
-/* -- GUIDs ------------------------------------------------------------------ */
-
 static const IID IID_IToastNotificationManagerStatics = {
     0x50ac103f, 0xd235, 0x4598, {0xbb, 0xef, 0x98, 0xfe, 0x4d, 0x1a, 0x3a, 0xd4}};
 static const IID IID_IToastNotificationFactory = {
@@ -239,14 +236,10 @@ static const IID IID_IXmlDocument = {
 static const IID IID_IXmlDocumentIO = {
     0x6cd0e74e, 0xee65, 0x4489, {0x9e, 0xbf, 0xca, 0x43, 0xe8, 0x7b, 0xa6, 0x37}};
 
-/* -- Runtime class names ---------------------------------------------------- */
-
 static const WCHAR RuntimeClass_ToastNotificationManager[] =
     L"Windows.UI.Notifications.ToastNotificationManager";
 static const WCHAR RuntimeClass_ToastNotification[] = L"Windows.UI.Notifications.ToastNotification";
 static const WCHAR RuntimeClass_XmlDocument[] = L"Windows.Data.Xml.Dom.XmlDocument";
-
-/* -- RoAPI declarations ----------------------------------------------------- */
 
 #ifndef ROAPI
 #ifdef _ROAPI_
@@ -265,11 +258,7 @@ ROAPI void WINAPI RoUninitialize(void);
    avoid including shell headers that clash with our hand-rolled WinRT types. */
 DECLSPEC_IMPORT HRESULT WINAPI SetCurrentProcessExplicitAppUserModelID(PCWSTR AppID);
 
-/* -- AUMID for unpackaged app ----------------------------------------------- */
-
 static const WCHAR MUSLIMTIFY_AUMID[] = L"Muslimtify";
-
-/* -- File-static state ------------------------------------------------------ */
 
 typedef struct {
   IToastNotificationFactory *factory;
@@ -280,8 +269,6 @@ typedef struct {
 static NotifyState g_state = {0};
 
 #define WINDOWS_PATH_MAX 32768
-
-/* -- Helpers ---------------------------------------------------------------- */
 
 /* Convert UTF-8 string to UTF-16. Caller must free() the result. */
 static wchar_t *utf8_to_utf16(const char *utf8) {
@@ -730,7 +717,7 @@ static IToastNotification *create_toast_from_xml(const wchar_t *xml) {
   if (!SUCCEEDED(make_hstring_ref(RuntimeClass_XmlDocument, &hsh_xml_cls, &hs_xml_cls)))
     return NULL;
   if (!SUCCEEDED(RoActivateInstance(hs_xml_cls, &inspectable))) {
-    fprintf(stderr, "muslimtify: failed to create XmlDocument\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to create XmlDocument");
     return NULL;
   }
 
@@ -754,14 +741,14 @@ static IToastNotification *create_toast_from_xml(const wchar_t *xml) {
   hr = xml_io->lpVtbl->LoadXml(xml_io, hs_xml);
   xml_io->lpVtbl->Release(xml_io);
   if (!SUCCEEDED(hr)) {
-    fprintf(stderr, "muslimtify: LoadXml failed\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: LoadXml failed");
     xml_doc->lpVtbl->Release(xml_doc);
     return NULL;
   }
 
   if (!SUCCEEDED(
           g_state.factory->lpVtbl->CreateToastNotification(g_state.factory, xml_doc, &toast))) {
-    fprintf(stderr, "muslimtify: CreateToastNotification failed\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: CreateToastNotification failed");
     xml_doc->lpVtbl->Release(xml_doc);
     return NULL;
   }
@@ -779,7 +766,7 @@ static void send_toast_xml(const wchar_t *xml) {
 
   hr = g_state.notifier->lpVtbl->Show(g_state.notifier, toast);
   if (!SUCCEEDED(hr)) {
-    fprintf(stderr, "muslimtify: toast Show failed\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: toast Show failed");
   }
   toast->lpVtbl->Release(toast);
 }
@@ -824,7 +811,6 @@ static void send_notification(const char *title, const char *message, const char
   free(xml);
 }
 
-/* -- Adhan stop signal ------------------------------------------------------ */
 /* Toast buttons cannot deliver a callback to an unpackaged Win32 app without a
    registered COM activator (ToastActivatorCLSID) + AUMID shortcut, so we do not
    rely on toast interaction to stop the adhan. Instead notify_adhan creates a
@@ -836,8 +822,6 @@ static void send_notification(const char *title, const char *message, const char
 static const wchar_t ADHAN_STOP_EVENT_NAME[] = L"Local\\MuslimtifyAdhanStop";
 static HANDLE g_adhan_stop_event = NULL;
 
-/* -- API implementation ----------------------------------------------------- */
-
 int notify_init_once(const char *app_name) {
   (void)app_name; /* AUMID is used instead on Windows */
 
@@ -845,7 +829,7 @@ int notify_init_once(const char *app_name) {
     return 1;
 
   if (!SUCCEEDED(RoInitialize(RO_INIT_MULTITHREADED))) {
-    fprintf(stderr, "muslimtify: RoInitialize failed\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: RoInitialize failed");
     return 0;
   }
 
@@ -859,12 +843,12 @@ int notify_init_once(const char *app_name) {
   IToastNotificationManagerStatics *mgr = NULL;
 
   if (!SUCCEEDED(make_hstring_ref(RuntimeClass_ToastNotificationManager, &hsh_mgr, &hs_mgr))) {
-    fprintf(stderr, "muslimtify: failed to create manager HSTRING\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to create manager HSTRING");
     goto fail;
   }
   if (!SUCCEEDED(
           RoGetActivationFactory(hs_mgr, &IID_IToastNotificationManagerStatics, (void **)&mgr))) {
-    fprintf(stderr, "muslimtify: failed to get ToastNotificationManager\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to get ToastNotificationManager");
     goto fail;
   }
 
@@ -876,7 +860,7 @@ int notify_init_once(const char *app_name) {
     goto fail;
   }
   if (!SUCCEEDED(mgr->lpVtbl->CreateToastNotifierWithId(mgr, hs_aumid, &g_state.notifier))) {
-    fprintf(stderr, "muslimtify: failed to create ToastNotifier\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to create ToastNotifier");
     mgr->lpVtbl->Release(mgr);
     goto fail;
   }
@@ -890,7 +874,7 @@ int notify_init_once(const char *app_name) {
   }
   if (!SUCCEEDED(RoGetActivationFactory(hs_notif, &IID_IToastNotificationFactory,
                                         (void **)&g_state.factory))) {
-    fprintf(stderr, "muslimtify: failed to get ToastNotificationFactory\n");
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: failed to get ToastNotificationFactory");
     goto fail;
   }
 
@@ -990,6 +974,10 @@ void notify_adhan(const char *prayer_name, const char *time_str, const char *pat
     toast->lpVtbl->Release(toast);
   free(resolved_utf8);
 }
+
+/* The Windows adhan is stopped through the named event in notify_adhan_stop,
+   and the scheduled task receives no stop signal, so there is nothing to do. */
+void notify_adhan_interrupt(void) {}
 
 /* Signal an in-progress adhan (started by notify_adhan, possibly in another
    process such as the scheduled-task daemon) to stop. Returns 0 if a running

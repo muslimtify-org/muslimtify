@@ -1,4 +1,6 @@
 #ifndef VERSION_H
 #define VERSION_H
 #define MUSLIMTIFY_VERSION "@FULL_PROJECT_VERSION@"
+/* Where `cmake --install` puts the muslimtify program. */
+#define MUSLIMTIFY_INSTALL_BINDIR "@CMAKE_INSTALL_FULL_BINDIR@"
 #endif

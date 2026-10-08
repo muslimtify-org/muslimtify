@@ -1,5 +1,5 @@
 Name:           muslimtify
-Version:        0.4.2
+Version:        0.4.3
 Release:        1%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
 License:        MIT
@@ -48,6 +48,12 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
+* Mon Sep 28 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.3-1
+- Add 'timeformat 12|24' to print prayer times in a 12-hour or 24-hour clock, stored as display.time_format in the config
+- Fix a NaN latitude or longitude passing validation in config and 'location set', which produced a believable but wrong schedule
+- Blank the prayer times and warn on stderr when the saved location is invalid, instead of computing a schedule at the method's reference latitude
+- Re-run location auto-detect when the saved coordinates are invalid, so a broken config repairs itself like an unset one
+
 * Sun Sep 13 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.2-1
 - Add show --day-offset to show the prayer times for a date relative to today
 - Fix config, location, CLI argument and DST countdown bugs

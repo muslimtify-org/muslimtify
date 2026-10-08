@@ -11,6 +11,7 @@
 #include <math.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -76,10 +77,10 @@ void gpsd_scan_line(const char *line, GpsdScan *scan) {
 
 // Monotonic milliseconds, for a wall-clock read deadline independent of any
 // single recv timeout.
-static long gpsd_now_ms(void) {
+static int64_t gpsd_now_ms(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+  return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
 // Connect to 127.0.0.1:2947 with a bounded, non-blocking connect. Loopback
@@ -164,7 +165,7 @@ GpsStatus platform_get_location(PlatformLatLng *latlong) {
   bool line_overflow = false;
   int lines_seen = 0;
   char rbuf[2048];
-  long deadline = gpsd_now_ms() + GPSD_READ_DEADLINE_MS;
+  int64_t deadline = gpsd_now_ms() + GPSD_READ_DEADLINE_MS;
 
   while (!scan.have_fix && lines_seen < GPSD_MAX_LINES) {
     if (gpsd_now_ms() >= deadline)

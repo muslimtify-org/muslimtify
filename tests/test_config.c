@@ -1,16 +1,13 @@
 #define _GNU_SOURCE
 #include "config.h"
 #include "platform.h"
+#include "test_support.h"
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-#ifndef _WIN32
 #include <sys/stat.h>
-#endif
 
 static int passed = 0;
 static int failed = 0;
@@ -27,22 +24,16 @@ static void check_bool(const char *test, bool cond) {
 }
 
 static void setup(void) {
-  snprintf(tmpdir, sizeof(tmpdir), "/tmp/mt_cfgtest_XXXXXX");
-  if (!mkdtemp(tmpdir)) {
-    fprintf(stderr, "FATAL: mkdtemp failed\n");
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cfgtest")) {
+    fprintf(stderr, "FATAL: cannot create a temporary directory\n");
     exit(1);
   }
-  setenv("XDG_CONFIG_HOME", tmpdir, 1);
+  test_set_config_home(tmpdir);
 }
 
 static void teardown(void) {
-  char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
-  if (system(cmd) != 0) { /* best-effort cleanup */
-  }
+  test_remove_tree(tmpdir);
 }
-
-// -- config_parse_reminders tests --------------------------------------------
 
 static void test_parse_reminders(void) {
   printf("  parse_reminders...\n");
@@ -90,8 +81,6 @@ static void test_parse_reminders(void) {
   n = config_parse_reminders("1441", buf, MAX_REMINDERS);
   check_bool("parse 1441 rejected", n == 0);
 }
-
-// -- config_validate tests ---------------------------------------------------
 
 static void test_validate(void) {
   printf("  validate...\n");
@@ -165,58 +154,6 @@ static void test_validate(void) {
   check_bool("validate offset -61 invalid", !config_validate(&cfg));
 }
 
-// -- config_get_prayer tests -------------------------------------------------
-
-static void test_get_prayer(void) {
-  printf("  get_prayer...\n");
-  Config cfg = config_default();
-
-  // Lowercase
-  check_bool("get fajr", config_get_prayer(&cfg, "fajr") == &cfg.fajr);
-  check_bool("get isha", config_get_prayer(&cfg, "isha") == &cfg.isha);
-  check_bool("get asr", config_get_prayer(&cfg, "asr") == &cfg.asr);
-  check_bool("get maghrib", config_get_prayer(&cfg, "maghrib") == &cfg.maghrib);
-
-  // Mixed case
-  check_bool("get Fajr", config_get_prayer(&cfg, "Fajr") == &cfg.fajr);
-  check_bool("get DHUHR", config_get_prayer(&cfg, "DHUHR") == &cfg.dhuhr);
-  check_bool("get Maghrib", config_get_prayer(&cfg, "Maghrib") == &cfg.maghrib);
-
-  // Alias: "dhur" → dhuhr
-  check_bool("get dhur alias", config_get_prayer(&cfg, "dhur") == &cfg.dhuhr);
-
-  // Unknown prayer
-  check_bool("get unknown", config_get_prayer(&cfg, "badprayer") == NULL);
-
-  // NULL inputs
-  check_bool("get NULL cfg", config_get_prayer(NULL, "fajr") == NULL);
-  check_bool("get NULL name", config_get_prayer(&cfg, NULL) == NULL);
-}
-
-// -- config_format_reminders tests -------------------------------------------
-
-static void test_format_reminders(void) {
-  printf("  format_reminders...\n");
-  char buf[128];
-
-  // Normal
-  PrayerConfig pc = {.reminder_count = 3, .reminders = {30, 15, 5}};
-  config_format_reminders(&pc, buf, sizeof(buf));
-  check_bool("format 30,15,5", strcmp(buf, "30,15,5") == 0);
-
-  // Single
-  pc = (PrayerConfig){.reminder_count = 1, .reminders = {10}};
-  config_format_reminders(&pc, buf, sizeof(buf));
-  check_bool("format 10", strcmp(buf, "10") == 0);
-
-  // Empty → "none"
-  pc = (PrayerConfig){.reminder_count = 0};
-  config_format_reminders(&pc, buf, sizeof(buf));
-  check_bool("format none", strcmp(buf, "none") == 0);
-}
-
-// -- config_default tests ----------------------------------------------------
-
 static void test_default(void) {
   printf("  default...\n");
   Config cfg = config_default();
@@ -251,15 +188,13 @@ static void test_default(void) {
   check_bool("default adhan enabled", cfg.isha.adhan_enabled == true);
 }
 
-// -- round-trip save/load test -----------------------------------------------
-
 static void test_path_resolution(void) {
   printf("  path resolution...\n");
   const char *path = config_get_path();
 
   check_bool("config path starts in tmpdir", strncmp(path, tmpdir, strlen(tmpdir)) == 0);
   check_bool("config path includes muslimtify dir",
-             strstr(path, "/muslimtify/config.json") != NULL);
+             test_path_contains(path, "/muslimtify/config.json"));
 }
 
 static void test_round_trip(void) {
@@ -272,7 +207,6 @@ static void test_round_trip(void) {
   strncpy(out.timezone, "Asia/Jakarta", sizeof(out.timezone) - 1);
   out.timezone_offset = 7.0;
   out.auto_detect = false;
-  out.use_gps = true;
   strncpy(out.city, "Jakarta", sizeof(out.city) - 1);
   strncpy(out.country, "Indonesia", sizeof(out.country) - 1);
   out.fajr.enabled = true;
@@ -290,7 +224,7 @@ static void test_round_trip(void) {
   strncpy(out.notification_urgency, "critical", sizeof(out.notification_urgency) - 1);
 
   check_bool("config path includes muslimtify dir",
-             strstr(config_get_path(), "/muslimtify/config.json") != NULL);
+             test_path_contains(config_get_path(), "/muslimtify/config.json"));
   check_bool("save ok", config_save(&out) == 0);
   check_bool("config file exists", platform_file_exists(config_get_path()) == 1);
 
@@ -313,7 +247,7 @@ static void test_round_trip(void) {
   check_bool("rt latitude", fabs(in.latitude - out.latitude) < 0.001);
   check_bool("rt longitude", fabs(in.longitude - out.longitude) < 0.001);
   check_bool("rt timezone", strcmp(in.timezone, out.timezone) == 0);
-  check_bool("rt tz_offset", fabs(in.timezone_offset - out.timezone_offset) < 0.1);
+  check_bool("rt tz_offset", fabs(in.timezone_offset - out.timezone_offset) < 1e-9);
   check_bool("rt auto_detect", in.auto_detect == out.auto_detect);
   check_bool("rt use_gps", in.use_gps == out.use_gps);
   check_bool("rt city", strcmp(in.city, out.city) == 0);
@@ -334,6 +268,49 @@ static void test_round_trip(void) {
   check_bool("rt fajr adhan", strcmp(in.fajr.adhan, "/tmp/custom-fajr.mp3") == 0);
   check_bool("rt fajr adhan_enabled", in.fajr.adhan_enabled == false);
   check_bool("rt dhuhr adhan default empty", in.dhuhr.adhan[0] == '\0');
+}
+
+// A quarter-hour zone and fractional custom angles must come back as saved.
+// One decimal used to turn 5.75 into 5.8 and 19.25 into 19.2.
+static void test_precision_round_trip(void) {
+  printf("  fractional offset and angles round-trip...\n");
+
+  Config out = config_default();
+  out.latitude = 27.7;
+  out.longitude = 85.3;
+  strncpy(out.timezone, "Asia/Kathmandu", sizeof(out.timezone) - 1);
+  out.timezone_offset = 5.75;
+  strncpy(out.calculation_method, "custom", sizeof(out.calculation_method) - 1);
+  out.fajr_angle = 19.25;
+  out.isha_angle = 19.125;
+  check_bool("precision save ok", config_save(&out) == 0);
+
+  Config in;
+  check_bool("precision load ok", config_load(&in) == 0);
+  check_bool("quarter-hour offset survives", fabs(in.timezone_offset - 5.75) < 1e-9);
+  check_bool("fajr angle survives", fabs(in.fajr_angle - 19.25) < 1e-9);
+  check_bool("isha angle survives", fabs(in.isha_angle - 19.125) < 1e-9);
+}
+
+// GPS is a source for automatic location. A file that has it on with
+// auto-detect off, from an older version or a hand edit, loads as GPS off.
+static void test_gps_requires_auto(void) {
+  printf("  GPS requires auto-detect...\n");
+
+  Config out = config_default();
+  out.latitude = -6.2088;
+  out.longitude = 106.8456;
+  out.auto_detect = true;
+  out.use_gps = true;
+  check_bool("gps save ok", config_save(&out) == 0);
+  Config in;
+  check_bool("gps load ok", config_load(&in) == 0);
+  check_bool("GPS with auto-detect round-trips", in.auto_detect && in.use_gps);
+
+  out.auto_detect = false;
+  check_bool("manual save ok", config_save(&out) == 0);
+  check_bool("manual load ok", config_load(&in) == 0);
+  check_bool("GPS without auto-detect loads as off", !in.auto_detect && !in.use_gps);
 }
 
 static void test_offset_apply(void) {
@@ -432,8 +409,11 @@ static void test_config_size_cap(void) {
 }
 
 static void test_config_perms(void) {
-#ifndef _WIN32
   printf("  config_perms...\n");
+  if (!test_has_posix_modes()) {
+    printf("  SKIP: file modes mean nothing here\n");
+    return;
+  }
   Config cfg = config_default();
   check_bool("perms: save", config_save(&cfg) == 0);
   struct stat st;
@@ -448,9 +428,6 @@ static void test_config_perms(void) {
     *slash = '\0';
   check_bool("perms: dir stat", stat(dir, &st) == 0);
   check_bool("perms: dir owner-only (0700)", (st.st_mode & 0777) == 0700);
-#else
-  (void)0;
-#endif
 }
 
 static void test_sound_migration(void) {
@@ -597,8 +574,6 @@ static void test_config_escapes_adhan(void) {
              strstr(buf, "/home/u/my \\\"best\\\" adhan.mp3") != NULL);
   check_bool("config: no raw quote in adhan", strstr(buf, "/home/u/my \"best\" adhan.mp3") == NULL);
 }
-
-// -- main ---------------------------------------------------------------------
 
 static void write_config_text(const char *text) {
   FILE *f = fopen(config_get_path(), "w");
@@ -750,7 +725,7 @@ static void test_failed_save_closes_file(void) {
   check_bool("failed save: temp path removed", access(tmp_path, F_OK) != 0);
   unlink(tmp_path);
 #else
-  (void)0;
+  printf("  SKIP: needs /dev/full\n");
 #endif
 }
 
@@ -796,13 +771,6 @@ static bool all_five_nan(struct PrayerTimes t) {
   return isnan(t.fajr) && isnan(t.dhuhr) && isnan(t.asr) && isnan(t.maghrib) && isnan(t.isha);
 }
 
-static void slurp_stream(FILE *f, char *buf, size_t cap) {
-  fflush(f);
-  fseek(f, 0, SEEK_SET);
-  size_t n = fread(buf, 1, cap - 1, f);
-  buf[n] = '\0';
-}
-
 // Mutation record. The guard's condition in prayer_times_for_config
 // (src/core/config.c) was replaced by hand with `if (0)`, built with
 // `cmake --build build -j8`, run against
@@ -826,43 +794,32 @@ static void test_invalid_location_blanks_times(void) {
   check_bool("valid config still computes",
              !all_five_nan(prayer_times_for_config(&cfg, 2026, 9, 16)));
 
-  FILE *out = tmpfile();
-  FILE *err = tmpfile();
-  check_bool("capture streams open", out != NULL && err != NULL);
-  if (!out || !err)
+  TestCapture out_capture;
+  TestCapture err_capture;
+  bool capturing = test_capture_begin(&out_capture, stdout);
+  if (capturing && !test_capture_begin(&err_capture, stderr)) {
+    test_capture_end(&out_capture, NULL, 0);
+    capturing = false;
+  }
+  check_bool("capture streams open", capturing);
+  if (!capturing)
     return;
-
-  fflush(stdout);
-  fflush(stderr);
-  int saved_out = dup(STDOUT_FILENO);
-  int saved_err = dup(STDERR_FILENO);
-  dup2(fileno(out), STDOUT_FILENO);
-  dup2(fileno(err), STDERR_FILENO);
-
-  cfg.latitude = NAN;
-  struct PrayerTimes first = prayer_times_for_config(&cfg, 2026, 9, 16);
-  fflush(stdout);
-  fflush(stderr);
-
-  FILE *err2 = tmpfile();
-  if (err2)
-    dup2(fileno(err2), STDERR_FILENO);
-  struct PrayerTimes second = prayer_times_for_config(&cfg, 2026, 9, 16);
-  fflush(stderr);
-
-  dup2(saved_out, STDOUT_FILENO);
-  dup2(saved_err, STDERR_FILENO);
-  close(saved_out);
-  close(saved_err);
 
   char out_buf[512];
   char err_buf[512];
   char err2_buf[512];
-  slurp_stream(out, out_buf, sizeof(out_buf));
-  slurp_stream(err, err_buf, sizeof(err_buf));
-  err2_buf[0] = '\0';
-  if (err2)
-    slurp_stream(err2, err2_buf, sizeof(err2_buf));
+
+  cfg.latitude = NAN;
+  struct PrayerTimes first = prayer_times_for_config(&cfg, 2026, 9, 16);
+  test_capture_end(&err_capture, err_buf, sizeof(err_buf));
+
+  bool second_capture = test_capture_begin(&err_capture, stderr);
+  struct PrayerTimes second = prayer_times_for_config(&cfg, 2026, 9, 16);
+  if (second_capture)
+    test_capture_end(&err_capture, err2_buf, sizeof(err2_buf));
+  else
+    err2_buf[0] = '\0';
+  test_capture_end(&out_capture, out_buf, sizeof(out_buf));
 
   check_bool("NaN latitude blanks all five", all_five_nan(first));
   check_bool("second call also blanks", all_five_nan(second));
@@ -871,11 +828,6 @@ static void test_invalid_location_blanks_times(void) {
   check_bool("warning is one line", strchr(err_buf, '\n') == strrchr(err_buf, '\n'));
   check_bool("stdout stayed clean", out_buf[0] == '\0');
   check_bool("warning printed once per process", err2_buf[0] == '\0');
-
-  fclose(out);
-  fclose(err);
-  if (err2)
-    fclose(err2);
 
   // The remaining invalid inputs reuse the same already-warned process.
   cfg.latitude = -6.2088;
@@ -974,11 +926,11 @@ int main(void) {
   test_validate_rejects_nan();
   test_invalid_location_blanks_times();
   test_location_needs_detect();
-  test_get_prayer();
-  test_format_reminders();
   test_default();
   test_path_resolution();
   test_round_trip();
+  test_precision_round_trip();
+  test_gps_requires_auto();
   test_sound_migration();
   test_offset_apply();
   test_offset_keeps_day();

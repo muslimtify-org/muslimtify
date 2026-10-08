@@ -5,46 +5,39 @@
 #include "config.h"
 #include "country.h"
 #include "display.h"
+#include "lib/muslimtify_internal.h"
+#include "muslimtify.h"
 #include "platform.h"
 #include "prayertimes.h"
+#include "test_support.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <time.h>
-#include <unistd.h>
-
-// -- test infrastructure -----------------------------------------------------
 
 static char tmpdir[256];
-static char output_file[512];
 static char captured[16384];
 static int passed = 0;
 static int failed = 0;
 static int last_ret = -1;
 
 static void setup(void) {
-  snprintf(tmpdir, sizeof(tmpdir), "/tmp/muslimtify_test_XXXXXX");
-  if (!mkdtemp(tmpdir)) {
-    fprintf(stderr, "FATAL: mkdtemp failed\n");
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "clitest")) {
+    fprintf(stderr, "FATAL: cannot create a temporary directory\n");
     exit(1);
   }
-  setenv("XDG_CONFIG_HOME", tmpdir, 1);
-  snprintf(output_file, sizeof(output_file), "%s/_output.txt", tmpdir);
+  test_set_config_home(tmpdir);
 
-  // Force config_get_path() to pick up our XDG_CONFIG_HOME by creating
+  // Force config_get_path() to pick up our config home by creating
   // the config directory and saving a default config.
   char dir[512];
   snprintf(dir, sizeof(dir), "%s/muslimtify", tmpdir);
-  mkdir(dir, 0755);
+  test_mkdir(dir);
 }
 
 static void teardown(void) {
-  char cmd[1024];
-  snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
-  if (system(cmd) != 0) { /* best-effort cleanup */
-  }
+  test_remove_tree(tmpdir);
 }
 
 static void reset_config(void) {
@@ -63,46 +56,19 @@ static void reset_config(void) {
 // Run cli_run() with given args, capturing stdout+stderr into `captured`.
 // Returns cli_run() return value.
 static int run(int argc, char **argv) {
-  fflush(stdout);
-  fflush(stderr);
-
-  int saved_out = dup(STDOUT_FILENO);
-  int saved_err = dup(STDERR_FILENO);
-
-  FILE *f = fopen(output_file, "w");
-  if (!f) {
-    fprintf(stderr, "FATAL: cannot open output file\n");
+  TestCapture capture;
+  if (!test_capture_begin(&capture, stdout) || !test_capture_add(&capture, stderr)) {
+    fprintf(stderr, "FATAL: cannot capture output\n");
     exit(1);
   }
-  int fd = fileno(f);
-  dup2(fd, STDOUT_FILENO);
-  dup2(fd, STDERR_FILENO);
 
   int ret = cli_run(argc, argv);
 
-  fflush(stdout);
-  fflush(stderr);
-  dup2(saved_out, STDOUT_FILENO);
-  dup2(saved_err, STDERR_FILENO);
-  close(saved_out);
-  close(saved_err);
-  fclose(f);
-
-  // Read captured output
-  FILE *r = fopen(output_file, "r");
-  if (r) {
-    size_t n = fread(captured, 1, sizeof(captured) - 1, r);
-    captured[n] = '\0';
-    fclose(r);
-  } else {
-    captured[0] = '\0';
-  }
+  test_capture_end(&capture, captured, sizeof(captured));
 
   last_ret = ret;
   return ret;
 }
-
-// -- assertion helpers --------------------------------------------------------
 
 static void check_ret(const char *test, int expected) {
   if (last_ret == expected) {
@@ -160,8 +126,6 @@ static bool has_trailing_comma(const char *s) {
   }
   return false;
 }
-
-// -- test groups --------------------------------------------------------------
 
 static void test_version_and_help(void) {
   printf("  version and help...\n");
@@ -583,7 +547,7 @@ static void test_show_date_bounds(void) {
   // 367 days is one past the cap and is rejected
   run(5, (char *[]){"m", "show", "--date", "2024-01-01", "2025-01-01", NULL});
   check_ret("bounds span 367 ret", 1);
-  check_contains("bounds span 367 msg", "date range too long");
+  check_contains("bounds span 367 msg", "Date range too long");
 
   // over-wide fields are rejected: "00002024" is not a 4-digit ISO year
   run(4, (char *[]){"m", "show", "--date", "00002024-01-01", NULL});
@@ -630,7 +594,7 @@ static void test_show_range(void) {
   // reversed range rejected
   run(5, (char *[]){"m", "show", "--date", "2022-01-03", "2022-01-01", NULL});
   check_ret("range reversed ret", 1);
-  check_contains("range reversed msg", "end date is before start date");
+  check_contains("range reversed msg", "End date is before start date");
 
   // JSON range: array of day objects with dates
   run(6, (char *[]){"m", "show", "--date", "2022-01-01", "2022-01-03", "--json", NULL});
@@ -702,9 +666,8 @@ static void test_show_range(void) {
 }
 
 // A "marked" time is HH:MM immediately followed by + or -, e.g. "00:06+".
-// That suffix is the day marker: format_time_hm_day() appends it, and only
-// the two show tables (single-day and range) call format_time_hm_day().
-// Every other surface calls plain format_time_hm() and prints the bare
+// That suffix is the day marker: format_cell() in src/cli/display.c appends it when asked, and only
+// the range table asks. Every other surface prints the bare
 // HH:MM, so this scans for the marker shape rather than a fixed time.
 static bool has_time_marker(const char *s) {
   for (const char *p = s; *p; p++) {
@@ -730,9 +693,9 @@ static bool has_time_marker(const char *s) {
 // whole table row, since the row's column padding is incidental but the
 // digits-colon-digits-marker shape is what the feature promises.
 //
-// Mutation record. Each mutant below was applied to src/core/display.c by
+// Mutation record. Each mutant below was applied to src/cli/display.c by
 // hand, built, run against `ctest --test-dir build -R cli --output-on-failure`,
-// then reverted with `git checkout -- src/core/display.c` before the next one.
+// then reverted with `git checkout -- src/cli/display.c` before the next one.
 // git status was confirmed empty after each revert. All three were caught.
 //
 // Mutant 1: print_day_marker_legend() made to print the next-day line
@@ -970,28 +933,19 @@ static void test_next_after_isha(void) {
   now.tm_hour = 23;
   now.tm_min = 0;
 
-  // Capture display_next_prayer_headless() called directly.
-  fflush(stdout);
-  int saved_out = dup(STDOUT_FILENO);
-  FILE *f = fopen(output_file, "w");
-  if (!f) {
+  // Capture display_next_plain() called directly.
+  TestCapture capture;
+  if (!test_capture_begin(&capture, stdout)) {
     check_bool("next after isha capture open", false);
     return;
   }
-  dup2(fileno(f), STDOUT_FILENO);
-  display_next_prayer_headless(&today, &cfg, &now);
-  fflush(stdout);
-  dup2(saved_out, STDOUT_FILENO);
-  close(saved_out);
-  fclose(f);
-  FILE *r = fopen(output_file, "r");
-  if (r) {
-    size_t n = fread(captured, 1, sizeof(captured) - 1, r);
-    captured[n] = '\0';
-    fclose(r);
-  } else {
-    captured[0] = '\0';
-  }
+  Muslimtify *mt = NULL;
+  MuslimtifyNext next;
+  if (muslimtify_open_config(&cfg, &mt) == MUSLIMTIFY_OK &&
+      muslimtify_next_at(mt, &now, &next) == MUSLIMTIFY_OK)
+    display_next_plain(&next, 24);
+  muslimtify_close(mt);
+  test_capture_end(&capture, captured, sizeof(captured));
 
   // Precondition: the chosen date/location actually shifts Fajr by >= 1 min, so
   // "shows tomorrow" is distinguishable from "shows today".
@@ -1365,27 +1319,30 @@ static void test_notification(void) {
       Config cfg;
       config_load(&cfg);
       check_bool("notification adhan set stored abs",
-                 cfg.fajr.adhan[0] == '/' && strstr(cfg.fajr.adhan, "adhan_real.mp3") != NULL);
+                 test_is_absolute_path(cfg.fajr.adhan) &&
+                     strstr(cfg.fajr.adhan, "adhan_real.mp3") != NULL);
     }
 
     run(5, (char *[]){"m", "notification", "--adhan", "set", "/no/such/adhan.mp3", NULL});
     check_ret("notification adhan set missing ret", 1);
 
-#ifndef _WIN32
-    if (symlink(realf, linkf) != 0) {
+    if (!test_can_symlink()) {
+      printf("  SKIP: cannot create a symlink here\n");
+    } else if (!test_symlink(realf, linkf)) {
       check_bool("notification adhan symlink setup", false);
     } else {
       run(5, (char *[]){"m", "notification", "--adhan", "set", linkf, NULL});
       check_ret("notification adhan set symlink ret", 1);
       check_contains("notification adhan set symlink msg", "symlink");
     }
-#endif
   }
 
   // --adhan stop works on every platform (no-op when nothing is playing)
-  run(4, (char *[]){"m", "notification", "--adhan", "stop", NULL});
-  check_ret("notification adhan stop ret", 0);
-  check_contains("notification adhan stop msg", "adhan");
+  if (!test_unsafe_on_windows("would signal the named adhan stop event of an installed app")) {
+    run(4, (char *[]){"m", "notification", "--adhan", "stop", NULL});
+    check_ret("notification adhan stop ret", 0);
+    check_contains("notification adhan stop msg", "adhan");
+  }
 
   // --sound modes + invalid
   run(4, (char *[]){"m", "notification", "--sound", "off", NULL});
@@ -1434,7 +1391,7 @@ static void test_location_set_timezone_validation(void) {
 // `git checkout -- <path>` before the next one. git status --porcelain was
 // confirmed empty after each revert. All three were caught.
 //
-// Mutant 1: src/core/display.c:315, inside print_prayer_entries, changed
+// Mutant 1: src/cli/display.c, inside print_prayer_entries, changed
 // `i + 1 < PRAYER_COUNT` back to `i < 6`. Caught by the show and show --date
 // checks for both fixtures. Output:
 //   FAIL [jakarta show json no trailing comma]
@@ -1443,7 +1400,7 @@ static void test_location_set_timezone_validation(void) {
 //   FAIL [reykjavik show date json no trailing comma]
 //   Results: 357 passed, 4 failed
 //
-// Mutant 2: src/core/display.c:727, inside
+// Mutant 2: src/cli/display.c, inside
 // display_notification_settings_json, changed `i + 1 < PRAYER_COUNT` back to
 // `i < 6`, leaving mutant 1's site fixed. A scan covering only the show
 // commands would have passed this mutant. Caught by the notification check
@@ -1581,7 +1538,7 @@ static void test_show_args(void) {
   check_contains("show args bad offset before config msg", "Invalid day offset abc");
   run(5, (char *[]){"m", "show", "--date", "2024-01-02", "2024-01-01", NULL});
   check_ret("show args reversed range before config ret", 1);
-  check_contains("show args reversed range before config msg", "end date is before start date");
+  check_contains("show args reversed range before config msg", "End date is before start date");
   reset_config();
 }
 
@@ -1615,7 +1572,7 @@ static void test_reminder_args(void) {
   run(16, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
                      "8", "9", "10", "11", "abc", NULL});
   check_ret("reminder args eleven plus junk ret", 1);
-  check_contains("reminder args eleven plus junk msg", "at most 10 reminder values");
+  check_contains("reminder args eleven plus junk msg", "At most 10 reminder values");
   check_bool("reminder args eleven plus junk keeps fajr", fajr_reminder_count() == 2);
 
   run(15, (char *[]){"m", "notification", "--reminder", "fajr", "1", "2", "3", "4", "5", "6", "7",
@@ -1865,7 +1822,45 @@ static void test_time_format(void) {
   reset_config();
 }
 
-// -- main ---------------------------------------------------------------------
+// GPS belongs to automatic location, and the messages say what is true for
+// the stored state.
+static void test_location_gps_messages(void) {
+  printf("test_location_gps_messages\n");
+
+  // Manual location: nothing falls back to the network.
+  reset_config();
+  run(4, (char *[]){"m", "location", "gps", "off", NULL});
+  check_ret("gps off manual ret", 0);
+  check_contains("gps off manual msg", "GPS disabled.");
+  check_bool("gps off manual does not mention ipinfo", strstr(captured, "ipinfo") == NULL);
+
+  // Automatic location: turning GPS off leaves the network lookup.
+  Config cfg;
+  config_load(&cfg);
+  cfg.auto_detect = true;
+  cfg.use_gps = true;
+  config_save(&cfg);
+  run(4, (char *[]){"m", "location", "gps", "off", NULL});
+  check_ret("gps off auto ret", 0);
+  check_contains("gps off auto msg", "using ipinfo network geolocation");
+
+  // Setting coordinates by hand turns GPS off and says so.
+  config_load(&cfg);
+  cfg.auto_detect = true;
+  cfg.use_gps = true;
+  config_save(&cfg);
+  run(5, (char *[]){"m", "location", "set", "--lat=-7.25", "--long=112.75", NULL});
+  check_ret("set over gps ret", 0);
+  check_contains("set over gps msg", "GPS turned off");
+  config_load(&cfg);
+  check_bool("set over gps stored", !cfg.use_gps && !cfg.auto_detect);
+
+  // With GPS already off there is nothing to report.
+  run(5, (char *[]){"m", "location", "set", "--lat=-7.30", "--long=112.70", NULL});
+  check_ret("set without gps ret", 0);
+  check_bool("set without gps is silent about GPS", strstr(captured, "GPS") == NULL);
+  reset_config();
+}
 
 int main(void) {
   setup();
@@ -1875,6 +1870,7 @@ int main(void) {
   test_output_helpers();
   test_location();
   test_location_auto_args();
+  test_location_gps_messages();
   test_removed_top_level();
   test_show();
   test_show_date_bounds();

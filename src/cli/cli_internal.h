@@ -1,6 +1,7 @@
 #ifndef CLI_INTERNAL_H
 #define CLI_INTERNAL_H
 
+#include "muslimtify.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -50,6 +51,24 @@ static inline int cli_reject_extra_args(const char *command, int argc, char **ar
 
 // Print an "Unknown prayer" error plus the list of valid prayer names; returns 1.
 int cli_unknown_prayer(const char *name);
+
+// Open a library handle. On failure prints the error and returns 1.
+int cli_open(Muslimtify **mt);
+
+// Print "Error: <message>" for a library error. Returns 1.
+int cli_fail(MuslimtifyError err);
+
+// Print "Error: <message> '<value>'" for a library error. Returns 1.
+int cli_fail_value(MuslimtifyError err, const char *value);
+
+// Detect, save and report the location when none is stored. Progress and the
+// result go to stderr, so machine-readable stdout stays clean on a first run.
+// Returns 0 when a location is ready, 1 after printing an error.
+int cli_ensure_location(Muslimtify *mt);
+
+// Print the warning for a GPS problem met during detection, to stderr. Prints
+// nothing when there was none.
+void cli_print_gps_warning(const MuslimtifyDetection *detection);
 
 int handle_show(int argc, char **argv);
 int handle_location(int argc, char **argv);

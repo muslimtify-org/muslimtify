@@ -1,13 +1,13 @@
-// POSIX implementation of parse_timezone_offset.
-// Uses the system tzdb (typically /usr/share/zoneinfo) via libc:
-//   setenv(TZ) -> tzset() -> localtime_r() -> tm_gmtoff.
-// DST and historical zone changes are honored automatically.
+// POSIX implementation of parse_timezone_offset. GLib reads the tz database
+// directly, so no TZ environment variable is set, and the lookup is safe
+// while another thread formats a clock.
 
-#define _GNU_SOURCE
+#define _POSIX_C_SOURCE 200809L
 
 #include "location.h"
 #include "util.h"
 
+#include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,30 +16,19 @@
 #include <unistd.h>
 
 double parse_timezone_offset(const char *tz_name, time_t when) {
-  // Defense-in-depth: never setenv/tzset an unvalidated string (a corrupted
-  // config value on the load path bypasses location_fetch's check).
+  // A corrupted config value on the load path bypasses location_detect's
+  // check, so the name is validated here as well.
   if (!timezone_name_is_valid(tz_name))
     return 0.0;
 
-  // Save the current TZ so we never leak our setenv to other callers.
-  const char *old_tz = getenv("TZ");
-  char *saved = old_tz ? strdup(old_tz) : NULL;
+  GTimeZone *tz = g_time_zone_new_identifier(tz_name);
+  if (!tz)
+    return 0.0;
 
-  setenv("TZ", tz_name, 1);
-  tzset();
-
-  struct tm lt;
-  localtime_r(&when, &lt);
-  double offset = (double)lt.tm_gmtoff / 3600.0;
-
-  if (saved) {
-    setenv("TZ", saved, 1);
-    free(saved);
-  } else {
-    unsetenv("TZ");
-  }
-  tzset();
-
+  gint64 instant = (gint64)when;
+  gint interval = g_time_zone_find_interval(tz, G_TIME_TYPE_UNIVERSAL, instant);
+  double offset = interval < 0 ? 0.0 : (double)g_time_zone_get_offset(tz, interval) / 3600.0;
+  g_time_zone_unref(tz);
   return offset;
 }
 

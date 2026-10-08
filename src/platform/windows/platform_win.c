@@ -1,3 +1,4 @@
+#include "platform/windows/platform_win.h"
 #include "platform.h"
 #include <direct.h>
 #include <io.h>
@@ -50,7 +51,10 @@ static bool is_unc_root_prefix(const wchar_t *path, const wchar_t *sep) {
   return components < 2;
 }
 
-static wchar_t *utf8_to_wide(const char *text) {
+wchar_t *platform_win_utf8_to_wide(const char *text) {
+  if (!text)
+    return NULL;
+
   int len = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
   if (len <= 0)
     return NULL;
@@ -220,7 +224,7 @@ void platform_reset_cached_paths(void) {
 }
 
 int platform_mkdir_p(const char *path) {
-  wchar_t *wide_path = utf8_to_wide(path);
+  wchar_t *wide_path = platform_win_utf8_to_wide(path);
   if (!wide_path)
     return -1;
 
@@ -253,7 +257,7 @@ int platform_mkdir_p(const char *path) {
 }
 
 int platform_file_exists(const char *path) {
-  wchar_t *wide_path = utf8_to_wide(path);
+  wchar_t *wide_path = platform_win_utf8_to_wide(path);
   if (!wide_path)
     return 0;
 
@@ -263,8 +267,8 @@ int platform_file_exists(const char *path) {
 }
 
 FILE *platform_file_open(const char *path, const char *mode) {
-  wchar_t *wide_path = utf8_to_wide(path);
-  wchar_t *wide_mode = utf8_to_wide(mode);
+  wchar_t *wide_path = platform_win_utf8_to_wide(path);
+  wchar_t *wide_mode = platform_win_utf8_to_wide(mode);
   if (!wide_path || !wide_mode) {
     free(wide_path);
     free(wide_mode);
@@ -284,7 +288,7 @@ int platform_file_sync(FILE *f) {
 }
 
 int platform_file_delete(const char *path) {
-  wchar_t *wide_path = utf8_to_wide(path);
+  wchar_t *wide_path = platform_win_utf8_to_wide(path);
   if (!wide_path)
     return -1;
 
@@ -294,8 +298,8 @@ int platform_file_delete(const char *path) {
 }
 
 int platform_atomic_rename(const char *src, const char *dst) {
-  wchar_t *wide_src = utf8_to_wide(src);
-  wchar_t *wide_dst = utf8_to_wide(dst);
+  wchar_t *wide_src = platform_win_utf8_to_wide(src);
+  wchar_t *wide_dst = platform_win_utf8_to_wide(dst);
   if (!wide_src || !wide_dst) {
     free(wide_src);
     free(wide_dst);
@@ -332,7 +336,7 @@ PathFileResult platform_resolve_regular_file(const char *in, char *out, size_t o
   // Validate and canonicalize via the wide API so this checks the same file
   // platform_file_open (_wfopen) later opens. GetFileAttributesA/_fullpath would
   // decode `in` with the ANSI code page, not UTF-8, mis-checking non-ASCII paths.
-  wchar_t *win = utf8_to_wide(in);
+  wchar_t *win = platform_win_utf8_to_wide(in);
   if (!win)
     return PATH_FILE_RESOLVE_FAILED;
 

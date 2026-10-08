@@ -125,21 +125,10 @@ bool config_longitude_is_valid(double lon);
 bool config_location_needs_detect(const Config *cfg);
 
 /**
- * Get prayer config by name (case-insensitive)
- * Returns: pointer to PrayerConfig or NULL if not found
- */
-PrayerConfig *config_get_prayer(Config *cfg, const char *prayer_name);
-
-/**
  * Parse reminder string (e.g., "30,15,5") into array
  * Returns: number of reminders parsed, -1 on error
  */
 int config_parse_reminders(const char *reminder_str, int *reminders, int max_reminders);
-
-/**
- * Format reminders array to string (e.g., "30,15,5")
- */
-void config_format_reminders(const PrayerConfig *prayer, char *buffer, size_t bufsize);
 
 #include "prayertimes.h"
 

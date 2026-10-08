@@ -12,10 +12,10 @@ extern "C" {
 
 /**
  * Compute the UTC offset (in hours) for IANA timezone `tz_name` at the
- * moment `when`. Reads the system tzdb via libc, so DST and historical
- * zone changes are honored. Returns 0.0 if `tz_name` is NULL.
+ * moment `when`. Reads the system tz database, so DST and historical zone
+ * changes are honored. Returns 0.0 if `tz_name` is NULL or unknown.
  *
- * Not thread-safe: temporarily mutates the process-wide TZ env var.
+ * Touches no process-wide state, so it may run on any thread.
  */
 double parse_timezone_offset(const char *tz_name, time_t when);
 
@@ -51,12 +51,6 @@ bool timezone_exists(const char *tz_name);
 int get_system_timezone(char *buf, size_t cap);
 
 /**
- * Fetch location information from ipinfo.io and update config.
- * Returns: 0 on success, -1 on failure.
- */
-int location_fetch(Config *cfg);
-
-/**
  * Try to read coordinates from a local gpsd receiver. On GPS_OK, writes
  * latitude/longitude and derives the timezone from the host system (GPS carries
  * no timezone); country is left unchanged. Returns a GpsStatus describing the
@@ -77,49 +71,31 @@ GpsStatus location_fetch_gps(Config *cfg);
 const char *gps_status_message(GpsStatus st);
 
 /**
- * Orchestrator core with injected sources (test seam, mirrors
- * location_refresh_with). When cfg->use_gps is set it calls gps() first, and
+ * Orchestrator core with injected sources (test seam behind
+ * location_detect). When cfg->use_gps is set it calls gps() first, and
  * the returned status selects one of four behaviors:
  *   - GPS_OK: return immediately; ipinfo is not called.
  *   - GPS_NO_DAEMON / GPS_NO_DEVICE / GPS_UNAVAILABLE: structural failure.
- *     Warn on stderr and set use_gps=false so the next fetch stops trying.
- *   - GPS_NO_PERMISSION: warn on stderr but leave use_gps set, since the user
- *     can grant access in OS settings and have the next fetch succeed.
- *   - GPS_NO_FIX: transient. Silent, and use_gps stays set.
+ *     Set use_gps=false so the next fetch stops trying.
+ *   - GPS_NO_PERMISSION: leave use_gps set, since the user can grant access in
+ *     OS settings and have the next fetch succeed.
+ *   - GPS_NO_FIX: transient. use_gps stays set.
  * Any non-OK outcome falls through to ipinfo(). Returns the 0/-1 of the source
  * that produced the result.
+ *
+ * Prints nothing. The status gps() returned is written to *gps_status when it
+ * is not NULL, and GPS_OK is written when use_gps is off, since GPS was not
+ * tried. The caller decides what to tell the user, see gps_status_message.
  */
-int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *));
+int location_fetch_core(Config *cfg, GpsStatus (*gps)(Config *), int (*ipinfo)(Config *),
+                        GpsStatus *gps_status);
 
 /**
- * Quiet helper that ensures location data exists.
+ * location_fetch_core bound to the real GPS and ipinfo.io sources. Prints
+ * nothing about GPS: the outcome is reported through *gps_status.
  * Returns: 0 on success, -1 on failure.
- * This function does not print user-facing status lines.
  */
-int location_prepare(Config *cfg);
-
-/**
- * Force a fresh location lookup from ipinfo.io, ignoring any cached
- * coordinates, and persist the result. Unlike location_prepare(), this does
- * NOT skip when coordinates are already set — it always re-fetches. Intended
- * to run once at daemon startup so a machine that moved between boots picks
- * up its new location.
- *
- * Fail-safe by design:
- *   - If auto_detect is disabled, this is a no-op (returns 0), leaving a
- *     manually-set location untouched. Note the converse: with auto_detect
- *     enabled, any hand-edited coordinates are replaced on each refresh — set
- *     auto_detect=false (e.g. via `location set`) to pin coordinates.
- *   - If the network fetch fails, the passed-in config is left unmodified
- *     and -1 is returned, so a boot with no network keeps the last known
- *     good location instead of wiping it to 0,0.
- *
- * On success `*cfg` is updated (latitude/longitude/timezone/country) and
- * saved to disk. The calculation_method is intentionally left as-is.
- *
- * Returns 0 on success or when auto_detect is off, -1 on fetch/save failure.
- */
-int location_refresh(Config *cfg);
+int location_detect(Config *cfg, GpsStatus *gps_status);
 
 /**
  * Pure, network-free staleness check for the daemon check cycle. Returns true
@@ -128,22 +104,6 @@ int location_refresh(Config *cfg);
  * with a positive interval is always stale.
  */
 bool location_is_stale(const Config *cfg, int64_t now);
-
-/**
- * CLI-facing wrapper around location preparation.
- * Prints status lines to stderr when auto-detect runs, so stdout stays clean
- * for `show --json` and `--headless`.
- */
-int ensure_location(Config *cfg);
-
-/**
- * Auto-detect: fetch location via ipinfo and set calculation_method from the
- * detected country (via country_default_method). Mutates *cfg only — does NOT
- * save config or print. Returns 0 on success, -1 on fetch failure.
- *
- * Used by `daemon enable` (Linux + Windows).
- */
-int config_auto_detect(Config *cfg);
 
 #ifdef __cplusplus
 }

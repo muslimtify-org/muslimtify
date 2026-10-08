@@ -1,5 +1,9 @@
 #define _POSIX_C_SOURCE 200809L
 #define JSON_IMPLEMENTATION
+#include "log.h"
+// The JSON parser is compiled into this file, and reports its own problems
+// through the log handler as well. This has to come before json.h is included.
+#define JSON_LOG(...) MT_LOGF(MT_LOG_ERROR, __VA_ARGS__)
 #include "config.h"
 #include "json.h"
 #include "location.h"
@@ -22,7 +26,7 @@ static bool config_trunc_logged = false;
 
 static void log_truncation(const char *key) {
   if (!config_trunc_logged) {
-    fprintf(stderr, "config: value '%s' truncated\n", key);
+    MT_LOGF(MT_LOG_WARNING, "config: value '%s' truncated", key);
     config_trunc_logged = true;
   }
 }
@@ -44,7 +48,7 @@ static int ensure_config_dir(void) {
   if (dir[0] == '\0')
     return -1;
   if (platform_mkdir_p(dir) != 0) {
-    fprintf(stderr, "Error: Cannot create config directory '%s'\n", dir);
+    MT_LOGF(MT_LOG_ERROR, "Error: Cannot create config directory '%s'", dir);
     return -1;
   }
   return 0;
@@ -149,7 +153,7 @@ static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, "    \"timezone\": ");
   json_write_escaped(f, cfg->timezone);
   fprintf(f, ",\n");
-  fprintf(f, "    \"timezone_offset\": %.1f,\n", cfg->timezone_offset);
+  fprintf(f, "    \"timezone_offset\": %.6f,\n", cfg->timezone_offset);
   fprintf(f, "    \"auto_detect\": %s,\n", cfg->auto_detect ? "true" : "false");
   fprintf(f, "    \"use_gps\": %s,\n", cfg->use_gps ? "true" : "false");
   fprintf(f, "    \"updated_at\": %lld,\n", (long long)cfg->updated_at);
@@ -214,8 +218,8 @@ static int write_json_file(FILE *f, const Config *cfg) {
   json_write_escaped(f, cfg->madhab);
   if (strcmp(cfg->calculation_method, "custom") == 0) {
     fprintf(f, ",\n");
-    fprintf(f, "    \"fajr_angle\": %.1f,\n", cfg->fajr_angle);
-    fprintf(f, "    \"isha_angle\": %.1f\n", cfg->isha_angle);
+    fprintf(f, "    \"fajr_angle\": %.6f,\n", cfg->fajr_angle);
+    fprintf(f, "    \"isha_angle\": %.6f\n", cfg->isha_angle);
   } else {
     fprintf(f, "\n");
   }
@@ -238,7 +242,7 @@ int config_save(const Config *cfg) {
   char tmp_path[PLATFORM_PATH_MAX];
   int n = snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
   if (n < 0 || (size_t)n >= sizeof(tmp_path)) {
-    fprintf(stderr, "Error: Config path too long\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Config path too long");
     return -1;
   }
 
@@ -249,7 +253,7 @@ int config_save(const Config *cfg) {
     int err = errno;
     char errbuf[128];
     errno_string(err, errbuf, sizeof(errbuf));
-    fprintf(stderr, "Error: Cannot write config file: %s\n", errbuf);
+    MT_LOGF(MT_LOG_ERROR, "Error: Cannot write config file: %s", errbuf);
     return -1;
   }
 
@@ -265,7 +269,7 @@ int config_save(const Config *cfg) {
   if (write_err) {
     char errbuf[128];
     errno_string(err, errbuf, sizeof(errbuf));
-    fprintf(stderr, "Error: Failed to write config file: %s\n", errbuf);
+    MT_LOGF(MT_LOG_ERROR, "Error: Failed to write config file: %s", errbuf);
     platform_file_delete(tmp_path);
     return -1;
   }
@@ -274,7 +278,7 @@ int config_save(const Config *cfg) {
     err = errno;
     char errbuf[128];
     errno_string(err, errbuf, sizeof(errbuf));
-    fprintf(stderr, "Error: Failed to save config file: %s\n", errbuf);
+    MT_LOGF(MT_LOG_ERROR, "Error: Failed to save config file: %s", errbuf);
     platform_file_delete(tmp_path);
     return -1;
   }
@@ -295,7 +299,7 @@ static char *read_file(const char *path) {
     return NULL;
   }
   if (size > MAX_CONFIG_FILE_BYTES) {
-    fprintf(stderr, "config: file too large (%ld bytes), refusing to load\n", size);
+    MT_LOGF(MT_LOG_WARNING, "config: file too large (%ld bytes), refusing to load", size);
     fclose(f);
     return NULL;
   }
@@ -390,7 +394,7 @@ int config_load(Config *cfg) {
 
   char *content = read_file(path);
   if (!content) {
-    fprintf(stderr, "Error: Cannot read config file\n");
+    MT_LOGF(MT_LOG_ERROR, "Error: Cannot read config file");
     return -1;
   }
 
@@ -402,7 +406,7 @@ int config_load(Config *cfg) {
   const char *doc = skip_whitespace(content);
   const char *doc_end = (*doc == '{') ? find_matching_bracket(doc, '{') : NULL;
   if (!doc_end || *skip_whitespace(doc_end + 1) != '\0') {
-    fprintf(stderr, "Error: %s is not valid JSON, fix or delete it\n", path);
+    MT_LOGF(MT_LOG_ERROR, "Error: %.980s is not valid JSON, fix or delete it", path);
     free(content);
     return -1;
   }
@@ -442,6 +446,11 @@ int config_load(Config *cfg) {
       cfg->auto_detect = strcmp(auto_detect_str, "true") == 0;
     if (use_gps_str)
       cfg->use_gps = strcmp(use_gps_str, "true") == 0;
+    // GPS is a source for automatic location, so it means nothing with
+    // auto-detect off. A file that says otherwise, from an older version or a
+    // hand edit, is read as GPS off.
+    if (!cfg->auto_detect)
+      cfg->use_gps = false;
     if (city_str) {
       if (!copy_string(cfg->city, sizeof(cfg->city), city_str)) {
         log_truncation("city");
@@ -637,32 +646,6 @@ bool config_validate(const Config *cfg) {
   return true;
 }
 
-PrayerConfig *config_get_prayer(Config *cfg, const char *prayer_name) {
-  if (!cfg || !prayer_name)
-    return NULL;
-
-  // Convert to lowercase for comparison
-  char name_lower[32];
-  copy_string(name_lower, sizeof(name_lower), prayer_name);
-  for (int i = 0; name_lower[i]; i++) {
-    int tmp = tolower((unsigned char)name_lower[i]);
-    name_lower[i] = (char)tmp;
-  }
-
-  if (strcmp(name_lower, "fajr") == 0)
-    return &cfg->fajr;
-  if (strcmp(name_lower, "dhuhr") == 0 || strcmp(name_lower, "dhur") == 0)
-    return &cfg->dhuhr;
-  if (strcmp(name_lower, "asr") == 0)
-    return &cfg->asr;
-  if (strcmp(name_lower, "maghrib") == 0)
-    return &cfg->maghrib;
-  if (strcmp(name_lower, "isha") == 0)
-    return &cfg->isha;
-
-  return NULL;
-}
-
 typedef struct {
   int *reminders;
   int max;
@@ -719,36 +702,6 @@ int config_parse_reminders(const char *reminder_str, int *reminders, int max_rem
   return ctx.count;
 }
 
-void config_format_reminders(const PrayerConfig *prayer, char *buffer, size_t bufsize) {
-  if (!prayer || !buffer || bufsize == 0)
-    return;
-
-  buffer[0] = '\0';
-
-  if (prayer->reminder_count == 0) {
-    if (!copy_string(buffer, bufsize, "none")) {
-      log_truncation("reminders");
-    }
-    return;
-  }
-
-  char temp[16];
-  for (int i = 0; i < prayer->reminder_count; i++) {
-    snprintf(temp, sizeof(temp), "%d", prayer->reminders[i]);
-    if (!append_string(buffer, bufsize, temp)) {
-      log_truncation("reminders");
-      break;
-    }
-
-    if (i < prayer->reminder_count - 1) {
-      if (!append_string(buffer, bufsize, ",")) {
-        log_truncation("reminders");
-        break;
-      }
-    }
-  }
-}
-
 MethodParams method_params_from_config(const Config *cfg) {
   CalcMethod method = method_from_string(cfg->calculation_method);
   const MethodParams *base = method_params_get(method);
@@ -790,15 +743,15 @@ struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int mont
   //
   // The warning prints once per process. A `show --date` range calls this
   // function once per day, and one `show` already calls it three times through
-  // prayer_get_next. It goes to stderr so that `show --json` and
-  // `show --headless` stay machine-readable.
+  // prayer_get_next. It goes to the log handler, which writes to stderr by default, so that `show
+  // --json` and `show --headless` stay machine-readable.
   if (!config_latitude_is_valid(cfg->latitude) || !config_longitude_is_valid(cfg->longitude)) {
     static bool warned = false;
     if (!warned) {
       warned = true;
-      fprintf(stderr,
+      MT_LOGF(MT_LOG_WARNING,
               "Warning: invalid location in config (latitude %.6f, longitude %.6f), prayer times "
-              "unavailable. Run: muslimtify location set --lat=<latitude> --long=<longitude>\n",
+              "unavailable. Run: muslimtify location set --lat=<latitude> --long=<longitude>",
               cfg->latitude, cfg->longitude);
     }
     struct PrayerTimes unavailable = {

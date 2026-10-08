@@ -23,8 +23,6 @@
 #include "notification.h"
 #include "toast_activator.h"
 
-/* -- Identity --------------------------------------------------------------- */
-
 /* Must match MUSLIMTIFY_AUMID in notification_win.c. */
 static const wchar_t MUSLIMTIFY_AUMID[] = L"Muslimtify";
 
@@ -45,8 +43,6 @@ static const IID IID_INotificationActivationCallback_ = {
 static void dbg(const char *msg) {
   OutputDebugStringA(msg);
 }
-
-/* -- INotificationActivationCallback ---------------------------------------- */
 
 typedef struct {
   LPCWSTR Key;
@@ -103,8 +99,6 @@ static HRESULT STDMETHODCALLTYPE cb_Activate(ActivationCallback *This, LPCWSTR a
 static const ActivationCallbackVtbl g_cb_vtbl = {cb_QI, cb_AddRef, cb_Release, cb_Activate};
 static ActivationCallback g_cb = {&g_cb_vtbl};
 
-/* -- IClassFactory ---------------------------------------------------------- */
-
 typedef struct ClassFactory ClassFactory;
 typedef struct ClassFactoryVtbl {
   HRESULT(STDMETHODCALLTYPE *QueryInterface)(ClassFactory *, REFIID, void **);
@@ -152,8 +146,6 @@ static const ClassFactoryVtbl g_cf_vtbl = {cf_QI, cf_AddRef, cf_Release, cf_Crea
                                            cf_LockServer};
 static ClassFactory g_cf = {&g_cf_vtbl};
 
-/* -- Server ----------------------------------------------------------------- */
-
 int run_toast_activator_server(void) {
   DWORD cookie = 0;
   MSG msg;
@@ -182,8 +174,6 @@ int run_toast_activator_server(void) {
   CoUninitialize();
   return 0;
 }
-
-/* -- Registration ----------------------------------------------------------- */
 
 static int register_clsid_localserver(const wchar_t *exe) {
   wchar_t clsid_str[64];

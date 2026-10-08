@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #define JSON_IMPLEMENTATION
 #include "json.h"
 
@@ -40,8 +41,6 @@ static void check_not_null(const void *result, const char *label) {
     failures++;
   }
 }
-
-/* -- Basic extraction ------------------------------------------------------- */
 
 static void test_basic_string(void) {
   printf("test_basic_string\n");
@@ -89,8 +88,6 @@ static void test_empty_string_value(void) {
   json_end(ctx);
 }
 
-/* -- Nested objects --------------------------------------------------------- */
-
 static void test_nested_object(void) {
   printf("test_nested_object\n");
   JsonContext *ctx = json_begin();
@@ -105,8 +102,6 @@ static void test_nested_object(void) {
   check_str(lon, "2.0", "nested lon value");
   json_end(ctx);
 }
-
-/* -- Missing keys ----------------------------------------------------------- */
 
 static void test_missing_key(void) {
   printf("test_missing_key\n");
@@ -125,8 +120,6 @@ static void test_empty_object(void) {
   check_null(val, "empty object returns NULL");
   json_end(ctx);
 }
-
-/* -- Escaped strings -------------------------------------------------------- */
 
 static void test_escaped_quote(void) {
   printf("test_escaped_quote\n");
@@ -247,8 +240,6 @@ static void test_string_trailing_backslash_no_oob(void) {
   free(buf);
 }
 
-/* -- Edge cases ------------------------------------------------------------- */
-
 static void test_key_inside_value(void) {
   printf("test_key_inside_value\n");
   JsonContext *ctx = json_begin();
@@ -256,6 +247,33 @@ static void test_key_inside_value(void) {
   char *val = get_value(ctx, "lat", json);
   check_str(val, "2.0", "key inside value not confused");
   json_end(ctx);
+}
+
+static void test_value_equal_to_key(void) {
+  printf("test_value_equal_to_key\n");
+  JsonContext *ctx = json_begin();
+  // The value of "city" is spelled exactly like the key being searched for.
+  char json[] = "{\"city\": \"country\", \"country\": \"ID\"}";
+  check_str(get_value(ctx, "country", json), "ID", "value equal to key is not taken as the key");
+  char json2[] = "{\"hostname\": \"loc\", \"loc\": \"-6.2,106.8\"}";
+  check_str(get_value(ctx, "loc", json2), "-6.2,106.8", "later key still found");
+  json_end(ctx);
+}
+
+static void test_truncated_after_key(void) {
+  printf("test_truncated_after_key\n");
+  // The document ends right after the searched key: nothing may be read past
+  // the terminator (ASan aborts in the Debug build), and nothing is found.
+  char *buf = strdup("{\"loc\":\"-6.2,106.8\",\"timezone\"");
+  check_not_null(buf, "strdup for truncated buffer");
+  if (!buf)
+    return;
+  JsonContext *ctx = json_begin();
+  char *val = get_value(ctx, "timezone", buf);
+  check_null(val, "key without a value is not found");
+  check_str(get_value(ctx, "loc", buf), "-6.2,106.8", "earlier key still found");
+  json_end(ctx);
+  free(buf);
 }
 
 static void test_multiple_get_value(void) {
@@ -273,8 +291,6 @@ static void test_multiple_get_value(void) {
   check_str(c, "third", "third value still valid");
   json_end(ctx);
 }
-
-/* -- Lifecycle -------------------------------------------------------------- */
 
 static void test_json_begin(void) {
   printf("test_json_begin\n");
@@ -312,8 +328,6 @@ static void test_arena_large_alignment(void) {
   json_alloc_free(arena);
 }
 
-/* -- Main ------------------------------------------------------------------- */
-
 int main(void) {
   printf("=== json.h tests ===\n\n");
 
@@ -340,6 +354,8 @@ int main(void) {
   test_string_trailing_backslash_no_oob();
 
   test_key_inside_value();
+  test_value_equal_to_key();
+  test_truncated_after_key();
   test_multiple_get_value();
 
   test_arena_large_alignment();

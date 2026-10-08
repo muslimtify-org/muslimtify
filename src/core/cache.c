@@ -2,6 +2,7 @@
 #include "cache.h"
 #include "check_cycle.h"
 #include "json.h"
+#include "log.h"
 #include "platform.h"
 #include "prayer_checker.h"
 #include <math.h>
@@ -25,7 +26,7 @@ static bool cache_trunc_logged = false;
 
 static void cache_log_trunc(const char *field) {
   if (!cache_trunc_logged) {
-    fprintf(stderr, "cache: truncated field %s\n", field ? field : "(unknown)");
+    MT_LOGF(MT_LOG_WARNING, "cache: truncated field %s", field ? field : "(unknown)");
     cache_trunc_logged = true;
   }
 }
@@ -38,10 +39,10 @@ static bool cache_capacity_logged = false;
 static void cache_log_capacity_drop(const char *prayer, int minutes_before) {
   if (!cache_capacity_logged) {
     if (minutes_before == 0) {
-      fprintf(stderr, "cache: capacity reached, dropped %s adhan trigger\n",
+      MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s adhan trigger",
               prayer ? prayer : "(unknown)");
     } else {
-      fprintf(stderr, "cache: capacity reached, dropped %s reminder (%d min before)\n",
+      MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s reminder (%d min before)",
               prayer ? prayer : "(unknown)", minutes_before);
     }
     cache_capacity_logged = true;
@@ -83,7 +84,7 @@ static char *read_file(const char *path) {
     return NULL;
   }
   if (size > MAX_CACHE_FILE_BYTES) {
-    fprintf(stderr, "cache: file too large (%ld bytes), refusing to load\n", size);
+    MT_LOGF(MT_LOG_WARNING, "cache: file too large (%ld bytes), refusing to load", size);
     fclose(f);
     return NULL;
   }
@@ -197,7 +198,7 @@ int cache_load(PrayerCache *cache) {
 
     // A trigger object missing any key means the file is corrupt. Reject the
     // whole cache rather than continuing with a silently short trigger list:
-    // run_check_cycle treats a failed load as invalid and rebuilds from config.
+    // muslimtify_run_cycle treats a failed load as invalid and rebuilds from config.
     char *prayer = get_value(ctx, "prayer", obj_start);
     char *minute_str = get_value(ctx, "minute", obj_start);
     char *mb_str = get_value(ctx, "minutes_before", obj_start);
@@ -214,8 +215,19 @@ int cache_load(PrayerCache *cache) {
     if (!copy_string(t->prayer, sizeof(t->prayer), prayer)) {
       cache_log_trunc("prayer");
     }
-    t->minute = (int)strtol(minute_str, NULL, 10);
-    t->minutes_before = (int)strtol(mb_str, NULL, 10);
+    // A trigger belongs to one day and a reminder is at most a day ahead, so
+    // anything outside these ranges is a corrupt file, not a trigger. Values
+    // that pass cannot overflow the minute arithmetic in check_cycle.
+    long minute = strtol(minute_str, NULL, 10);
+    long minutes_before = strtol(mb_str, NULL, 10);
+    if (minute < 0 || minute >= 1440 || minutes_before < 0 || minutes_before > 1440) {
+      *(obj_end + 1) = saved;
+      json_end(ctx);
+      free(content);
+      return -1;
+    }
+    t->minute = (int)minute;
+    t->minutes_before = (int)minutes_before;
     t->prayer_time = strtod(pt_str, NULL);
     t->adhan_enabled = strcmp(ae_str, "true") == 0;
     if (!copy_string(t->adhan, sizeof(t->adhan), adhan_str)) {

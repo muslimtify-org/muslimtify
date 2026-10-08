@@ -20,6 +20,36 @@ const char *prayer_get_name(PrayerType type) {
   }
 }
 
+void clock_format(int hour, int minute, int time_format, char *out, size_t cap) {
+  // The modulo is redundant on an in-range value: it is what lets GCC's range
+  // analysis bound the field width and drop -Wformat-truncation.
+  unsigned mm = (unsigned)minute % 100u;
+  if (time_format != 12) {
+    snprintf(out, cap, "%02u:%02u", (unsigned)hour % 100u, mm);
+    return;
+  }
+  const char *meridiem = hour < 12 ? "AM" : "PM";
+  int hour12 = hour % 12;
+  if (hour12 == 0)
+    hour12 = 12;
+  snprintf(out, cap, "%02u:%02u %s", (unsigned)hour12 % 100u, mm, meridiem);
+}
+
+void format_time_cfg(const Config *cfg, double hours, char *out, size_t cap) {
+  char hm[6];
+  format_time_hm(hours, hm, sizeof(hm));
+
+  // "--:--" has no hour to convert.
+  if (hm[0] == '-') {
+    snprintf(out, cap, "%s", hm);
+    return;
+  }
+
+  int hour = (hm[0] - '0') * 10 + (hm[1] - '0');
+  int minute = (hm[3] - '0') * 10 + (hm[4] - '0');
+  clock_format(hour, minute, cfg ? cfg->time_format : 24, out, cap);
+}
+
 double prayer_get_time(const struct PrayerTimes *times, PrayerType type) {
   switch (type) {
   case PRAYER_FAJR:

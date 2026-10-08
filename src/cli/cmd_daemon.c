@@ -1,204 +1,82 @@
-#define _GNU_SOURCE
-#include "cmd_daemon.h"
 #include "cli_internal.h"
 #include "daemon_loop.h"
-#include "platform.h"
 #include "util.h"
-#include <errno.h>
-#include <linux/limits.h>
-#include <pwd.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
-#ifndef MUSLIMTIFY_CMD_DAEMON_TEST
-#include "location.h"
-#include "prayertimes.h"
-#endif
-
-// -- helpers -----------------------------------------------------------------
-
-static int systemctl_user(const char *const *args) {
-  int n = 0;
-  while (args[n])
-    n++;
-
-  char **child_argv = (char **)malloc((size_t)(n + 3) * sizeof(char *));
-  if (!child_argv)
-    return 1;
-
-  child_argv[0] = "systemctl";
-  child_argv[1] = "--user";
-  for (int i = 0; i < n; i++)
-    child_argv[i + 2] = (char *)args[i];
-  child_argv[n + 2] = NULL;
-
-  pid_t pid = fork();
-  if (pid < 0) {
-    free((void *)child_argv);
-    return 1;
+// Auto-detect location and calculation method only when the config still needs
+// a location, the same condition the check cycle uses. Coordinates and a method
+// the user set by hand are kept. Nothing here fails the install: a problem is a
+// warning, and the service is still set up.
+static void daemon_auto_setup(void) {
+  Muslimtify *mt = NULL;
+  if (muslimtify_open(&mt) != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Warning: Failed to load config, skipping auto-detect\n");
+    return;
   }
-  if (pid == 0) {
-    execvp("systemctl", child_argv);
-    _exit(127);
+
+  MuslimtifyLocation loc;
+  MuslimtifyMethodInfo method;
+
+  if (!muslimtify_location_needs_detect(mt)) {
+    if (muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK &&
+        muslimtify_get_method(mt, &method) == MUSLIMTIFY_OK)
+      printf("✓ Using saved location %.4f, %.4f and method %s\n", loc.latitude, loc.longitude,
+             method.key);
+    muslimtify_close(mt);
+    return;
   }
-  free((void *)child_argv);
-  int wstatus;
-  waitpid(pid, &wstatus, 0);
-  return WIFEXITED(wstatus) ? WEXITSTATUS(wstatus) : 1;
-}
 
-static void mkdir_p(const char *path) {
-  char tmp[PATH_MAX];
-  snprintf(tmp, sizeof(tmp), "%s", path);
-  tmp[sizeof(tmp) - 1] = '\0';
-  for (char *p = tmp + 1; *p; p++) {
-    if (*p == '/') {
-      *p = '\0';
-      mkdir(tmp, 0755);
-      *p = '/';
-    }
+  printf("Detecting location...\n");
+  MuslimtifyDetection detection;
+  if (muslimtify_detect_location(mt, &detection) != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Warning: Failed to detect location, skipping auto-detect\n");
+    muslimtify_close(mt);
+    return;
   }
-  mkdir(tmp, 0755);
-}
+  cli_print_gps_warning(&detection);
+  muslimtify_set_method_from_country(mt);
 
-static const char *get_home(void) {
-  const char *home = getenv("HOME");
-  if (!home) {
-    struct passwd *pw = getpwuid(getuid());
-    if (pw)
-      home = pw->pw_dir;
+  if (muslimtify_get_location(mt, &loc) == MUSLIMTIFY_OK) {
+    if (loc.city[0] != '\0')
+      printf("✓ Location detected: %s, %s\n", loc.city, loc.country);
+    else
+      printf("✓ Location detected: %.4f, %.4f\n", loc.latitude, loc.longitude);
   }
-  return home;
+
+  if (muslimtify_save(mt) != MUSLIMTIFY_OK) {
+    fprintf(stderr, "Warning: Failed to save config\n");
+  } else if (muslimtify_get_method(mt, &method) == MUSLIMTIFY_OK) {
+    printf("✓ Method auto-detected: %s", method.key);
+    if (method.name[0] != '\0')
+      printf(" (%s)", method.name);
+    printf("\n");
+  }
+  muslimtify_close(mt);
 }
-
-int build_service_unit(const char *binary_path, char *buffer, size_t buffer_size) {
-  if (!binary_path || !buffer || buffer_size == 0)
-    return -1;
-
-  int written = snprintf(buffer, buffer_size,
-                         "[Unit]\n"
-                         "Description=Muslimtify prayer notification daemon\n"
-                         "After=network-online.target\n"
-                         "\n"
-                         "[Service]\n"
-                         "Type=simple\n"
-                         "ExecStart=%s daemon run\n"
-                         "Restart=on-failure\n"
-                         "RestartSec=5\n"
-                         "\n"
-                         "[Install]\n"
-                         "WantedBy=default.target\n",
-                         binary_path);
-
-  if (written < 0 || (size_t)written >= buffer_size)
-    return -1;
-  return written;
-}
-
-// -- sub-handlers ------------------------------------------------------------
 
 static int daemon_install_handler(int argc, char **argv) {
   (void)argc;
   (void)argv;
 
-  const char *binary_path = platform_exe_path();
-  if (!binary_path || binary_path[0] == '\0') {
-    fprintf(stderr, "Error: Cannot determine binary path\n");
-    return 1;
-  }
+  // The location is settled before the service starts, so its first cycle has
+  // something to work with.
+  daemon_auto_setup();
 
-  const char *home = get_home();
-  if (!home) {
-    fprintf(stderr, "Error: Cannot determine home directory\n");
-    return 1;
-  }
+  MuslimtifyDaemonInstall result;
+  MuslimtifyError err = muslimtify_daemon_install(&result);
 
-  char systemd_dir[PATH_MAX];
-  snprintf(systemd_dir, sizeof(systemd_dir), "%s/.config/systemd/user", home);
-  mkdir_p(systemd_dir);
-
-  char service_path[PATH_MAX + 32];
-  snprintf(service_path, sizeof(service_path), "%s/muslimtify.service", systemd_dir);
-
-  char unit[DAEMON_UNIT_MAX];
-  if (build_service_unit(binary_path, unit, sizeof(unit)) < 0) {
-    fprintf(stderr, "Error: Failed to render service unit\n");
-    return 1;
-  }
-
-  FILE *f = fopen(service_path, "w");
-  if (!f) {
-    fprintf(stderr, "Error: Cannot write %s: %s\n", service_path, strerror(errno));
-    return 1;
-  }
-  fputs(unit, f);
-  if (ferror(f) || fclose(f) != 0) {
-    fprintf(stderr, "Error: Failed to write %s: %s\n", service_path, strerror(errno));
-    return 1;
-  }
-  printf("✓ Created %s\n", service_path);
-
-  /* Heal upgrades from the timer era: a pre-loop version may have left
-   * muslimtify.timer enabled. Best-effort — silent on a clean install. */
-  if (systemctl_user((const char *[]){"is-enabled", "--quiet", "muslimtify.timer", NULL}) == 0) {
-    systemctl_user((const char *[]){"disable", "--now", "muslimtify.timer", NULL});
+  // Report each step that happened, including on a failure part way through.
+  if (result.unit_path[0] != '\0')
+    printf("✓ Created %s\n", result.unit_path);
+  if (result.legacy_timer_disabled)
     printf("✓ Disabled legacy muslimtify.timer\n");
-  }
-  char timer_path[PATH_MAX + 32];
-  snprintf(timer_path, sizeof(timer_path), "%s/muslimtify.timer", systemd_dir);
-  remove(timer_path);
-
-#ifndef MUSLIMTIFY_CMD_DAEMON_TEST
-  /* Auto-detect location and calculation method only when the config still
-   * needs a location, the same condition location_prepare uses. Coordinates
-   * and a method the user set by hand are kept. */
-  Config cfg;
-  if (config_load(&cfg) != 0) {
-    fprintf(stderr, "Warning: Failed to load config, skipping auto-detect\n");
-  } else if (!config_location_needs_detect(&cfg)) {
-    printf("✓ Using saved location %.4f, %.4f and method %s\n", cfg.latitude, cfg.longitude,
-           cfg.calculation_method);
-  } else {
-    printf("Detecting location...\n");
-    if (config_auto_detect(&cfg) != 0) {
-      fprintf(stderr, "Warning: Failed to detect location, skipping auto-detect\n");
-    } else {
-      if (cfg.city[0] != '\0') {
-        printf("✓ Location detected: %s, %s\n", cfg.city, cfg.country);
-      } else {
-        printf("✓ Location detected: %.4f, %.4f\n", cfg.latitude, cfg.longitude);
-      }
-
-      if (config_save(&cfg) != 0) {
-        fprintf(stderr, "Warning: Failed to save config\n");
-      } else {
-        CalcMethod m = method_from_string(cfg.calculation_method);
-        const MethodParams *p = method_params_get(m);
-        printf("✓ Method auto-detected: %s", cfg.calculation_method);
-        if (p)
-          printf(" (%s)", p->name);
-        printf("\n");
-      }
-    }
-  }
-#endif
-
-  if (systemctl_user((const char *[]){"daemon-reload", NULL}) != 0) {
-    fprintf(stderr, "Error: systemctl daemon-reload failed\n");
-    return 1;
-  }
-  printf("✓ Reloaded systemd\n");
-
-  if (systemctl_user((const char *[]){"enable", "--now", "muslimtify.service", NULL}) != 0) {
-    fprintf(stderr, "Error: Failed to enable muslimtify.service\n");
-    return 1;
-  }
+  if (err == MUSLIMTIFY_OK || err == MUSLIMTIFY_ERR_DAEMON_ENABLE)
+    printf("✓ Reloaded systemd\n");
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
   printf("✓ Enabled and started muslimtify.service\n");
 
-  printf("\nDaemon installed. Binary: %s\n", binary_path);
+  printf("\nDaemon installed. Binary: %s\n", result.binary_path);
   printf("Run 'muslimtify daemon status' to verify.\n");
   return 0;
 }
@@ -207,42 +85,25 @@ static int daemon_uninstall_handler(int argc, char **argv) {
   (void)argc;
   (void)argv;
 
-  if (systemctl_user((const char *[]){"is-active", "--quiet", "muslimtify.service", NULL}) == 0) {
-    systemctl_user((const char *[]){"stop", "muslimtify.service", NULL});
+  MuslimtifyDaemonUninstall result;
+  MuslimtifyError err = muslimtify_daemon_uninstall(&result);
+
+  if (result.stopped)
     printf("✓ Stopped muslimtify.service\n");
-  }
-
-  if (systemctl_user((const char *[]){"is-enabled", "--quiet", "muslimtify.service", NULL}) == 0) {
-    systemctl_user((const char *[]){"disable", "muslimtify.service", NULL});
+  if (result.disabled)
     printf("✓ Disabled muslimtify.service\n");
-  }
-
-  if (systemctl_user((const char *[]){"is-enabled", "--quiet", "muslimtify.timer", NULL}) == 0) {
-    systemctl_user((const char *[]){"disable", "--now", "muslimtify.timer", NULL});
+  if (result.legacy_timer_disabled)
     printf("✓ Disabled muslimtify.timer\n");
-  }
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
 
-  const char *home = get_home();
-  if (!home) {
-    fprintf(stderr, "Error: Cannot determine home directory\n");
-    return 1;
-  }
-
-  char path[PATH_MAX];
-  int removed = 0;
-  const char *units[] = {"muslimtify.service", "muslimtify.timer"};
-  for (size_t i = 0; i < ARRAY_LEN(units); i++) {
-    snprintf(path, sizeof(path), "%s/.config/systemd/user/%s", home, units[i]);
-    if (remove(path) == 0) {
-      printf("✓ Removed %s\n", path);
-      removed++;
-    }
-  }
-
-  systemctl_user((const char *[]){"daemon-reload", NULL});
+  if (result.unit_removed)
+    printf("✓ Removed %s\n", result.unit_path);
+  if (result.timer_removed)
+    printf("✓ Removed %s\n", result.timer_path);
   printf("✓ Reloaded systemd\n");
 
-  if (removed == 0)
+  if (!result.unit_removed && !result.timer_removed)
     printf("Note: No unit files were found (already uninstalled?)\n");
 
   printf("\nDaemon uninstalled. Binary and config files are untouched.\n");
@@ -254,27 +115,29 @@ static int daemon_status_handler(int argc, char **argv) {
   (void)argc;
   (void)argv;
 
-  printf("=== Service ===\n");
-  // Pass on the systemctl exit code, as the Windows version does with schtasks,
-  // so a failed query or a missing unit is not reported as success.
-  return systemctl_user((const char *[]){"status", "muslimtify.service", "--no-pager", NULL});
+  MuslimtifyDaemonStatus st;
+  MuslimtifyError err = muslimtify_daemon_status(&st);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  printf("Installed: %s\n", st.installed ? "yes" : "no");
+  printf("Enabled:   %s\n", st.enabled ? "yes" : "no");
+  printf("Running:   %s\n", st.running ? "yes" : "no");
+  // Non-zero when it is not running, so a script can test for a live daemon.
+  return st.running ? 0 : 1;
 }
 
-#ifndef MUSLIMTIFY_CMD_DAEMON_TEST
 static int daemon_run_handler(int argc, char **argv) {
   (void)argc;
   (void)argv;
   return run_daemon_loop();
 }
-#endif
 
 static const CommandEntry daemon_commands[] = {
     {"install", daemon_install_handler},
     {"uninstall", daemon_uninstall_handler},
     {"status", daemon_status_handler},
-#ifndef MUSLIMTIFY_CMD_DAEMON_TEST
     {"run", daemon_run_handler},
-#endif
 };
 
 static void print_daemon_help(void) {

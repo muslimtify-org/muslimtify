@@ -2,8 +2,10 @@
 
 #include "notification.h"
 #include "audio.h"
+#include "log.h"
 #include "platform.h"
 #include <libnotify/notify.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,11 +135,12 @@ int notify_init_once(const char *app_name) {
 }
 
 // Show a notification. A failure, such as no notification daemon on the session
-// bus, goes to stderr so it reaches the journal under the systemd user service.
+// bus, goes to the log handler, which writes to stderr by default, so it reaches the journal under
+// the systemd user service.
 static void show_notification(NotifyNotification *n) {
   GError *error = NULL;
   if (!notify_notification_show(n, &error)) {
-    fprintf(stderr, "muslimtify: could not show notification: %s\n",
+    MT_LOGF(MT_LOG_ERROR, "muslimtify: could not show notification: %s",
             error ? error->message : "unknown error");
     g_clear_error(&error);
   }
@@ -150,9 +153,22 @@ void notify_send(const char *title, const char *message) {
   g_object_unref(G_OBJECT(n));
 }
 
+// Set from a signal handler, read by the poll below. Never cleared: the
+// daemon loop exits after the cycle that saw it, and a command line process
+// that plays a test adhan never sets it.
+static volatile sig_atomic_t g_adhan_interrupt = 0;
+
+void notify_adhan_interrupt(void) {
+  g_adhan_interrupt = 1;
+}
+
 static gboolean adhan_poll_cb(gpointer user_data) {
-  if (!audio_is_playing())
+  if (g_adhan_interrupt) {
+    audio_stop();
     g_main_loop_quit((GMainLoop *)user_data);
+  } else if (!audio_is_playing()) {
+    g_main_loop_quit((GMainLoop *)user_data);
+  }
   return G_SOURCE_CONTINUE;
 }
 
