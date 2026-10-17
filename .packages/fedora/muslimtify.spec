@@ -1,5 +1,5 @@
 Name:           muslimtify
-Version:        0.4.3
+Version:        0.4.4
 Release:        1%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
 License:        MIT
@@ -48,6 +48,16 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
+* Sat Oct 17 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.4-1
+- 'daemon status' now prints Installed, Enabled and Running lines and exits 0 only when the daemon is running, replacing the systemctl status output
+- Turning GPS on now turns location auto-detect on, and hand-set coordinates turn both off
+- Write timezone_offset, fajr_angle and isha_angle to the config with six decimals, so a 5.75 offset no longer becomes 5.8
+- A stop signal now cuts a playing adhan, so stopping the daemon no longer gets it killed and the prayer notified again
+- Rebuild the day's notifications when a location refresh moves the location, and wait ten minutes before retrying a failed refresh
+- Quote the daemon program path so an install path with a space works, for the systemd unit and the Windows scheduled task
+- Fix 'method --auto' replacing hand-set coordinates, and refuse 'location set' with only one coordinate
+- Fix a JSON parser over-read on a truncated document and a config value equal to a key name being lost on save
+
 * Mon Sep 28 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.3-1
 - Add 'timeformat 12|24' to print prayer times in a 12-hour or 24-hour clock, stored as display.time_format in the config
 - Fix a NaN latitude or longitude passing validation in config and 'location set', which produced a believable but wrong schedule
