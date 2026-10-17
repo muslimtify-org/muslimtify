@@ -1,19 +1,23 @@
-#include "fonts.h"
-#include "gui_config.h"
-#include "themes.h"
-#include "widgets.h"
+#include "core/gui_config.h"
+#include "muslimtify.h"
+#include "themes/fonts.h"
+#include "themes/themes.h"
+#include "widgets/widgets.h"
 #include <ccompose.h>
 
 int main(void) {
   GuiConfig cfg;
   gui_config_load(&cfg);
   MuslimtifyThemes themes = get_themes(cfg.prefer_dark);
+  Muslimtify *mt = NULL;
 
   CC_SetWindow(960, 640, "Hello");
   CC_SetBackground(themes.surface);
   CC_Init();
 
   muslimtify_fonts_load();
+  muslimtify_open(&mt);
+  cfg.mt = mt;
 
   CC_InitFont(FONT_MANROPE_REGULAR, 48);
 
@@ -33,6 +37,8 @@ int main(void) {
     }
     CC_End();
   }
+
+  muslimtify_close(mt);
   CC_Shutdown();
   return 0;
 }

@@ -1,7 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include "test_support.h"
 
-#include "gui_config.h"
+#include "core/gui_config.h"
 #include "platform.h"
 #include <stdio.h>
 #include <stdlib.h>

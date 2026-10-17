@@ -305,9 +305,11 @@ if(BUILD_TESTING)
     add_test(NAME config COMMAND test_config)
     muslimtify_isolate_test(config)
 
-    add_executable(test_gui_config tests/test_gui_config.c src/gui/gui_config.c)
+    add_executable(test_gui_config tests/test_gui_config.c
+        src/gui/core/gui_config.c)
     muslimtify_set_target_defaults(test_gui_config)
-    target_include_directories(test_gui_config PRIVATE ${PROJECT_SOURCE_DIR}/src/gui)
+    target_include_directories(test_gui_config PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/gui)
     muslimtify_link_test(test_gui_config)
     add_test(NAME gui_config COMMAND test_gui_config)
     muslimtify_isolate_test(gui_config)

@@ -1,6 +1,7 @@
 #ifndef MUSLIMTIFY_GUI_CONFIG_H
 #define MUSLIMTIFY_GUI_CONFIG_H
 
+#include "muslimtify.h"
 #include <stdbool.h>
 
 // GUI-only user preferences, stored as gui.json next to the CLI config.json.
@@ -8,6 +9,7 @@
 // gui_config_load in gui_config.c.
 typedef struct {
   bool prefer_dark;
+  Muslimtify *mt;
 } GuiConfig;
 
 GuiConfig gui_config_default(void);

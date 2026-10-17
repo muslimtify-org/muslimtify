@@ -1,5 +1,5 @@
-#include "fonts.h"
-#include "widgets.h"
+#include "themes/fonts.h"
+#include "widgets/widgets.h"
 #include <assert.h>
 #include <ccompose.h>
 
@@ -27,13 +27,13 @@ static void muslimtify_widget_content_right(MuslimtifyThemes *themes, GuiConfig 
       "muslimtify_widget_content_right", .layout = {.sizing = {.width = Grow(), .height = Grow()}}
   ) {
 
-    muslimtify_widget_prayer_time_card(themes);
+    muslimtify_widget_prayer_time_card(themes, cfg);
   }
 }
 
 bool muslimtify_widget_content(MuslimtifyThemes *themes, GuiConfig *cfg) {
-  assert(!themes);
-  assert(!cfg);
+  assert(themes != NULL);
+  assert(cfg != NULL);
 
   Row("Content",
       .layout = {

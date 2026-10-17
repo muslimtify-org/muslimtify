@@ -1,5 +1,5 @@
-#include "fonts.h"
-#include "themes.h"
+#include "themes/fonts.h"
+#include "themes/themes.h"
 #include "version.h"
 #include "widgets.h"
 #include <assert.h>

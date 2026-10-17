@@ -1,10 +1,10 @@
 #ifndef MUSLIMTIFY_GUI_WIDGETS_H
 #define MUSLIMTIFY_GUI_WIDGETS_H
 
-#include "gui_config.h"
+#include "core/gui_config.h"
+#include "themes/themes.h"
 #include <ccompose.h>
 #include <stdbool.h>
-#include <themes.h>
 
 typedef struct ButtonClicked ButtonClicked;
 
@@ -17,6 +17,6 @@ bool muslimtify_widget_header(MuslimtifyThemes *themes, GuiConfig *cfg);
 
 bool muslimtify_widget_content(MuslimtifyThemes *themes, GuiConfig *cfg);
 
-bool muslimtify_widget_prayer_time_card(MuslimtifyThemes *themes);
+bool muslimtify_widget_prayer_time_card(MuslimtifyThemes *themes, GuiConfig *cfg);
 
 #endif // MUSLIMTIFY_GUI_WIDGETS_H
