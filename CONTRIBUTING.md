@@ -2,9 +2,14 @@
 
 Thanks for your interest in contributing! This guide will help you get started.
 
-> **Using AI tools?** Read the [AI Usage Policy](AI_POLICY.md) first. Muslimtify
-> calculates prayer times people rely on for worship, so AI-assisted
-> contributions must be disclosed, fully understood, and reviewed by you.
+> [!NOTE]
+> I'm not trying to be difficult and i do appreciate your contributions. Muslimtify is a personal Project for me that i maintain in my free time, if you're expecting me to dedicated my personal time to fixing bugs, maintaining features and reviewing code, i do kindly ask you spend a few minutes reading this document. Thank you
+
+## The Critical Rule
+
+**The most important rule: you must understand your code**. If you can't explain what your changes do and how they interact with the greater system without the aid of AI tools, do not contribute to this project.
+
+Using AI to write code is fine, you can gain understanding by interrogating an agent with access to the codebase until you grasp all edge cases and effects of your changes. What's not fine is submitting agent-generated slop without that understanding. Be sure to read [AI Usage Policy](AI_POLICY.md)
 
 ## Development Setup
 
