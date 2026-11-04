@@ -382,7 +382,7 @@ style, and testing guidance.
 
 ## License
 
-Muslimtify is released under the MIT License. See the repository license files
+Muslimtify is released under the GPLv3 License. See the repository license files
 for details.
 
 ## Support
