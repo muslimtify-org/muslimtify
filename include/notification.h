@@ -1,6 +1,9 @@
 #ifndef NOTIFICATION_H
 #define NOTIFICATION_H
 
+#include <stddef.h>
+#include <stdio.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -35,6 +38,28 @@ int notify_adhan_stop(void);
  * handler: it only sets a flag.
  */
 void notify_adhan_interrupt(void);
+
+/**
+ * Write the title and message of a prayer notification. Every platform's
+ * notify_prayer calls this, so the wording is the same everywhere.
+ * minutes_before: 0 for exact time, >0 for a reminder before, <0 for a reminder after
+ */
+static inline void notify_prayer_text(const char *prayer_name, const char *time_str,
+                                      int minutes_before, char *title, size_t title_size,
+                                      char *message, size_t message_size) {
+  if (minutes_before == 0) {
+    snprintf(title, title_size, "Prayer Time: %s", prayer_name);
+    snprintf(message, message_size, "It's time for %s prayer\nTime: %s", prayer_name, time_str);
+  } else if (minutes_before < 0) {
+    snprintf(title, title_size, "Prayer Reminder: %s", prayer_name);
+    snprintf(message, message_size, "%s started %d minutes ago\nTime: %s", prayer_name,
+             -minutes_before, time_str);
+  } else {
+    snprintf(title, title_size, "Prayer Reminder: %s", prayer_name);
+    snprintf(message, message_size, "%s prayer in %d minutes\nTime: %s", prayer_name,
+             minutes_before, time_str);
+  }
+}
 
 /**
  * Send a prayer time notification with formatted time

@@ -196,20 +196,8 @@ void notify_prayer(const char *prayer_name, const char *time_str, int minutes_be
   char title[128];
   char message[256];
 
-  if (minutes_before == 0) {
-    // Exact prayer time notification
-    snprintf(title, sizeof(title), "Prayer Time: %s", prayer_name);
-    snprintf(message, sizeof(message), "It's time for %s prayer\nTime: %s", prayer_name, time_str);
-  } else if (minutes_before < 0) {
-    snprintf(title, sizeof(title), "Prayer Reminder: %s", prayer_name);
-    snprintf(message, sizeof(message), "%s started %d minutes ago\nTime: %s", prayer_name,
-             -minutes_before, time_str);
-  } else {
-    // Reminder notification
-    snprintf(title, sizeof(title), "Prayer Reminder: %s", prayer_name);
-    snprintf(message, sizeof(message), "%s prayer in %d minutes\nTime: %s", prayer_name,
-             minutes_before, time_str);
-  }
+  notify_prayer_text(prayer_name, time_str, minutes_before, title, sizeof(title), message,
+                     sizeof(message));
 
   const char *icon = get_icon_path();
   NotifyNotification *n = notify_notification_new(title, message, icon);

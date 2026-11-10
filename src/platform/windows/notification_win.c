@@ -1000,19 +1000,8 @@ void notify_prayer(const char *prayer_name, const char *time_str, int minutes_be
   char title[128];
   char message[256];
 
-  if (minutes_before == 0) {
-    _snprintf_s(title, sizeof(title), _TRUNCATE, "Prayer Time: %s", prayer_name);
-    _snprintf_s(message, sizeof(message), _TRUNCATE, "It's time for %s prayer\nTime: %s",
-                prayer_name, time_str);
-  } else if (minutes_before < 0) {
-    _snprintf_s(title, sizeof(title), _TRUNCATE, "Prayer Reminder: %s", prayer_name);
-    _snprintf_s(message, sizeof(message), _TRUNCATE, "%s started %d minutes ago\nTime: %s",
-                prayer_name, -minutes_before, time_str);
-  } else {
-    _snprintf_s(title, sizeof(title), _TRUNCATE, "Prayer Reminder: %s", prayer_name);
-    _snprintf_s(message, sizeof(message), _TRUNCATE, "%s prayer in %d minutes\nTime: %s",
-                prayer_name, minutes_before, time_str);
-  }
+  notify_prayer_text(prayer_name, time_str, minutes_before, title, sizeof(title), message,
+                     sizeof(message));
 
   send_notification(title, message, urgency_str, sound_preset);
 }
