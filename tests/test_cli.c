@@ -1325,6 +1325,18 @@ static void test_notification(void) {
   run(4, (char *[]){"m", "notification", "--after", "--help", NULL});
   check_ret("notification after help ret", 0);
   check_contains("notification after help usage", "--after");
+  run(3, (char *[]){"m", "notification", "--headless", NULL});
+  check_ret("notification headless after ret", 0);
+  check_contains("notification headless after", "dhuhr.after_reminders=10");
+  run(3, (char *[]){"m", "notification", "--json", NULL});
+  check_contains("notification json after", "\"after_reminders\": [10]");
+  run(2, (char *[]){"m", "notification", NULL});
+  check_contains("notification table after column", "After");
+  run(3, (char *[]){"m", "show", "--json", NULL});
+  check_contains("show json after", "\"after_reminders\": [10]");
+  run(2, (char *[]){"m", "show", NULL});
+  check_contains("show cell after", "+10 min");
+  run(5, (char *[]){"m", "notification", "--after", "--all", "none", NULL});
 
   // --adhan enable/disable/set
   run(5, (char *[]){"m", "notification", "--adhan", "enable", "fajr", NULL});
