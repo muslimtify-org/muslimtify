@@ -38,7 +38,7 @@ void notify_adhan_interrupt(void);
 
 /**
  * Send a prayer time notification with formatted time
- * minutes_before: 0 for exact time, >0 for reminder
+ * minutes_before: 0 for exact time, >0 for a reminder before, <0 for a reminder after
  * sound_preset: "reminder", "alarm", "default", or NULL to silence.
  *               The backend maps the preset to a platform-specific sound.
  */
