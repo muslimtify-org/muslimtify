@@ -1,5 +1,6 @@
 #include "cli_internal.h"
 #include "display.h"
+#include "util.h"
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -182,87 +183,46 @@ static int location_set_handler(int argc, char **argv) {
   const char *override_country = NULL;
   const char *override_refresh = NULL;
 
+  // Each value flag is accepted as `--flag=value` or `--flag value`.
+  const struct {
+    const char *name;
+    const char *unit;    // appended to "requires a value"
+    const char *example; // the value shown in the hint
+    const char *note;    // appended after the example
+    const char **value;
+  } flags[] = {
+      {"--lat", "", "1.2345", "", &override_lat},
+      {"--long", "", "1.2345", "", &override_lon},
+      {"--timezone", "", "Asia/Jakarta", "", &override_tz},
+      {"--city", "", "Jakarta", "", &override_city},
+      {"--country", "", "ID", "", &override_country},
+      {"--refresh-interval", " in seconds", "43200", ", or 0 to disable", &override_refresh},
+  };
+
   for (int i = 0; i < argc; ++i) {
-    if (strncmp(argv[i], "--lat=", 6) == 0) {
-      override_lat = argv[i] + 6;
-      if (*override_lat == '\0') {
-        fprintf(stderr, "Error: --lat requires a value (e.g. --lat=1.2345)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--lat") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --lat requires a value (e.g. --lat 1.2345)\n");
-        return 1;
-      }
-      override_lat = argv[++i];
-    } else if (strncmp(argv[i], "--long=", 7) == 0) {
-      override_lon = argv[i] + 7;
-      if (*override_lon == '\0') {
-        fprintf(stderr, "Error: --long requires a value (e.g. --long=1.2345)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--long") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --long requires a value (e.g. --long 1.2345)\n");
-        return 1;
-      }
-      override_lon = argv[++i];
-    } else if (strncmp(argv[i], "--timezone=", 11) == 0) {
-      override_tz = argv[i] + 11;
-      if (*override_tz == '\0') {
-        fprintf(stderr, "Error: --timezone requires a value (e.g. --timezone=Asia/Jakarta)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--timezone") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --timezone requires a value (e.g. --timezone Asia/Jakarta)\n");
-        return 1;
-      }
-      override_tz = argv[++i];
-    } else if (strncmp(argv[i], "--city=", 7) == 0) {
-      override_city = argv[i] + 7;
-      if (*override_city == '\0') {
-        fprintf(stderr, "Error: --city requires a value (e.g. --city=Jakarta)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--city") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --city requires a value (e.g. --city Jakarta)\n");
-        return 1;
-      }
-      override_city = argv[++i];
-    } else if (strncmp(argv[i], "--country=", 10) == 0) {
-      override_country = argv[i] + 10;
-      if (*override_country == '\0') {
-        fprintf(stderr, "Error: --country requires a value (e.g. --country=ID)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--country") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --country requires a value (e.g. --country ID)\n");
-        return 1;
-      }
-      override_country = argv[++i];
-    } else if (strncmp(argv[i], "--refresh-interval=", 19) == 0) {
-      override_refresh = argv[i] + 19;
-      if (*override_refresh == '\0') {
-        fprintf(stderr, "Error: --refresh-interval requires a value in seconds "
-                        "(e.g. --refresh-interval=43200, or 0 to disable)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--refresh-interval") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --refresh-interval requires a value in seconds "
-                        "(e.g. --refresh-interval 43200, or 0 to disable)\n");
-        return 1;
-      }
-      override_refresh = argv[++i];
-    } else if (strcmp(argv[i], "--auto") == 0) {
+    if (strcmp(argv[i], "--auto") == 0) {
       auto_detect = true;
-    } else {
+      continue;
+    }
+    size_t f = 0;
+    size_t len = 0;
+    for (; f < ARRAY_LEN(flags); f++) {
+      len = strlen(flags[f].name);
+      if (strncmp(argv[i], flags[f].name, len) == 0 && (argv[i][len] == '=' || !argv[i][len]))
+        break;
+    }
+    if (f == ARRAY_LEN(flags)) {
       fprintf(stderr, "Error: unexpected argument '%s'\n%s", argv[i], LOCATION_SET_USAGE);
       return 1;
     }
+    // `--flag=` with nothing after it, or `--flag` as the last argument.
+    char sep = argv[i][len] == '=' ? '=' : ' ';
+    if (sep == '=' ? argv[i][len + 1] == '\0' : i + 1 >= argc) {
+      fprintf(stderr, "Error: %s requires a value%s (e.g. %s%c%s%s)\n", flags[f].name,
+              flags[f].unit, flags[f].name, sep, flags[f].example, flags[f].note);
+      return 1;
+    }
+    *flags[f].value = sep == '=' ? argv[i] + len + 1 : argv[++i];
   }
 
   if (auto_detect) {
