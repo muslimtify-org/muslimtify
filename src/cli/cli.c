@@ -126,46 +126,21 @@ int cli_daemon_dispatch(const CommandEntry *commands, int count, void (*print_he
   return cli_daemon_status(0, NULL);
 }
 
-static int removed_enable(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr, "Error: 'enable' was removed; use 'notification enable <prayer|all>'\n");
-  return 1;
-}
-static int removed_disable(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr, "Error: 'disable' was removed; use 'notification disable <prayer|all>'\n");
-  return 1;
-}
-static int removed_list(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr, "Error: 'list' was removed; use 'notification' to see settings\n");
-  return 1;
-}
-static int removed_reminder(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr, "Error: 'reminder' was removed; use 'notification --reminder'\n");
-  return 1;
-}
-static int removed_sound(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr,
-          "Error: 'sound' was removed; use 'notification --sound' or 'notification --adhan'\n");
-  return 1;
-}
+// Commands that no longer exist, each with where its job went.
+static const struct {
+  const char *name;
+  const char *hint;
+} removed_commands[] = {
+    {"enable", "use 'notification enable <prayer|all>'"},
+    {"disable", "use 'notification disable <prayer|all>'"},
+    {"list", "use 'notification' to see settings"},
+    {"reminder", "use 'notification --reminder'"},
+    {"sound", "use 'notification --sound' or 'notification --adhan'"},
+};
 
 static const CommandEntry top_commands[] = {
     {"show", handle_show},
     {"location", handle_location},
-    {"enable", removed_enable},
-    {"disable", removed_disable},
-    {"list", removed_list},
-    {"reminder", removed_reminder},
-    {"sound", removed_sound},
     {"offset", handle_offset},
     {"daemon", handle_daemon},
     {"method", handle_method},
@@ -380,6 +355,13 @@ int cli_run(int argc, char **argv) {
   const CommandEntry *entry = dispatch_lookup(top_commands, ARRAY_LEN(top_commands), cmd);
   if (entry)
     return entry->handler(argc - 2, argv + 2);
+
+  for (size_t i = 0; i < ARRAY_LEN(removed_commands); i++) {
+    if (strcmp(removed_commands[i].name, cmd) == 0) {
+      fprintf(stderr, "Error: '%s' was removed; %s\n", cmd, removed_commands[i].hint);
+      return 1;
+    }
+  }
 
   fprintf(stderr, "Unknown command '%s'. Use 'muslimtify help' for usage.\n", cmd);
   return 1;
