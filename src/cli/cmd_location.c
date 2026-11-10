@@ -99,11 +99,8 @@ static int location_set_run(Muslimtify *mt, const LocationSetArgs *a) {
       return cli_fail_value(err, a->tz);
   }
 
-  err = muslimtify_save(mt);
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_get_location(mt, &loc);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save_location(mt, MUSLIMTIFY_OK, &loc))
+    return 1;
 
   // Concise confirmation: report only the fields the user actually changed.
   if (coords_changed)
@@ -153,13 +150,9 @@ static int location_auto_run(Muslimtify *mt, const char *city, const char *count
     err = muslimtify_set_city(mt, city);
   if (err == MUSLIMTIFY_OK && country)
     err = muslimtify_set_country(mt, country);
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_save(mt);
   MuslimtifyLocation loc = {0};
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_get_location(mt, &loc);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save_location(mt, err, &loc))
+    return 1;
 
   printf("✓ Location detected: %.4f, %.4f\n", loc.latitude, loc.longitude);
   printf("  Timezone: %s (UTC%+.1f)\n", loc.timezone, loc.utc_offset);
@@ -328,12 +321,8 @@ static int location_gps_run(Muslimtify *mt, int argc, char **argv) {
 
   if (strcmp(argv[0], "off") == 0) {
     err = muslimtify_set_gps(mt, false, NULL);
-    if (err == MUSLIMTIFY_OK)
-      err = muslimtify_save(mt);
-    if (err == MUSLIMTIFY_OK)
-      err = muslimtify_get_location(mt, &loc);
-    if (err != MUSLIMTIFY_OK)
-      return cli_fail(err);
+    if (cli_save_location(mt, err, &loc))
+      return 1;
     // Only automatic location falls back to the network. A location set by
     // hand stays as it is.
     if (loc.auto_detect)
@@ -369,11 +358,8 @@ static int location_gps_run(Muslimtify *mt, int argc, char **argv) {
       return cli_fail(err);
     }
 
-    err = muslimtify_save(mt);
-    if (err == MUSLIMTIFY_OK)
-      err = muslimtify_get_location(mt, &loc);
-    if (err != MUSLIMTIFY_OK)
-      return cli_fail(err);
+    if (cli_save_location(mt, MUSLIMTIFY_OK, &loc))
+      return 1;
     if (has_fix)
       printf("✓ GPS ready — enabled. Location: %.4f, %.4f\n", loc.latitude, loc.longitude);
     else

@@ -36,10 +36,8 @@ static int offset_run(Muslimtify *mt, const char *prayer_name, int minutes) {
     err = muslimtify_set_prayer_offset(mt, prayer, minutes);
   }
 
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_save(mt);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save(mt, err))
+    return 1;
 
   printf("✓ Offset set to %+d min for %s\n", minutes, is_all ? "all prayers" : prayer_name);
   return 0;

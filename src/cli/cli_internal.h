@@ -58,6 +58,13 @@ int cli_open(Muslimtify **mt);
 // Print "Error: <message>" for a library error. Returns 1.
 int cli_fail(MuslimtifyError err);
 
+// Save what the setters changed, unless err already reports a failure. Prints
+// the error and returns 1 when err or the save failed, else returns 0.
+int cli_save(Muslimtify *mt, MuslimtifyError err);
+
+// cli_save, then read the stored location back into *loc.
+int cli_save_location(Muslimtify *mt, MuslimtifyError err, MuslimtifyLocation *loc);
+
 // Print "Error: <message> '<value>'" for a library error. Returns 1.
 int cli_fail_value(MuslimtifyError err, const char *value);
 

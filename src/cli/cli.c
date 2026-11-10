@@ -38,6 +38,20 @@ int cli_fail_value(MuslimtifyError err, const char *value) {
   return 1;
 }
 
+int cli_save(Muslimtify *mt, MuslimtifyError err) {
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
+}
+
+int cli_save_location(Muslimtify *mt, MuslimtifyError err, MuslimtifyLocation *loc) {
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_get_location(mt, loc);
+  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
+}
+
 int cli_open(Muslimtify **mt) {
   MuslimtifyError err = muslimtify_open(mt);
   return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
@@ -61,11 +75,8 @@ int cli_ensure_location(Muslimtify *mt) {
   cli_print_gps_warning(&detection);
 
   MuslimtifyLocation loc;
-  err = muslimtify_save(mt);
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_get_location(mt, &loc);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save_location(mt, MUSLIMTIFY_OK, &loc))
+    return 1;
 
   if (loc.city[0] != '\0')
     fprintf(stderr, "✓ Location detected: %s, %s\n", loc.city, loc.country);
