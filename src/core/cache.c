@@ -75,45 +75,12 @@ static int ensure_cache_dir(void) {
   return 0;
 }
 
-static char *read_file(const char *path) {
-  FILE *f = platform_file_open(path, "r");
-  if (!f)
-    return NULL;
-
-  fseek(f, 0, SEEK_END);
-  long size = ftell(f);
-  if (size < 0) {
-    fclose(f);
-    return NULL;
-  }
-  if (size > MAX_CACHE_FILE_BYTES) {
-    MT_LOGF(MT_LOG_WARNING, "cache: file too large (%ld bytes), refusing to load", size);
-    fclose(f);
-    return NULL;
-  }
-  fseek(f, 0, SEEK_SET);
-
-  char *content = malloc((size_t)size + 1);
-  if (!content) {
-    fclose(f);
-    return NULL;
-  }
-
-  size_t n = fread(content, 1, (size_t)size, f);
-  fclose(f);
-  if (n > (size_t)size)
-    n = (size_t)size;
-  // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) -- n <= size by fread contract
-  content[n] = '\0';
-  return content;
-}
-
 int cache_load(PrayerCache *cache) {
   if (!cache)
     return -1;
 
   const char *path = cache_get_path();
-  char *content = read_file(path);
+  char *content = config_read_text_file(path, MAX_CACHE_FILE_BYTES, "cache");
   if (!content)
     return -1;
 

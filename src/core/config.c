@@ -262,7 +262,7 @@ int config_save(const Config *cfg) {
   return 0;
 }
 
-static char *read_file(const char *path) {
+char *config_read_text_file(const char *path, long max_bytes, const char *label) {
   FILE *f = platform_file_open(path, "r");
   if (!f) {
     return NULL;
@@ -274,8 +274,8 @@ static char *read_file(const char *path) {
     fclose(f);
     return NULL;
   }
-  if (size > MAX_CONFIG_FILE_BYTES) {
-    MT_LOGF(MT_LOG_WARNING, "config: file too large (%ld bytes), refusing to load", size);
+  if (size > max_bytes) {
+    MT_LOGF(MT_LOG_WARNING, "%s: file too large (%ld bytes), refusing to load", label, size);
     fclose(f);
     return NULL;
   }
@@ -368,7 +368,7 @@ int config_load(Config *cfg) {
   // Initialize with defaults so partial JSON still has sane values
   *cfg = config_default();
 
-  char *content = read_file(path);
+  char *content = config_read_text_file(path, MAX_CONFIG_FILE_BYTES, "config");
   if (!content) {
     MT_LOGF(MT_LOG_ERROR, "Error: Cannot read config file");
     return -1;
