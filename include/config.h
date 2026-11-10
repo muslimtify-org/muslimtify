@@ -26,10 +26,12 @@ extern "C" {
 typedef struct {
   bool enabled;
   bool adhan_enabled;
-  int reminders[MAX_REMINDERS]; // Minutes before prayer
-  int reminder_count;           // Number of reminders
-  int offset;                   // Signed minutes added to the calculated time (see PRAYER_OFFSET_*)
-  char adhan[MAX_ADHAN_PATH];   // path to adhan sound
+  int reminders[MAX_REMINDERS];       // Minutes before prayer
+  int reminder_count;                 // Number of reminders
+  int after_reminders[MAX_REMINDERS]; // Minutes after the prayer
+  int after_reminder_count;           // Number of after-reminders
+  int offset;                 // Signed minutes added to the calculated time (see PRAYER_OFFSET_*)
+  char adhan[MAX_ADHAN_PATH]; // path to adhan sound
 } PrayerConfig;
 
 typedef struct {

@@ -142,6 +142,17 @@ static void test_validate(void) {
   cfg.fajr.reminders[0] = -1;
   check_bool("validate reminder -1", !config_validate(&cfg));
 
+  // After-reminder bounds
+  cfg = config_default();
+  cfg.dhuhr.after_reminder_count = 1;
+  cfg.dhuhr.after_reminders[0] = 1441;
+  check_bool("validate after_reminder 1441", !config_validate(&cfg));
+  cfg.dhuhr.after_reminders[0] = 0;
+  check_bool("validate after_reminder 0", !config_validate(&cfg));
+  cfg.dhuhr.after_reminders[0] = 10;
+  cfg.dhuhr.after_reminder_count = MAX_REMINDERS + 1;
+  check_bool("validate after_reminder count", !config_validate(&cfg));
+
   // Offset boundaries
   cfg = config_default();
   cfg.fajr.offset = 60;
@@ -213,6 +224,11 @@ static void test_round_trip(void) {
   out.fajr.reminder_count = 2;
   out.fajr.reminders[0] = 20;
   out.fajr.reminders[1] = 10;
+  out.dhuhr.after_reminder_count = 4;
+  out.dhuhr.after_reminders[0] = 10;
+  out.dhuhr.after_reminders[1] = 0;
+  out.dhuhr.after_reminders[2] = 1441;
+  out.dhuhr.after_reminders[3] = 20;
   out.fajr.offset = -7;
   out.maghrib.offset = 5;
   strncpy(out.fajr.adhan, "/tmp/custom-fajr.mp3", sizeof(out.fajr.adhan) - 1);
@@ -255,6 +271,11 @@ static void test_round_trip(void) {
   check_bool("rt fajr enabled", in.fajr.enabled == out.fajr.enabled);
   check_bool("rt fajr reminders", in.fajr.reminder_count == 2 && in.fajr.reminders[0] == 20 &&
                                       in.fajr.reminders[1] == 10);
+  check_bool("rt dhuhr after_reminders skip out-of-range", in.dhuhr.after_reminder_count == 2 &&
+                                                               in.dhuhr.after_reminders[0] == 10 &&
+                                                               in.dhuhr.after_reminders[1] == 20);
+  check_bool("rt fajr after_reminders empty", in.fajr.after_reminder_count == 0);
+  check_bool("saved file has after_reminders key", strstr(saved, "\"after_reminders\"") != NULL);
   check_bool("rt fajr offset", in.fajr.offset == -7);
   check_bool("rt maghrib offset", in.maghrib.offset == 5);
   check_bool("rt unset offset 0", in.dhuhr.offset == 0);

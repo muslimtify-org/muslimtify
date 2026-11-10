@@ -185,6 +185,13 @@ static int write_json_file(FILE *f, const Config *cfg) {
         fprintf(f, ", ");
     }
     fprintf(f, "],\n");
+    fprintf(f, "      \"after_reminders\": [");
+    for (int j = 0; j < prayers[i]->after_reminder_count; j++) {
+      fprintf(f, "%d", prayers[i]->after_reminders[j]);
+      if (j < prayers[i]->after_reminder_count - 1)
+        fprintf(f, ", ");
+    }
+    fprintf(f, "],\n");
     fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
     fprintf(f, "    }%s\n", i + 1 < PRAYER_COUNT ? "," : "");
   }
@@ -321,6 +328,31 @@ static char *read_file(const char *path) {
   return content;
 }
 
+// Parse a JSON array of minutes such as [30, 15, 5] into out. Values outside
+// 1..1440 are skipped and at most MAX_REMINDERS are kept. Leaves out and count
+// untouched when str is not an array, so a missing key keeps the default.
+static void parse_minutes_array(const char *str, int *out, int *count) {
+  if (!str || str[0] != '[')
+    return;
+  const char *p = str + 1;
+  *count = 0;
+  while (*count < MAX_REMINDERS) {
+    // Pretty printers split the array across lines, so newlines and tabs
+    // must be skipped too.
+    while (*p && (isspace((unsigned char)*p) || *p == ','))
+      p++;
+    if (*p < '0' || *p > '9')
+      break;
+    char *end = NULL;
+    long value = strtol(p, &end, 10);
+    // Range check the long before narrowing it, so a huge value cannot wrap
+    // into range. Same bounds as config_parse_reminders.
+    if (value > 0 && value <= 1440)
+      out[(*count)++] = (int)value;
+    p = end;
+  }
+}
+
 static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig *pcfg) {
   char *enabled_str = get_value(ctx, "enabled", prayer_obj);
   if (enabled_str) {
@@ -339,31 +371,10 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
     pcfg->adhan_enabled = strcmp(adhan_enabled_str, "true") == 0;
   }
 
-  char *reminders_str = get_value(ctx, "reminders", prayer_obj);
-  if (reminders_str && reminders_str[0] == '[') {
-    // Simple manual parsing of array [30, 15, 5]
-    char *p = reminders_str + 1; // Skip '['
-    pcfg->reminder_count = 0;
-
-    while (pcfg->reminder_count < MAX_REMINDERS) {
-      // Skip whitespace and commas. Pretty printers split the array across
-      // lines, so newlines and tabs must be skipped too.
-      while (*p && (isspace((unsigned char)*p) || *p == ','))
-        p++;
-
-      if (*p < '0' || *p > '9')
-        break;
-
-      char *end = NULL;
-      long value = strtol(p, &end, 10);
-      // Range check the long before narrowing it, so a huge value cannot wrap
-      // into range. Same bounds as config_parse_reminders.
-      if (value > 0 && value <= 1440) {
-        pcfg->reminders[pcfg->reminder_count++] = (int)value;
-      }
-      p = end;
-    }
-  }
+  parse_minutes_array(get_value(ctx, "reminders", prayer_obj), pcfg->reminders,
+                      &pcfg->reminder_count);
+  parse_minutes_array(get_value(ctx, "after_reminders", prayer_obj), pcfg->after_reminders,
+                      &pcfg->after_reminder_count);
 
   char *offset_str = get_value(ctx, "offset", prayer_obj);
   if (offset_str) {
@@ -631,6 +642,14 @@ bool config_validate(const Config *cfg) {
     }
     for (int j = 0; j < prayers[i]->reminder_count; j++) {
       if (prayers[i]->reminders[j] < 0 || prayers[i]->reminders[j] > 1440) {
+        return false;
+      }
+    }
+    if (prayers[i]->after_reminder_count < 0 || prayers[i]->after_reminder_count > MAX_REMINDERS) {
+      return false;
+    }
+    for (int j = 0; j < prayers[i]->after_reminder_count; j++) {
+      if (prayers[i]->after_reminders[j] < 1 || prayers[i]->after_reminders[j] > 1440) {
         return false;
       }
     }
