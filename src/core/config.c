@@ -37,6 +37,15 @@ static void set_string(char *dst, size_t cap, const char *src, const char *key) 
     log_truncation(key);
 }
 
+// The config file's key for each prayer, in PrayerType order.
+static const char *const PRAYER_KEYS[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+
+// The writable settings of the i-th prayer, in PrayerType order.
+static PrayerConfig *prayer_config_at(Config *cfg, int i) {
+  PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
+  return prayers[i];
+}
+
 const char *config_get_path(void) {
   static char config_path[PLATFORM_PATH_MAX] = {0};
   if (config_path[0] != '\0')
@@ -74,35 +83,14 @@ Config config_default(void) {
   // Prayer defaults with reminders [30, 15, 5]
   int default_reminders[] = {30, 15, 5};
 
-  cfg.fajr.enabled = true;
-  memcpy(cfg.fajr.reminders, default_reminders, sizeof(default_reminders));
-  cfg.fajr.reminder_count = 3;
-  set_string(cfg.fajr.adhan, sizeof(cfg.fajr.adhan), DEFAULT_ADHAN, "fajr.adhan");
-  cfg.fajr.adhan_enabled = true;
-
-  cfg.dhuhr.enabled = true;
-  memcpy(cfg.dhuhr.reminders, default_reminders, sizeof(default_reminders));
-  cfg.dhuhr.reminder_count = 3;
-  set_string(cfg.dhuhr.adhan, sizeof(cfg.dhuhr.adhan), DEFAULT_ADHAN, "dhuhr.adhan");
-  cfg.dhuhr.adhan_enabled = true;
-
-  cfg.asr.enabled = true;
-  memcpy(cfg.asr.reminders, default_reminders, sizeof(default_reminders));
-  cfg.asr.reminder_count = 3;
-  set_string(cfg.asr.adhan, sizeof(cfg.asr.adhan), DEFAULT_ADHAN, "asr.adhan");
-  cfg.asr.adhan_enabled = true;
-
-  cfg.maghrib.enabled = true;
-  memcpy(cfg.maghrib.reminders, default_reminders, sizeof(default_reminders));
-  cfg.maghrib.reminder_count = 3;
-  set_string(cfg.maghrib.adhan, sizeof(cfg.maghrib.adhan), DEFAULT_ADHAN, "maghrib.adhan");
-  cfg.maghrib.adhan_enabled = true;
-
-  cfg.isha.enabled = true;
-  memcpy(cfg.isha.reminders, default_reminders, sizeof(default_reminders));
-  cfg.isha.reminder_count = 3;
-  set_string(cfg.isha.adhan, sizeof(cfg.isha.adhan), DEFAULT_ADHAN, "isha.adhan");
-  cfg.isha.adhan_enabled = true;
+  for (int i = 0; i < PRAYER_COUNT; i++) {
+    PrayerConfig *p = prayer_config_at(&cfg, i);
+    p->enabled = true;
+    memcpy(p->reminders, default_reminders, sizeof(default_reminders));
+    p->reminder_count = 3;
+    set_string(p->adhan, sizeof(p->adhan), DEFAULT_ADHAN, "adhan");
+    p->adhan_enabled = true;
+  }
 
   // Notification defaults
   cfg.notification_timeout = 5000;
@@ -163,20 +151,17 @@ static int write_json_file(FILE *f, const Config *cfg) {
 
   fprintf(f, "  \"prayers\": {\n");
 
-  const char *prayer_names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
-
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    fprintf(f, "    \"%s\": {\n", prayer_names[i]);
-    fprintf(f, "      \"enabled\": %s,\n", prayers[i]->enabled ? "true" : "false");
+    const PrayerConfig *p = prayer_get_config(cfg, (PrayerType)i);
+    fprintf(f, "    \"%s\": {\n", PRAYER_KEYS[i]);
+    fprintf(f, "      \"enabled\": %s,\n", p->enabled ? "true" : "false");
     fprintf(f, "      \"adhan\": ");
-    json_write_escaped(f, prayers[i]->adhan);
+    json_write_escaped(f, p->adhan);
     fprintf(f, ",\n");
-    fprintf(f, "      \"adhan_enabled\": %s,\n", prayers[i]->adhan_enabled ? "true" : "false");
-    write_minutes_array(f, "reminders", prayers[i]->reminders, prayers[i]->reminder_count);
-    write_minutes_array(f, "after_reminders", prayers[i]->after_reminders,
-                        prayers[i]->after_reminder_count);
-    fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
+    fprintf(f, "      \"adhan_enabled\": %s,\n", p->adhan_enabled ? "true" : "false");
+    write_minutes_array(f, "reminders", p->reminders, p->reminder_count);
+    write_minutes_array(f, "after_reminders", p->after_reminders, p->after_reminder_count);
+    fprintf(f, "      \"offset\": %d\n", p->offset);
     fprintf(f, "    }%s\n", i + 1 < PRAYER_COUNT ? "," : "");
   }
 
@@ -453,25 +438,11 @@ int config_load(Config *cfg) {
   // Parse prayers
   char *prayers = get_value(ctx, "prayers", content);
   if (prayers) {
-    char *fajr = get_value(ctx, "fajr", prayers);
-    if (fajr)
-      parse_prayer_config(ctx, fajr, &cfg->fajr);
-
-    char *dhuhr = get_value(ctx, "dhuhr", prayers);
-    if (dhuhr)
-      parse_prayer_config(ctx, dhuhr, &cfg->dhuhr);
-
-    char *asr = get_value(ctx, "asr", prayers);
-    if (asr)
-      parse_prayer_config(ctx, asr, &cfg->asr);
-
-    char *maghrib = get_value(ctx, "maghrib", prayers);
-    if (maghrib)
-      parse_prayer_config(ctx, maghrib, &cfg->maghrib);
-
-    char *isha = get_value(ctx, "isha", prayers);
-    if (isha)
-      parse_prayer_config(ctx, isha, &cfg->isha);
+    for (int i = 0; i < PRAYER_COUNT; i++) {
+      char *prayer = get_value(ctx, PRAYER_KEYS[i], prayers);
+      if (prayer)
+        parse_prayer_config(ctx, prayer, prayer_config_at(cfg, i));
+    }
   }
 
   // Parse notification
@@ -592,14 +563,13 @@ bool config_validate(const Config *cfg) {
     return false;
 
   // Validate reminders
-  const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
-
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    if (!minutes_list_valid(prayers[i]->reminders, prayers[i]->reminder_count) ||
-        !minutes_list_valid(prayers[i]->after_reminders, prayers[i]->after_reminder_count)) {
+    const PrayerConfig *p = prayer_get_config(cfg, (PrayerType)i);
+    if (!minutes_list_valid(p->reminders, p->reminder_count) ||
+        !minutes_list_valid(p->after_reminders, p->after_reminder_count)) {
       return false;
     }
-    if (prayers[i]->offset < PRAYER_OFFSET_MIN || prayers[i]->offset > PRAYER_OFFSET_MAX) {
+    if (p->offset < PRAYER_OFFSET_MIN || p->offset > PRAYER_OFFSET_MAX) {
       return false;
     }
   }
@@ -736,9 +706,8 @@ struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int mont
   // cache_build_triggers instead, which is the one consumer that needs a
   // minute-of-day rather than an instant.
   double *fields[] = {&t.fajr, &t.dhuhr, &t.asr, &t.maghrib, &t.isha};
-  const PrayerConfig *pcfgs[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    *fields[i] += pcfgs[i]->offset / 60.0;
+    *fields[i] += prayer_get_config(cfg, (PrayerType)i)->offset / 60.0;
   }
 
   return t;
