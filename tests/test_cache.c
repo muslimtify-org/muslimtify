@@ -543,15 +543,23 @@ static void test_after_reminder_crosses_midnight(void) {
 
   PrayerCache today = {0};
   cache_build_triggers(&today, &cfg, &day, 0, "2026-03-22");
-  // Yesterday's isha spills its after-reminder into today, a minute or so off
-  // 00:05 because yesterday's isha minute differs. Today's own isha must add no
-  // second copy, so exactly one is present.
+  // Yesterday's isha spills its after-reminder into the early morning of today,
+  // a minute or so off 00:05 because yesterday's isha minute differs. Today's own
+  // isha would only add one in the evening, which is past midnight and must be absent.
   int on_today = 0;
+  int spill_minute = -1;
+  int evening = 0;
   for (int i = 0; i < today.trigger_count; i++) {
-    if (today.triggers[i].minutes_before == -after)
-      on_today++;
+    if (today.triggers[i].minutes_before != -after)
+      continue;
+    on_today++;
+    spill_minute = today.triggers[i].minute;
+    if (today.triggers[i].minute >= isha_min)
+      evening++;
   }
-  check_bool("post-midnight after-reminder scheduled once on its prayer's day", on_today == 1);
+  check_bool("previous day's isha after-reminder spills into the early morning once",
+             on_today == 1 && spill_minute >= 0 && spill_minute < 60);
+  check_bool("today's isha after-reminder is absent from today's evening", evening == 0);
 
   struct PrayerTimes next = prayer_times_for_config(&cfg, 2026, 3, 23);
   PrayerCache tomorrow = {0};
