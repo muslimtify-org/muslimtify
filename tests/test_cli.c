@@ -9,6 +9,7 @@
 #include "muslimtify.h"
 #include "platform.h"
 #include "prayertimes.h"
+#include "test_check.h"
 #include "test_support.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -18,8 +19,6 @@
 
 static char tmpdir[256];
 static char captured[16384];
-static int passed = 0;
-static int failed = 0;
 static int last_ret = -1;
 
 static void setup(void) {
@@ -86,15 +85,6 @@ static void check_contains(const char *test, const char *needle) {
     failed++;
     fprintf(stderr, "FAIL [%s]: output missing \"%s\"\n", test, needle);
     fprintf(stderr, "  got: %.200s%s\n", captured, strlen(captured) > 200 ? "..." : "");
-  }
-}
-
-static void check_bool(const char *test, bool cond) {
-  if (cond) {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]\n", test);
   }
 }
 

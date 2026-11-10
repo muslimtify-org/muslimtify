@@ -2,15 +2,13 @@
 #include "log.h"
 #include "muslimtify.h"
 #include "platform/windows/daemon_win.h"
+#include "test_check.h"
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
-
-static int passed = 0;
-static int failed = 0;
 
 static char fake_schtasks[MAX_PATH];
 static char tmpdir[MAX_PATH];
@@ -31,15 +29,6 @@ int register_toast_activator(void) {
 int unregister_toast_activator(void) {
   unregister_calls++;
   return 0;
-}
-
-static void check_bool(const char *test, bool cond) {
-  if (cond) {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]\n", test);
-  }
 }
 
 // Which fake schtasks subcommands answer with a failure, space-separated.

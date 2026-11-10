@@ -1,5 +1,6 @@
 #include "country.h"
 #include "prayertimes.h"
+#include "test_report.h"
 
 #include "core/country_internal.h"
 
@@ -7,19 +8,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-
-static int total = 0;
-static int failures = 0;
-
-static void report_result(const char *label, bool pass) {
-  total++;
-  if (pass) {
-    printf("  PASS: %s\n", label);
-  } else {
-    printf("  FAIL: %s\n", label);
-    failures++;
-  }
-}
 
 static void expect_valid(const char *code, const char *label) {
   report_result(label, country_is_valid_alpha2(code));

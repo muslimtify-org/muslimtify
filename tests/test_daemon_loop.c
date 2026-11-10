@@ -1,20 +1,8 @@
 #include "daemon_loop.h"
+#include "test_report.h"
 
 #include <stdbool.h>
 #include <stdio.h>
-
-static int total = 0;
-static int failures = 0;
-
-static void report_result(const char *label, bool pass) {
-  total++;
-  if (pass) {
-    printf("  PASS: %s\n", label);
-  } else {
-    printf("  FAIL: %s\n", label);
-    failures++;
-  }
-}
 
 static void test_seconds_until_next_minute(void) {
   report_result("minute boundary -> full minute", seconds_until_next_minute(0) == 60);

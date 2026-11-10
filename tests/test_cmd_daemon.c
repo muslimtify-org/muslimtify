@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "platform/linux/daemon_linux.h"
+#include "test_report.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,19 +9,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-static int total = 0;
-static int failures = 0;
-
-static void report_result(const char *label, bool pass) {
-  total++;
-  if (pass) {
-    printf("  PASS: %s\n", label);
-  } else {
-    printf("  FAIL: %s\n", label);
-    failures++;
-  }
-}
 
 static void test_build_service_unit(void) {
   char unit[DAEMON_UNIT_MAX];

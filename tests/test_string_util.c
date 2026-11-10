@@ -1,4 +1,5 @@
 #include "string_util.h"
+#include "test_report.h"
 
 #include <errno.h>
 #include <stdbool.h>
@@ -7,19 +8,6 @@
 #ifdef _WIN32
 #include <wchar.h>
 #endif
-
-static int total = 0;
-static int failures = 0;
-
-static void report_result(const char *label, bool pass) {
-  total++;
-  if (pass) {
-    printf("  PASS: %s\n", label);
-  } else {
-    printf("  FAIL: %s\n", label);
-    failures++;
-  }
-}
 
 static void expect_true(bool value, const char *label) {
   report_result(label, value);
