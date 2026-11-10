@@ -124,6 +124,31 @@ static void print_day_marker_legend(bool any_next, bool any_prev) {
     printf("  - falls before midnight, on the previous day\n");
 }
 
+// Append text at *pos in buf, advancing *pos. Text that does not fit is
+// dropped, so buf always stays terminated.
+static void append_text(char *buf, size_t cap, size_t *pos, const char *text) {
+  int written = snprintf(buf + *pos, cap - *pos, "%s", text);
+  if (written > 0 && (size_t)written < cap - *pos)
+    *pos += (size_t)written;
+}
+
+// Append mins joined by sep, each value preceded by prefix, for example
+// "30, 15, 5" or "+10,+20".
+static void append_minutes(char *buf, size_t cap, size_t *pos, const int *mins, int count,
+                           const char *sep, const char *prefix) {
+  for (int j = 0; j < count; j++) {
+    int written = snprintf(buf + *pos, cap - *pos, "%s%s%d", j > 0 ? sep : "", prefix, mins[j]);
+    if (written > 0 && (size_t)written < cap - *pos)
+      *pos += (size_t)written;
+  }
+}
+
+// Print mins joined by ", " with no brackets, for JSON arrays.
+static void print_int_list(const int *mins, int count) {
+  for (int j = 0; j < count; j++)
+    printf("%s%d", j > 0 ? ", " : "", mins[j]);
+}
+
 void display_day_table(const MuslimtifyDay *day, int time_format) {
   // Table header
   print_horizontal_line('t');
@@ -148,24 +173,31 @@ void display_day_table(const MuslimtifyDay *day, int time_format) {
     else
       snprintf(date_str, sizeof(date_str), "%04d-%02d-%02d", day->year, day->month, day->day);
 
-    // Buffer sized for: MUSLIMTIFY_MAX_REMINDERS * "1440, " + " min before" = 10*6+11 = 71
-    char reminders[80] = "";
+    // Buffer sized for both lists: each holds up to MUSLIMTIFY_MAX_REMINDERS values of at most
+    // "+1440," (6 chars) plus " / " and " min before", so 2*10*6+14 = 134
+    char reminders[160] = "";
     if (p->enabled) {
-      if (p->reminder_count == 0) {
+      if (p->reminder_count == 0 && p->after_reminder_count == 0) {
         snprintf(reminders, sizeof(reminders), "At prayer time");
       } else {
         size_t pos = 0;
-        for (int j = 0; j < p->reminder_count; j++) {
-          int written = snprintf(reminders + pos, sizeof(reminders) - pos, "%s%d",
-                                 j > 0 ? ", " : "", p->reminders[j]);
-          if (written > 0 && (size_t)written < sizeof(reminders) - pos)
-            pos += (size_t)written;
+        const char *sep = p->after_reminder_count > 0 ? "," : ", ";
+        append_minutes(reminders, sizeof(reminders), &pos, p->reminders, p->reminder_count, sep,
+                       "");
+        if (p->after_reminder_count == 0) {
+          append_text(reminders, sizeof(reminders), &pos, " min before");
+        } else {
+          if (p->reminder_count > 0)
+            append_text(reminders, sizeof(reminders), &pos, " / ");
+          append_minutes(reminders, sizeof(reminders), &pos, p->after_reminders,
+                         p->after_reminder_count, ",", "+");
+          append_text(reminders, sizeof(reminders), &pos, " min");
         }
-        snprintf(reminders + pos, sizeof(reminders) - pos, " min before");
         // The column is 21 wide. A list that does not fit is summarised so
         // the table stays aligned; `notification --headless` lists them all.
         if (strlen(reminders) > 21)
-          snprintf(reminders, sizeof(reminders), "%d reminders", p->reminder_count);
+          snprintf(reminders, sizeof(reminders), "%d reminders",
+                   p->reminder_count + p->after_reminder_count);
       }
     } else {
       snprintf(reminders, sizeof(reminders), "-");
@@ -241,11 +273,10 @@ static void print_prayer_entries(const MuslimtifyDay *day, int time_format, cons
     printf("%s  \"offset\": %d,\n", pad, p->time.day_offset);
     printf("%s  \"enabled\": %s,\n", pad, p->enabled ? "true" : "false");
     printf("%s  \"reminders\": [", pad);
-    for (int j = 0; j < p->reminder_count; j++) {
-      printf("%d", p->reminders[j]);
-      if (j < p->reminder_count - 1)
-        printf(", ");
-    }
+    print_int_list(p->reminders, p->reminder_count);
+    printf("],\n");
+    printf("%s  \"after_reminders\": [", pad);
+    print_int_list(p->after_reminders, p->after_reminder_count);
     printf("]\n");
     /* Separator derives from the loop bound, not a literal, because a literal is what broke
        here when the prayer count changed from seven to five. */
@@ -522,41 +553,38 @@ void display_location_json(const MuslimtifyLocation *loc) {
   printf("}\n");
 }
 
-// "none" when there are no reminders, else the minutes joined by commas. A
+// "none" when there are no values, else the minutes joined by commas. A
 // list wider than `width` is summarised as a count so the table stays aligned;
 // the headless output lists every value.
-static void format_reminders(const MuslimtifyPrayerSettings *p, size_t width, char *out,
-                             size_t cap) {
-  if (p->reminder_count == 0) {
+static void format_reminders(const int *mins, int count, size_t width, char *out, size_t cap) {
+  if (count == 0) {
     snprintf(out, cap, "none");
     return;
   }
   size_t pos = 0;
   out[0] = '\0';
-  for (int i = 0; i < p->reminder_count; i++) {
-    int written = snprintf(out + pos, cap - pos, "%s%d", i > 0 ? "," : "", p->reminders[i]);
-    if (written < 0 || (size_t)written >= cap - pos)
-      break;
-    pos += (size_t)written;
-  }
+  append_minutes(out, cap, &pos, mins, count, ",", "");
   if (pos > width)
-    snprintf(out, cap, "%d reminders", p->reminder_count);
+    snprintf(out, cap, "%d reminders", count);
 }
 
 void display_notification_settings(const MuslimtifyNotification *n) {
-  printf("+---------+---------+---------------+-------+\n");
-  printf("| %-7s | %-7s | %-13s | %-5s |\n", "Prayer", "Enabled", "Reminders", "Adhan");
-  printf("+---------+---------+---------------+-------+\n");
+  printf("+---------+---------+---------------+---------------+-------+\n");
+  printf("| %-7s | %-7s | %-13s | %-13s | %-5s |\n", "Prayer", "Enabled", "Reminders", "After",
+         "Adhan");
+  printf("+---------+---------+---------------+---------------+-------+\n");
   for (int i = 0; i < MUSLIMTIFY_PRAYER_COUNT; i++) {
     const MuslimtifyPrayerSettings *p = &n->prayers[i];
     char key[16];
     prayer_key(i, key, sizeof(key));
     char reminders[64];
-    format_reminders(p, 13, reminders, sizeof(reminders));
-    printf("| %-7s | %-7s | %-13s | %-5s |\n", key, p->enabled ? "yes" : "no", reminders,
-           p->adhan_enabled ? "on" : "off");
+    char after[64];
+    format_reminders(p->reminders, p->reminder_count, 13, reminders, sizeof(reminders));
+    format_reminders(p->after_reminders, p->after_reminder_count, 13, after, sizeof(after));
+    printf("| %-7s | %-7s | %-13s | %-13s | %-5s |\n", key, p->enabled ? "yes" : "no", reminders,
+           after, p->adhan_enabled ? "on" : "off");
   }
-  printf("+---------+---------+---------------+-------+\n");
+  printf("+---------+---------+---------------+---------------+-------+\n");
   printf("sound: %s\n", muslimtify_sound_mode_key(n->sound_mode));
   printf("urgency: %s\n", muslimtify_urgency_key(n->urgency));
 }
@@ -569,9 +597,14 @@ void display_notification_settings_headless(const MuslimtifyNotification *n) {
     char key[16];
     prayer_key(i, key, sizeof(key));
     char reminders[64];
-    format_reminders(p, sizeof(reminders), reminders, sizeof(reminders));
+    char after[64];
+    format_reminders(p->reminders, p->reminder_count, sizeof(reminders), reminders,
+                     sizeof(reminders));
+    format_reminders(p->after_reminders, p->after_reminder_count, sizeof(after), after,
+                     sizeof(after));
     printf("%s.enabled=%s\n", key, p->enabled ? "true" : "false");
     printf("%s.reminders=%s\n", key, reminders);
+    printf("%s.after_reminders=%s\n", key, after);
     printf("%s.adhan=%s\n", key, p->adhan_enabled ? "true" : "false");
   }
 }
@@ -590,11 +623,9 @@ void display_notification_settings_json(const MuslimtifyNotification *n) {
     char key[16];
     prayer_key(i, key, sizeof(key));
     printf("    \"%s\": { \"enabled\": %s, \"reminders\": [", key, p->enabled ? "true" : "false");
-    for (int j = 0; j < p->reminder_count; j++) {
-      printf("%d", p->reminders[j]);
-      if (j < p->reminder_count - 1)
-        printf(", ");
-    }
+    print_int_list(p->reminders, p->reminder_count);
+    printf("], \"after_reminders\": [");
+    print_int_list(p->after_reminders, p->after_reminder_count);
     /* Separator derives from the loop bound, not a literal, for the same reason as above. */
     printf("], \"adhan\": %s }%s\n", p->adhan_enabled ? "true" : "false",
            i + 1 < MUSLIMTIFY_PRAYER_COUNT ? "," : "");

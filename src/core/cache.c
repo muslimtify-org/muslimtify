@@ -41,6 +41,9 @@ static void cache_log_capacity_drop(const char *prayer, int minutes_before) {
     if (minutes_before == 0) {
       MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s adhan trigger",
               prayer ? prayer : "(unknown)");
+    } else if (minutes_before < 0) {
+      MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s reminder (%d min after)",
+              prayer ? prayer : "(unknown)", -minutes_before);
     } else {
       MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s reminder (%d min before)",
               prayer ? prayer : "(unknown)", minutes_before);
@@ -215,12 +218,12 @@ int cache_load(PrayerCache *cache) {
     if (!copy_string(t->prayer, sizeof(t->prayer), prayer)) {
       cache_log_trunc("prayer");
     }
-    // A trigger belongs to one day and a reminder is at most a day ahead, so
+    // A trigger belongs to one day and a reminder is at most a day before or after its prayer, so
     // anything outside these ranges is a corrupt file, not a trigger. Values
     // that pass cannot overflow the minute arithmetic in check_cycle.
     long minute = strtol(minute_str, NULL, 10);
     long minutes_before = strtol(mb_str, NULL, 10);
-    if (minute < 0 || minute >= 1440 || minutes_before < 0 || minutes_before > 1440) {
+    if (minute < 0 || minute >= 1440 || minutes_before < -1440 || minutes_before > 1440) {
       *(obj_end + 1) = saved;
       json_end(ctx);
       free(content);
@@ -326,6 +329,35 @@ static int compare_triggers(const void *a, const void *b) {
   return ta->minute - tb->minute;
 }
 
+// Add one trigger per value in mins, sign 1 for reminders before the prayer
+// and -1 for reminders after it. minutes_before carries the sign, so it is
+// positive before the prayer and negative after. A trigger whose minute falls
+// outside day D, or before the catch-up window, is skipped.
+static void add_reminder_triggers(PrayerCache *cache, const char *name, double pt, int instant_min,
+                                  const int *mins, int count, int sign, int current_minute) {
+  for (int j = 0; j < count; j++) {
+    int minutes_before = sign * mins[j];
+    int minute = instant_min - minutes_before;
+    if (minute < 0 || minute >= 1440)
+      continue;
+    if (minute < current_minute - CATCHUP_MAX_MIN)
+      continue;
+
+    if (cache->trigger_count < MAX_TRIGGERS) {
+      CacheTrigger *t = &cache->triggers[cache->trigger_count];
+      if (!copy_string(t->prayer, sizeof(t->prayer), name)) {
+        cache_log_trunc("prayer");
+      }
+      t->minute = minute;
+      t->minutes_before = minutes_before;
+      t->prayer_time = pt;
+      cache->trigger_count++;
+    } else {
+      cache_log_capacity_drop(name, minutes_before);
+    }
+  }
+}
+
 int cache_build_triggers(PrayerCache *cache, const Config *cfg, const struct PrayerTimes *times,
                          int current_minute, const char *date_str) {
   if (!cache || !cfg || !times || !date_str)
@@ -421,27 +453,11 @@ int cache_build_triggers(PrayerCache *cache, const Config *cfg, const struct Pra
           continue;
         }
 
-        // Add reminders, same day-D membership rule as the exact trigger above.
-        for (int j = 0; j < pcfg->reminder_count; j++) {
-          int reminder_min = instant_min - pcfg->reminders[j];
-          if (reminder_min < 0 || reminder_min >= 1440)
-            continue;
-          if (reminder_min < current_minute - CATCHUP_MAX_MIN)
-            continue;
-
-          if (cache->trigger_count < MAX_TRIGGERS) {
-            CacheTrigger *t = &cache->triggers[cache->trigger_count];
-            if (!copy_string(t->prayer, sizeof(t->prayer), name)) {
-              cache_log_trunc("prayer");
-            }
-            t->minute = reminder_min;
-            t->minutes_before = pcfg->reminders[j];
-            t->prayer_time = pt;
-            cache->trigger_count++;
-          } else {
-            cache_log_capacity_drop(name, pcfg->reminders[j]);
-          }
-        }
+        // Reminders, same day-D membership rule as the exact trigger above.
+        add_reminder_triggers(cache, name, pt, instant_min, pcfg->reminders, pcfg->reminder_count,
+                              1, current_minute);
+        add_reminder_triggers(cache, name, pt, instant_min, pcfg->after_reminders,
+                              pcfg->after_reminder_count, -1, current_minute);
       }
     }
   }

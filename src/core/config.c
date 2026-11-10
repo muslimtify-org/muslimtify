@@ -145,6 +145,17 @@ Config config_default(void) {
   return cfg;
 }
 
+// Write one prayer's `"key": [a, b, c],` line.
+static void write_minutes_array(FILE *f, const char *key, const int *mins, int count) {
+  fprintf(f, "      \"%s\": [", key);
+  for (int j = 0; j < count; j++) {
+    fprintf(f, "%d", mins[j]);
+    if (j < count - 1)
+      fprintf(f, ", ");
+  }
+  fprintf(f, "],\n");
+}
+
 static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, "{\n");
   fprintf(f, "  \"location\": {\n");
@@ -178,13 +189,9 @@ static int write_json_file(FILE *f, const Config *cfg) {
     json_write_escaped(f, prayers[i]->adhan);
     fprintf(f, ",\n");
     fprintf(f, "      \"adhan_enabled\": %s,\n", prayers[i]->adhan_enabled ? "true" : "false");
-    fprintf(f, "      \"reminders\": [");
-    for (int j = 0; j < prayers[i]->reminder_count; j++) {
-      fprintf(f, "%d", prayers[i]->reminders[j]);
-      if (j < prayers[i]->reminder_count - 1)
-        fprintf(f, ", ");
-    }
-    fprintf(f, "],\n");
+    write_minutes_array(f, "reminders", prayers[i]->reminders, prayers[i]->reminder_count);
+    write_minutes_array(f, "after_reminders", prayers[i]->after_reminders,
+                        prayers[i]->after_reminder_count);
     fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
     fprintf(f, "    }%s\n", i + 1 < PRAYER_COUNT ? "," : "");
   }
@@ -321,6 +328,31 @@ static char *read_file(const char *path) {
   return content;
 }
 
+// Parse a JSON array of minutes such as [30, 15, 5] into out. Values outside
+// 1..1440 are skipped and at most MAX_REMINDERS are kept. Leaves out and count
+// untouched when str is not an array, so a missing key keeps the default.
+static void parse_minutes_array(const char *str, int *out, int *count) {
+  if (!str || str[0] != '[')
+    return;
+  const char *p = str + 1;
+  *count = 0;
+  while (*count < MAX_REMINDERS) {
+    // Pretty printers split the array across lines, so newlines and tabs
+    // must be skipped too.
+    while (*p && (isspace((unsigned char)*p) || *p == ','))
+      p++;
+    if (*p < '0' || *p > '9')
+      break;
+    char *end = NULL;
+    long value = strtol(p, &end, 10);
+    // Range check the long before narrowing it, so a huge value cannot wrap
+    // into range. Same bounds as config_parse_reminders.
+    if (value > 0 && value <= 1440)
+      out[(*count)++] = (int)value;
+    p = end;
+  }
+}
+
 static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig *pcfg) {
   char *enabled_str = get_value(ctx, "enabled", prayer_obj);
   if (enabled_str) {
@@ -339,31 +371,10 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
     pcfg->adhan_enabled = strcmp(adhan_enabled_str, "true") == 0;
   }
 
-  char *reminders_str = get_value(ctx, "reminders", prayer_obj);
-  if (reminders_str && reminders_str[0] == '[') {
-    // Simple manual parsing of array [30, 15, 5]
-    char *p = reminders_str + 1; // Skip '['
-    pcfg->reminder_count = 0;
-
-    while (pcfg->reminder_count < MAX_REMINDERS) {
-      // Skip whitespace and commas. Pretty printers split the array across
-      // lines, so newlines and tabs must be skipped too.
-      while (*p && (isspace((unsigned char)*p) || *p == ','))
-        p++;
-
-      if (*p < '0' || *p > '9')
-        break;
-
-      char *end = NULL;
-      long value = strtol(p, &end, 10);
-      // Range check the long before narrowing it, so a huge value cannot wrap
-      // into range. Same bounds as config_parse_reminders.
-      if (value > 0 && value <= 1440) {
-        pcfg->reminders[pcfg->reminder_count++] = (int)value;
-      }
-      p = end;
-    }
-  }
+  parse_minutes_array(get_value(ctx, "reminders", prayer_obj), pcfg->reminders,
+                      &pcfg->reminder_count);
+  parse_minutes_array(get_value(ctx, "after_reminders", prayer_obj), pcfg->after_reminders,
+                      &pcfg->after_reminder_count);
 
   char *offset_str = get_value(ctx, "offset", prayer_obj);
   if (offset_str) {
@@ -610,6 +621,18 @@ bool config_location_needs_detect(const Config *cfg) {
   return fabs(cfg->latitude) < 1e-6 && fabs(cfg->longitude) < 1e-6;
 }
 
+// A reminder list holds at most MAX_REMINDERS values, each 1..1440 minutes,
+// the same bounds the parser and the library setter enforce.
+static bool minutes_list_valid(const int *mins, int count) {
+  if (count < 0 || count > MAX_REMINDERS)
+    return false;
+  for (int j = 0; j < count; j++) {
+    if (mins[j] < 1 || mins[j] > 1440)
+      return false;
+  }
+  return true;
+}
+
 bool config_validate(const Config *cfg) {
   if (!cfg)
     return false;
@@ -626,13 +649,9 @@ bool config_validate(const Config *cfg) {
   const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
 
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    if (prayers[i]->reminder_count < 0 || prayers[i]->reminder_count > MAX_REMINDERS) {
+    if (!minutes_list_valid(prayers[i]->reminders, prayers[i]->reminder_count) ||
+        !minutes_list_valid(prayers[i]->after_reminders, prayers[i]->after_reminder_count)) {
       return false;
-    }
-    for (int j = 0; j < prayers[i]->reminder_count; j++) {
-      if (prayers[i]->reminders[j] < 0 || prayers[i]->reminders[j] > 1440) {
-        return false;
-      }
     }
     if (prayers[i]->offset < PRAYER_OFFSET_MIN || prayers[i]->offset > PRAYER_OFFSET_MAX) {
       return false;

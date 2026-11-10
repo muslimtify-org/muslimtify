@@ -242,6 +242,10 @@ void notify_prayer(const char *prayer_name, const char *time_str, int minutes_be
     // Exact prayer time notification
     snprintf(title, sizeof(title), "Prayer Time: %s", prayer_name);
     snprintf(message, sizeof(message), "It's time for %s prayer\nTime: %s", prayer_name, time_str);
+  } else if (minutes_before < 0) {
+    snprintf(title, sizeof(title), "Prayer Reminder: %s", prayer_name);
+    snprintf(message, sizeof(message), "%s started %d minutes ago\nTime: %s", prayer_name,
+             -minutes_before, time_str);
   } else {
     // Reminder notification
     snprintf(title, sizeof(title), "Prayer Reminder: %s", prayer_name);

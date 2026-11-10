@@ -79,6 +79,13 @@ int main(void) {
   check_bool(trigger_plays_adhan(600, 0, false, 600), false,
              "a trigger with adhan disabled never recites");
 
+  check_action(trigger_catchup_action(610, -10, 610), TRIGGER_FIRE, "after-reminder due now fires");
+  check_action(trigger_catchup_action(610, -10, 625), TRIGGER_FIRE,
+               "after-reminder 15 min late fires (window edge)");
+  check_action(trigger_catchup_action(610, -10, 626), TRIGGER_DROP,
+               "after-reminder 16 min late dropped");
+  check_bool(trigger_plays_adhan(610, -10, true, 610), false, "an after-reminder never recites");
+
   printf("\n%d/%d tests passed\n", total - failures, total);
   return failures > 0 ? 1 : 0;
 }

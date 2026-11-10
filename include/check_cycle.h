@@ -36,6 +36,8 @@ typedef enum {
  * is lost by dropping it: a reminder's lateness exceeds its prayer's by
  * exactly minutes_before, so a rescuable late reminder always coexists with
  * a rescuable late adhan, which fires on its own.
+ * A negative minutes_before is a reminder after its prayer. It skips the drop
+ * rule above and fires up to CATCHUP_MAX_MIN late like an adhan.
  * Pure function (no I/O) so it can be unit-tested. See TriggerAction.
  */
 TriggerAction trigger_catchup_action(int trigger_minute, int minutes_before, int current_minute);

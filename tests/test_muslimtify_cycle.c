@@ -234,6 +234,27 @@ static void test_reminder(void) {
   check_bool("for dhuhr", strcmp(sent_log[0].prayer, prayer_get_name(PRAYER_DHUHR)) == 0);
 }
 
+static void test_after_reminder(void) {
+  printf("  an after-reminder is announced after the prayer...\n");
+
+  Config cfg = base_config();
+  cfg.dhuhr.after_reminder_count = 1;
+  cfg.dhuhr.after_reminders[0] = 10;
+  begin(&cfg);
+  int dhuhr = dhuhr_minute(&cfg);
+
+  // The adhan fires first. Forget it so the later cycle is judged on its own.
+  MuslimtifyCycle cycle;
+  check_bool("adhan cycle succeeds", cycle_at(dhuhr, TEST_EPOCH, &cycle) == MUSLIMTIFY_OK);
+  memset(sent_log, 0, sizeof(sent_log));
+  sent_count = 0;
+
+  check_bool("cycle succeeds", cycle_at(dhuhr + 10, TEST_EPOCH, &cycle) == MUSLIMTIFY_OK);
+  check_bool("one after-reminder", sent_count == 1 && sent_log[0].kind == 'p');
+  check_bool("ten minutes after", sent_log[0].minutes_before == -10);
+  check_bool("for dhuhr", strcmp(sent_log[0].prayer, prayer_get_name(PRAYER_DHUHR)) == 0);
+}
+
 static void test_adhan(void) {
   printf("  the adhan plays when it is enabled...\n");
 
@@ -600,6 +621,7 @@ int main(void) {
   setup();
   test_fires_once();
   test_reminder();
+  test_after_reminder();
   test_adhan();
   test_catch_up();
   test_new_day();

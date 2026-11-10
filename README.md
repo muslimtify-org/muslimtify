@@ -1,6 +1,6 @@
 # Muslimtify
 
-Muslimtify keeps you consistent with your daily prayers by delivering accurate prayer times and timely desktop notifications. Designed for Linux and Windows, it automatically calculates prayer schedules and reminds you 30, 15, and 5 minutes before the Adhan, or at your own custom intervals, and when it's time to pray. Every prayer time is calculated locally on your machine, with no accounts and no tracking. The only thing that touches the network is location detection via `ipinfo.io`, and even that is optional: set your coordinates manually, or read them from a GPS receiver with `location gps on`, and Muslimtify makes no network request at all.
+Muslimtify keeps you consistent with your daily prayers by delivering accurate prayer times and timely desktop notifications. Designed for Linux and Windows, it automatically calculates prayer schedules and reminds you 30, 15, and 5 minutes before the Adhan, or at your own custom intervals, and when it's time to pray. It can also remind you after the Adhan, for mosques where the congregation starts later. Every prayer time is calculated locally on your machine, with no accounts and no tracking. The only thing that touches the network is location detection via `ipinfo.io`, and even that is optional: set your coordinates manually, or read them from a GPS receiver with `location gps on`, and Muslimtify makes no network request at all.
 
 Muslimtify supports **21 international calculation methods** including MWL, ISNA, Umm al-Qura (Makkah), Egyptian General Authority, Kemenag (Indonesia), JAKIM (Malaysia), Diyanet (Turkey), and more. The default method is Kemenag. With persistent configuration and minimal setup, Muslimtify integrates seamlessly into your daily routine without interrupting your workflow.
 
@@ -189,6 +189,7 @@ muslimtify method mwl             # set calculation method
 muslimtify madzhab hanafi         # set madzhab (shafi/hanafi)
 muslimtify notification --reminder --all 30 15 5    # set every prayer's reminders (minutes before adhan)
 muslimtify notification --reminder fajr 30 15 5     # set reminders for a single prayer
+muslimtify notification --after dhuhr 10            # remind 10 minutes after the adhan (e.g. before jama'ah)
 muslimtify notification           # show current notification settings
 muslimtify location               # show current location
 muslimtify timeformat 12          # print times as 04:35 PM (24 for 16:35)
@@ -266,6 +267,7 @@ prayers, reminder offsets, notification settings, or location data.
       "adhan": "",
       "adhan_enabled": true,
       "reminders": [30, 15, 5],
+      "after_reminders": [],
       "offset": 0
     },
     "dhuhr": {
@@ -273,6 +275,7 @@ prayers, reminder offsets, notification settings, or location data.
       "adhan": "",
       "adhan_enabled": true,
       "reminders": [30, 15, 5],
+      "after_reminders": [],
       "offset": 0
     },
     "asr": {
@@ -280,6 +283,7 @@ prayers, reminder offsets, notification settings, or location data.
       "adhan": "",
       "adhan_enabled": true,
       "reminders": [30, 15, 5],
+      "after_reminders": [],
       "offset": 0
     },
     "maghrib": {
@@ -287,6 +291,7 @@ prayers, reminder offsets, notification settings, or location data.
       "adhan": "",
       "adhan_enabled": true,
       "reminders": [30, 15, 5],
+      "after_reminders": [],
       "offset": 0
     },
     "isha": {
@@ -294,6 +299,7 @@ prayers, reminder offsets, notification settings, or location data.
       "adhan": "",
       "adhan_enabled": true,
       "reminders": [30, 15, 5],
+      "after_reminders": [],
       "offset": 0
     }
   },
