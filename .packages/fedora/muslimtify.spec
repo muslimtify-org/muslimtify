@@ -1,8 +1,8 @@
 Name:           muslimtify
-Version:        0.4.4
+Version:        0.4.5
 Release:        1%{?dist}
 Summary:        An Islamic prayer time notification daemon for Linux
-License:        MIT
+License:        GPL-3.0-only
 URL:            https://github.com/muslimtify-org/muslimtify
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
@@ -48,6 +48,11 @@ fi
 %{_prefix}/lib/systemd/user/muslimtify.service
 
 %changelog
+* Tue Nov 10 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.5-1
+- Add 'notification --after <prayer|--all> <minutes...>' for reminders that fire a number of minutes after the Adhan, stored per prayer as after_reminders in the config and off by default
+- An after-Adhan reminder missed while the computer slept still fires up to 15 minutes late, and its notification reads '<prayer> started N minutes ago'
+- Relicense from MIT to GPL-3.0-only
+
 * Sat Oct 17 2026 Rizki Rakasiwi <rizkirr.xyz@gmail.com> - 0.4.4-1
 - 'daemon status' now prints Installed, Enabled and Running lines and exits 0 only when the daemon is running, replacing the systemctl status output
 - Turning GPS on now turns location auto-detect on, and hand-set coordinates turn both off
