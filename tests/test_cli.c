@@ -1279,6 +1279,52 @@ static void test_notification(void) {
     check_bool("notification reminder all cfg",
                cfg.dhuhr.reminder_count == 1 && cfg.dhuhr.reminders[0] == 10);
   }
+  run(5, (char *[]){"m", "notification", "--after", "dhuhr", "10", NULL});
+  check_ret("notification after ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification after cfg",
+               cfg.dhuhr.after_reminder_count == 1 && cfg.dhuhr.after_reminders[0] == 10);
+  }
+  run(7, (char *[]){"m", "notification", "--after", "dhuhr", "10", "20", "30", NULL});
+  run(6, (char *[]){"m", "notification", "--after", "dhuhr", "20", "20", NULL});
+  check_ret("notification after replace ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification after replaces the whole list",
+               cfg.dhuhr.after_reminder_count == 2 && cfg.dhuhr.after_reminders[0] == 20 &&
+                   cfg.dhuhr.after_reminders[1] == 20);
+  }
+  run(5, (char *[]){"m", "notification", "--after", "dhuhr", "none", NULL});
+  check_ret("notification after clear ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification after clear cfg", cfg.dhuhr.after_reminder_count == 0);
+  }
+  run(5, (char *[]){"m", "notification", "--after", "--all", "10", NULL});
+  check_ret("notification after all ret", 0);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification after all cfg",
+               cfg.isha.after_reminder_count == 1 && cfg.isha.after_reminders[0] == 10);
+  }
+  run(5, (char *[]){"m", "notification", "--after", "dhuhr", "abc", NULL});
+  check_ret("notification after bad value ret", 1);
+  run(5, (char *[]){"m", "notification", "--after", "dhuhr", "1441", NULL});
+  check_ret("notification after out of range ret", 1);
+  {
+    Config cfg;
+    config_load(&cfg);
+    check_bool("notification after rejected leaves cfg",
+               cfg.dhuhr.after_reminder_count == 1 && cfg.dhuhr.after_reminders[0] == 10);
+  }
+  run(4, (char *[]){"m", "notification", "--after", "--help", NULL});
+  check_ret("notification after help ret", 0);
+  check_contains("notification after help usage", "--after");
 
   // --adhan enable/disable/set
   run(5, (char *[]){"m", "notification", "--adhan", "enable", "fajr", NULL});

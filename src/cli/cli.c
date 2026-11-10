@@ -247,6 +247,7 @@ void cli_print_help(void) {
   printf("  %-25s %s\n", "    enable|disable [prayer]", "Toggle prayer notifications");
   printf("  %-25s %s\n", "    --urgency <level>", "normal|critical|low");
   printf("  %-25s %s\n", "    --reminder <prayer|--all> <mins...>", "Pre-prayer reminders");
+  printf("  %-25s %s\n", "    --after <prayer|--all> <mins...>", "Post-adhan reminders");
   printf("  %-25s %s\n", "    --adhan <enable|disable> <prayer>", "Per-prayer adhan");
   printf("  %-25s %s\n", "    --sound <adhan|default|off>", "Notification sound mode");
   printf("\n");

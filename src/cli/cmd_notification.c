@@ -57,6 +57,7 @@ static void print_notification_help(void) {
   printf("  %-25s %s\n", "--headless", "Show settings as key=value");
   printf("  %-25s %s\n", "--urgency <level>", "Set urgency: normal|critical|low");
   printf("  %-25s %s\n", "--reminder <prayer|--all> <minutes...>", "Set pre-prayer reminders");
+  printf("  %-25s %s\n", "--after <prayer|--all> <minutes...>", "Set post-adhan reminders");
   printf("  %-25s %s\n", "--adhan <enable|disable> <prayer>", "Toggle per-prayer adhan");
   printf("  %-25s %s\n", "--adhan set <path>", "Set adhan audio file");
   printf("  %-25s %s\n", "--sound <adhan|default|off>", "Set notification sound mode");
@@ -65,6 +66,7 @@ static void print_notification_help(void) {
   printf("  %-25s %s\n", "muslimtify notification", "# Show current settings");
   printf("  %-25s %s\n", "muslimtify notification enable fajr", "# Enable Fajr notification");
   printf("  %-25s %s\n", "muslimtify notification --reminder fajr 30 15 5", "# Set reminders");
+  printf("  %-25s %s\n", "muslimtify notification --after dhuhr 10", "# Remind 10 min after adhan");
   printf("  %-25s %s\n", "muslimtify notification --sound adhan", "# Play adhan on notify");
 }
 
@@ -120,9 +122,10 @@ static int notif_enable(int argc, char **argv, bool enable) {
   return 0;
 }
 
-static void print_reminder_help(void) {
-  printf("Usage: muslimtify notification --reminder <prayer|--all> <minutes...>\n");
-  printf("       muslimtify notification --reminder <prayer> none   (clear)\n");
+static void print_reminder_help(bool after) {
+  const char *flag = after ? "--after" : "--reminder";
+  printf("Usage: muslimtify notification %s <prayer|--all> <minutes...>\n", flag);
+  printf("       muslimtify notification %s <prayer> none   (clear)\n", flag);
 }
 
 static int notif_urgency(int argc, char **argv) {
@@ -187,9 +190,9 @@ static int minute_args_error(int rc) {
   return 1;
 }
 
-static int notif_reminder(int argc, char **argv) {
+static int notif_reminder(int argc, char **argv, bool after) {
   if (cli_wants_help(argc, argv)) {
-    print_reminder_help();
+    print_reminder_help(after);
     return 0;
   }
 
@@ -203,7 +206,7 @@ static int notif_reminder(int argc, char **argv) {
   const char *prayer_name = NULL;
   if (!all) {
     if (argc < 1) {
-      print_reminder_help();
+      print_reminder_help(after);
       return 1;
     }
     prayer_name = argv[0];
@@ -226,24 +229,27 @@ static int notif_reminder(int argc, char **argv) {
     return cli_unknown_prayer(prayer_name);
   }
 
+  MuslimtifyError (*set)(Muslimtify *, MuslimtifyPrayerType, const int *, size_t) =
+      after ? muslimtify_set_prayer_after_reminders : muslimtify_set_prayer_reminders;
   MuslimtifyError err = MUSLIMTIFY_OK;
   if (all) {
     for (int i = 0; i < MUSLIMTIFY_PRAYER_COUNT && err == MUSLIMTIFY_OK; i++)
-      err = muslimtify_set_prayer_reminders(mt, (MuslimtifyPrayerType)i, mins, (size_t)count);
+      err = set(mt, (MuslimtifyPrayerType)i, mins, (size_t)count);
   } else {
-    err = muslimtify_set_prayer_reminders(mt, prayer, mins, (size_t)count);
+    err = set(mt, prayer, mins, (size_t)count);
   }
   int ret = save_or_fail(mt, err);
   muslimtify_close(mt);
   if (ret != 0)
     return ret;
 
+  const char *what = after ? "After-reminders" : "Reminders";
   if (all)
-    printf("Reminders updated for all prayers\n");
+    printf("%s updated for all prayers\n", what);
   else if (count == 0)
-    printf("Reminders cleared for %s\n", prayer_name);
+    printf("%s cleared for %s\n", what, prayer_name);
   else
-    printf("Reminders updated for %s\n", prayer_name);
+    printf("%s updated for %s\n", what, prayer_name);
   return 0;
 }
 
@@ -357,7 +363,9 @@ int handle_notification(int argc, char **argv) {
     if (strcmp(argv[0], "--urgency") == 0)
       return notif_urgency(argc - 1, argv + 1);
     if (strcmp(argv[0], "--reminder") == 0)
-      return notif_reminder(argc - 1, argv + 1);
+      return notif_reminder(argc - 1, argv + 1, false);
+    if (strcmp(argv[0], "--after") == 0)
+      return notif_reminder(argc - 1, argv + 1, true);
     if (strcmp(argv[0], "--adhan") == 0)
       return notif_adhan(argc - 1, argv + 1);
     if (strcmp(argv[0], "--sound") == 0)
