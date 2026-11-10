@@ -116,6 +116,8 @@ typedef struct {
   int offset; /* configured shift in minutes, already applied to time */
   int reminders[MUSLIMTIFY_MAX_REMINDERS];
   int reminder_count;
+  int after_reminders[MUSLIMTIFY_MAX_REMINDERS]; /* minutes after the prayer */
+  int after_reminder_count;
 } MuslimtifyPrayer;
 
 typedef struct {
@@ -151,6 +153,8 @@ typedef struct {
   int offset; /* minutes added to the calculated time */
   int reminders[MUSLIMTIFY_MAX_REMINDERS];
   int reminder_count;
+  int after_reminders[MUSLIMTIFY_MAX_REMINDERS]; /* minutes after the prayer */
+  int after_reminder_count;
   char adhan_file[MUSLIMTIFY_PATH_SIZE]; /* "" means the bundled adhan */
 } MuslimtifyPrayerSettings;
 
@@ -328,6 +332,14 @@ MuslimtifyError muslimtify_set_prayer_offset(Muslimtify *mt, MuslimtifyPrayerTyp
  */
 MuslimtifyError muslimtify_set_prayer_reminders(Muslimtify *mt, MuslimtifyPrayerType prayer,
                                                 const int *minutes, size_t count);
+
+/**
+ * Set one prayer's after-reminders: at most MUSLIMTIFY_MAX_REMINDERS values,
+ * each 1 to 1440 minutes after the prayer. A count of 0 clears them, and
+ * minutes may then be NULL.
+ */
+MuslimtifyError muslimtify_set_prayer_after_reminders(Muslimtify *mt, MuslimtifyPrayerType prayer,
+                                                      const int *minutes, size_t count);
 
 MuslimtifyError muslimtify_set_prayer_adhan(Muslimtify *mt, MuslimtifyPrayerType prayer,
                                             bool enabled);

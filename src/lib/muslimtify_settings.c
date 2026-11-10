@@ -190,6 +190,8 @@ MuslimtifyError muslimtify_get_notification(const Muslimtify *mt, MuslimtifyNoti
     p->offset = pcfg->offset;
     for (int j = 0; j < pcfg->reminder_count && j < MUSLIMTIFY_MAX_REMINDERS; j++)
       p->reminders[p->reminder_count++] = pcfg->reminders[j];
+    for (int j = 0; j < pcfg->after_reminder_count && j < MUSLIMTIFY_MAX_REMINDERS; j++)
+      p->after_reminders[p->after_reminder_count++] = pcfg->after_reminders[j];
     copy_string(p->adhan_file, sizeof(p->adhan_file), pcfg->adhan);
   }
 
@@ -365,13 +367,7 @@ MuslimtifyError muslimtify_set_prayer_offset(Muslimtify *mt, MuslimtifyPrayerTyp
   return MUSLIMTIFY_OK;
 }
 
-MuslimtifyError muslimtify_set_prayer_reminders(Muslimtify *mt, MuslimtifyPrayerType prayer,
-                                                const int *minutes, size_t count) {
-  if (!mt || (count > 0 && !minutes))
-    return MUSLIMTIFY_ERR_INVALID_ARG;
-  PrayerConfig *pcfg = prayer_settings(mt, prayer);
-  if (!pcfg)
-    return MUSLIMTIFY_ERR_UNKNOWN_PRAYER;
+static MuslimtifyError set_minutes(int *dst, int *dst_count, const int *minutes, size_t count) {
   if (count > MUSLIMTIFY_MAX_REMINDERS)
     return MUSLIMTIFY_ERR_TOO_MANY_REMINDERS;
   for (size_t i = 0; i < count; i++) {
@@ -379,9 +375,29 @@ MuslimtifyError muslimtify_set_prayer_reminders(Muslimtify *mt, MuslimtifyPrayer
       return MUSLIMTIFY_ERR_INVALID_REMINDER;
   }
   for (size_t i = 0; i < count; i++)
-    pcfg->reminders[i] = minutes[i];
-  pcfg->reminder_count = (int)count;
+    dst[i] = minutes[i];
+  *dst_count = (int)count;
   return MUSLIMTIFY_OK;
+}
+
+MuslimtifyError muslimtify_set_prayer_reminders(Muslimtify *mt, MuslimtifyPrayerType prayer,
+                                                const int *minutes, size_t count) {
+  if (!mt || (count > 0 && !minutes))
+    return MUSLIMTIFY_ERR_INVALID_ARG;
+  PrayerConfig *pcfg = prayer_settings(mt, prayer);
+  if (!pcfg)
+    return MUSLIMTIFY_ERR_UNKNOWN_PRAYER;
+  return set_minutes(pcfg->reminders, &pcfg->reminder_count, minutes, count);
+}
+
+MuslimtifyError muslimtify_set_prayer_after_reminders(Muslimtify *mt, MuslimtifyPrayerType prayer,
+                                                      const int *minutes, size_t count) {
+  if (!mt || (count > 0 && !minutes))
+    return MUSLIMTIFY_ERR_INVALID_ARG;
+  PrayerConfig *pcfg = prayer_settings(mt, prayer);
+  if (!pcfg)
+    return MUSLIMTIFY_ERR_UNKNOWN_PRAYER;
+  return set_minutes(pcfg->after_reminders, &pcfg->after_reminder_count, minutes, count);
 }
 
 MuslimtifyError muslimtify_set_prayer_adhan(Muslimtify *mt, MuslimtifyPrayerType prayer,

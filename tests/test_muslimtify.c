@@ -117,10 +117,15 @@ static bool same_notification(const MuslimtifyNotification *a, const MuslimtifyN
     const MuslimtifyPrayerSettings *y = &b->prayers[i];
     if (x->enabled != y->enabled || x->adhan_enabled != y->adhan_enabled ||
         x->offset != y->offset || x->reminder_count != y->reminder_count ||
+        x->after_reminder_count != y->after_reminder_count ||
         strcmp(x->adhan_file, y->adhan_file) != 0)
       return false;
     for (int j = 0; j < x->reminder_count; j++) {
       if (x->reminders[j] != y->reminders[j])
+        return false;
+    }
+    for (int j = 0; j < x->after_reminder_count; j++) {
+      if (x->after_reminders[j] != y->after_reminders[j])
         return false;
     }
   }
@@ -435,6 +440,20 @@ static void test_notification_setters(void) {
   check_bool("sound out of range",
              muslimtify_set_sound_mode(mt, (MuslimtifySoundMode)7) == MUSLIMTIFY_ERR_INVALID_VALUE);
   check_bool("read after rejections", muslimtify_get_notification(mt, &n) == MUSLIMTIFY_OK);
+  check_bool("eleven after",
+             muslimtify_set_prayer_after_reminders(mt, MUSLIMTIFY_FAJR, eleven, 11) ==
+                 MUSLIMTIFY_ERR_TOO_MANY_REMINDERS);
+  check_bool("after of 0", muslimtify_set_prayer_after_reminders(mt, MUSLIMTIFY_FAJR, zero, 1) ==
+                               MUSLIMTIFY_ERR_INVALID_REMINDER);
+  check_bool("after of 1441",
+             muslimtify_set_prayer_after_reminders(mt, MUSLIMTIFY_FAJR, too_far, 1) ==
+                 MUSLIMTIFY_ERR_INVALID_REMINDER);
+  check_bool("after NULL with a count",
+             muslimtify_set_prayer_after_reminders(mt, MUSLIMTIFY_FAJR, NULL, 2) ==
+                 MUSLIMTIFY_ERR_INVALID_ARG);
+  check_bool("after unknown prayer",
+             muslimtify_set_prayer_after_reminders(mt, MUSLIMTIFY_PRAYER_COUNT, NULL, 0) ==
+                 MUSLIMTIFY_ERR_UNKNOWN_PRAYER);
   check_bool("rejections changed nothing", same_notification(&before, &n));
 
   const int three[3] = {30, 15, 5};
@@ -444,6 +463,11 @@ static void test_notification_setters(void) {
   check_bool("offset 60", muslimtify_set_prayer_offset(mt, MUSLIMTIFY_DHUHR, 60) == MUSLIMTIFY_OK);
   check_bool("three reminders",
              muslimtify_set_prayer_reminders(mt, MUSLIMTIFY_FAJR, three, 3) == MUSLIMTIFY_OK);
+  const int bounds[2] = {1, 1440};
+  check_bool("after bounds accepted", muslimtify_set_prayer_after_reminders(
+                                          mt, MUSLIMTIFY_DHUHR, bounds, 2) == MUSLIMTIFY_OK);
+  check_bool("after cleared",
+             muslimtify_set_prayer_after_reminders(mt, MUSLIMTIFY_ISHA, NULL, 0) == MUSLIMTIFY_OK);
   check_bool("clear reminders",
              muslimtify_set_prayer_reminders(mt, MUSLIMTIFY_ISHA, NULL, 0) == MUSLIMTIFY_OK);
   check_bool("adhan on",
@@ -453,6 +477,10 @@ static void test_notification_setters(void) {
   check_bool("sound adhan", muslimtify_set_sound_mode(mt, MUSLIMTIFY_SOUND_ADHAN) == MUSLIMTIFY_OK);
 
   check_bool("read accepted", muslimtify_get_notification(mt, &n) == MUSLIMTIFY_OK);
+  check_bool("dhuhr after read back", n.prayers[MUSLIMTIFY_DHUHR].after_reminder_count == 2 &&
+                                          n.prayers[MUSLIMTIFY_DHUHR].after_reminders[0] == 1 &&
+                                          n.prayers[MUSLIMTIFY_DHUHR].after_reminders[1] == 1440);
+  check_bool("isha after cleared", n.prayers[MUSLIMTIFY_ISHA].after_reminder_count == 0);
   check_bool("asr disabled", !n.prayers[MUSLIMTIFY_ASR].enabled);
   check_bool("fajr offset", n.prayers[MUSLIMTIFY_FAJR].offset == -60);
   check_bool("dhuhr offset", n.prayers[MUSLIMTIFY_DHUHR].offset == 60);
@@ -1091,6 +1119,8 @@ static void test_prayer_settings(void) {
   cfg.fajr.reminder_count = 2;
   cfg.fajr.reminders[0] = 30;
   cfg.fajr.reminders[1] = 10;
+  cfg.fajr.after_reminder_count = 1;
+  cfg.fajr.after_reminders[0] = 15;
 
   Muslimtify *mt = NULL;
   struct tm now = far_now();
@@ -1104,6 +1134,8 @@ static void test_prayer_settings(void) {
   check_bool("fajr offset", fajr->offset == 4);
   check_bool("fajr reminders",
              fajr->reminder_count == 2 && fajr->reminders[0] == 30 && fajr->reminders[1] == 10);
+  check_bool("fajr after reminders",
+             fajr->after_reminder_count == 1 && fajr->after_reminders[0] == 15);
   muslimtify_close(mt);
 }
 

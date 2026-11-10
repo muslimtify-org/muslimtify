@@ -254,6 +254,8 @@ MuslimtifyError muslimtify_day_at(const Muslimtify *mt, const struct tm *now, in
     p->offset = pcfg->offset;
     for (int j = 0; j < pcfg->reminder_count && j < MUSLIMTIFY_MAX_REMINDERS; j++)
       p->reminders[p->reminder_count++] = pcfg->reminders[j];
+    for (int j = 0; j < pcfg->after_reminder_count && j < MUSLIMTIFY_MAX_REMINDERS; j++)
+      p->after_reminders[p->after_reminder_count++] = pcfg->after_reminders[j];
   }
 
   // Only a prayer taken from the day itself. After isha the next prayer is
