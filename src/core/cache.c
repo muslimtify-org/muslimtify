@@ -41,6 +41,9 @@ static void cache_log_capacity_drop(const char *prayer, int minutes_before) {
     if (minutes_before == 0) {
       MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s adhan trigger",
               prayer ? prayer : "(unknown)");
+    } else if (minutes_before < 0) {
+      MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s reminder (%d min after)",
+              prayer ? prayer : "(unknown)", -minutes_before);
     } else {
       MT_LOGF(MT_LOG_WARNING, "cache: capacity reached, dropped %s reminder (%d min before)",
               prayer ? prayer : "(unknown)", minutes_before);
@@ -215,12 +218,12 @@ int cache_load(PrayerCache *cache) {
     if (!copy_string(t->prayer, sizeof(t->prayer), prayer)) {
       cache_log_trunc("prayer");
     }
-    // A trigger belongs to one day and a reminder is at most a day ahead, so
+    // A trigger belongs to one day and a reminder is at most a day before or after its prayer, so
     // anything outside these ranges is a corrupt file, not a trigger. Values
     // that pass cannot overflow the minute arithmetic in check_cycle.
     long minute = strtol(minute_str, NULL, 10);
     long minutes_before = strtol(mb_str, NULL, 10);
-    if (minute < 0 || minute >= 1440 || minutes_before < 0 || minutes_before > 1440) {
+    if (minute < 0 || minute >= 1440 || minutes_before < -1440 || minutes_before > 1440) {
       *(obj_end + 1) = saved;
       json_end(ctx);
       free(content);
@@ -440,6 +443,29 @@ int cache_build_triggers(PrayerCache *cache, const Config *cfg, const struct Pra
             cache->trigger_count++;
           } else {
             cache_log_capacity_drop(name, pcfg->reminders[j]);
+          }
+        }
+
+        // After-reminders, same day-D membership rule. A negative
+        // minutes_before marks the trigger as after its prayer.
+        for (int j = 0; j < pcfg->after_reminder_count; j++) {
+          int after_min = instant_min + pcfg->after_reminders[j];
+          if (after_min < 0 || after_min >= 1440)
+            continue;
+          if (after_min < current_minute - CATCHUP_MAX_MIN)
+            continue;
+
+          if (cache->trigger_count < MAX_TRIGGERS) {
+            CacheTrigger *t = &cache->triggers[cache->trigger_count];
+            if (!copy_string(t->prayer, sizeof(t->prayer), name)) {
+              cache_log_trunc("prayer");
+            }
+            t->minute = after_min;
+            t->minutes_before = -pcfg->after_reminders[j];
+            t->prayer_time = pt;
+            cache->trigger_count++;
+          } else {
+            cache_log_capacity_drop(name, -pcfg->after_reminders[j]);
           }
         }
       }

@@ -340,6 +340,8 @@ static void test_adhan_survives_capacity_all_year(void) {
   for (int i = 0; i < 5; i++) {
     memcpy(prayer_cfgs[i]->reminders, reminders, sizeof(reminders));
     prayer_cfgs[i]->reminder_count = MAX_REMINDERS;
+    memcpy(prayer_cfgs[i]->after_reminders, reminders, sizeof(reminders));
+    prayer_cfgs[i]->after_reminder_count = MAX_REMINDERS;
   }
 
   PrayerType prayer_types[] = {PRAYER_FAJR, PRAYER_DHUHR, PRAYER_ASR, PRAYER_MAGHRIB, PRAYER_ISHA};
@@ -499,6 +501,101 @@ static void test_build_triggers_includes_reminders(void) {
     }
   }
   check_bool("fajr has 3 reminders", fajr_reminder_count == 3);
+}
+
+static void test_build_triggers_includes_after_reminders(void) {
+  printf("  build triggers includes after-reminders...\n");
+  Config cfg = test_config();
+  cfg.dhuhr.after_reminder_count = 1;
+  cfg.dhuhr.after_reminders[0] = 10;
+  struct PrayerTimes times = jakarta_times();
+  PrayerCache cache = {0};
+  cache_build_triggers(&cache, &cfg, &times, 0, "2026-03-22");
+
+  int dhuhr_min = -1;
+  int after_count = 0;
+  int after_min = -1;
+  for (int i = 0; i < cache.trigger_count; i++) {
+    if (strcmp(cache.triggers[i].prayer, "Dhuhr") != 0)
+      continue;
+    if (cache.triggers[i].minutes_before == 0)
+      dhuhr_min = cache.triggers[i].minute;
+    if (cache.triggers[i].minutes_before == -10) {
+      after_count++;
+      after_min = cache.triggers[i].minute;
+    }
+  }
+  check_bool("dhuhr adhan present", dhuhr_min >= 0);
+  check_bool("one dhuhr after-reminder", after_count == 1);
+  check_bool("after-reminder at adhan + 10", after_min == dhuhr_min + 10);
+}
+
+// An after-reminder that lands past midnight belongs to the next day, once.
+// The value is chosen from the real isha minute so the trigger lands at 00:05.
+static void test_after_reminder_crosses_midnight(void) {
+  printf("  after-reminder past midnight lands on the next day once...\n");
+  Config cfg = test_config();
+  struct PrayerTimes day = prayer_times_for_config(&cfg, 2026, 3, 22);
+  int isha_min = (int)ceil(day.isha * 60.0);
+  int after = 1440 - isha_min + 5;
+  cfg.isha.after_reminder_count = 1;
+  cfg.isha.after_reminders[0] = after;
+
+  PrayerCache today = {0};
+  cache_build_triggers(&today, &cfg, &day, 0, "2026-03-22");
+  // Yesterday's isha spills its after-reminder into today, a minute or so off
+  // 00:05 because yesterday's isha minute differs. Today's own isha must add no
+  // second copy, so exactly one is present.
+  int on_today = 0;
+  for (int i = 0; i < today.trigger_count; i++) {
+    if (today.triggers[i].minutes_before == -after)
+      on_today++;
+  }
+  check_bool("post-midnight after-reminder scheduled once on its prayer's day", on_today == 1);
+
+  struct PrayerTimes next = prayer_times_for_config(&cfg, 2026, 3, 23);
+  PrayerCache tomorrow = {0};
+  cache_build_triggers(&tomorrow, &cfg, &next, 0, "2026-03-23");
+  int found = 0;
+  for (int i = 0; i < tomorrow.trigger_count; i++) {
+    if (tomorrow.triggers[i].minutes_before == -after && tomorrow.triggers[i].minute == 5)
+      found++;
+  }
+  check_bool("post-midnight after-reminder present once at 00:05 next day", found == 1);
+}
+
+static void test_cache_after_reminder_load_bounds(void) {
+  printf("  cache loads negative minutes_before and rejects out of range...\n");
+  char tmpdir[512];
+  if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cache_after")) {
+    fprintf(stderr, "FAIL [mkdtemp after]\n");
+    failed++;
+    return;
+  }
+  test_set_cache_home(tmpdir);
+  cache_reset_path();
+
+  PrayerCache original = {0};
+  strcpy(original.date, "2026-03-22");
+  original.trigger_count = 1;
+  strcpy(original.triggers[0].prayer, "Dhuhr");
+  original.triggers[0].minute = 734;
+  original.triggers[0].minutes_before = -10;
+  original.triggers[0].prayer_time = 12.0667;
+  check_bool("after: save", cache_save(&original) == 0);
+  PrayerCache loaded = {0};
+  check_bool("after: load", cache_load(&loaded) == 0);
+  check_bool("after: minutes_before kept",
+             loaded.trigger_count == 1 && loaded.triggers[0].minutes_before == -10);
+
+  original.triggers[0].minutes_before = -1441;
+  check_bool("after: save out of range", cache_save(&original) == 0);
+  PrayerCache rejected = {0};
+  check_bool("after: -1441 rejected", cache_load(&rejected) == -1);
+
+  cache_invalidate();
+  test_clear_cache_home();
+  cache_reset_path();
 }
 
 static void test_remove_trigger(void) {
@@ -1105,6 +1202,9 @@ int main(void) {
   test_build_triggers_skips_non_finite();
   test_build_triggers_skips_disabled();
   test_build_triggers_includes_reminders();
+  test_build_triggers_includes_after_reminders();
+  test_after_reminder_crosses_midnight();
+  test_cache_after_reminder_load_bounds();
   test_remove_trigger();
   test_save_load_roundtrip();
   test_build_triggers_carries_adhan();

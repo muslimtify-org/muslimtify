@@ -9,13 +9,13 @@
 extern "C" {
 #endif
 
-#define MAX_TRIGGERS 64
+#define MAX_TRIGGERS 128
 
 typedef struct {
   char prayer[16];            // Prayer name (e.g., "fajr")
   char adhan[MAX_ADHAN_PATH]; // path to adhan sound
   int minute;                 // Absolute minute of day (hour*60 + min)
-  int minutes_before;         // 0 = exact time, >0 = reminder
+  int minutes_before;         // 0 = exact time, >0 = reminder before, <0 = reminder after
   double prayer_time;         // Prayer time in decimal hours
   bool adhan_enabled;         // true if adhan is enabled
 } CacheTrigger;
