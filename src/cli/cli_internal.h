@@ -77,6 +77,15 @@ int cli_ensure_location(Muslimtify *mt);
 // nothing when there was none.
 void cli_print_gps_warning(const MuslimtifyDetection *detection);
 
+// `daemon status`: print whether the daemon is installed, enabled and running.
+// Returns 0 when it is running, 1 otherwise. Shared by both OS command files.
+int cli_daemon_status(int argc, char **argv);
+
+// Run `daemon <subcommand>` from one OS's command table: help, the subcommand
+// lookup, the no-arguments check, and status as the default.
+int cli_daemon_dispatch(const CommandEntry *commands, int count, void (*print_help)(void), int argc,
+                        char **argv);
+
 int handle_show(int argc, char **argv);
 int handle_location(int argc, char **argv);
 int handle_offset(int argc, char **argv);
