@@ -145,6 +145,17 @@ Config config_default(void) {
   return cfg;
 }
 
+// Write one prayer's `"key": [a, b, c],` line.
+static void write_minutes_array(FILE *f, const char *key, const int *mins, int count) {
+  fprintf(f, "      \"%s\": [", key);
+  for (int j = 0; j < count; j++) {
+    fprintf(f, "%d", mins[j]);
+    if (j < count - 1)
+      fprintf(f, ", ");
+  }
+  fprintf(f, "],\n");
+}
+
 static int write_json_file(FILE *f, const Config *cfg) {
   fprintf(f, "{\n");
   fprintf(f, "  \"location\": {\n");
@@ -178,20 +189,9 @@ static int write_json_file(FILE *f, const Config *cfg) {
     json_write_escaped(f, prayers[i]->adhan);
     fprintf(f, ",\n");
     fprintf(f, "      \"adhan_enabled\": %s,\n", prayers[i]->adhan_enabled ? "true" : "false");
-    fprintf(f, "      \"reminders\": [");
-    for (int j = 0; j < prayers[i]->reminder_count; j++) {
-      fprintf(f, "%d", prayers[i]->reminders[j]);
-      if (j < prayers[i]->reminder_count - 1)
-        fprintf(f, ", ");
-    }
-    fprintf(f, "],\n");
-    fprintf(f, "      \"after_reminders\": [");
-    for (int j = 0; j < prayers[i]->after_reminder_count; j++) {
-      fprintf(f, "%d", prayers[i]->after_reminders[j]);
-      if (j < prayers[i]->after_reminder_count - 1)
-        fprintf(f, ", ");
-    }
-    fprintf(f, "],\n");
+    write_minutes_array(f, "reminders", prayers[i]->reminders, prayers[i]->reminder_count);
+    write_minutes_array(f, "after_reminders", prayers[i]->after_reminders,
+                        prayers[i]->after_reminder_count);
     fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
     fprintf(f, "    }%s\n", i + 1 < PRAYER_COUNT ? "," : "");
   }
@@ -621,6 +621,18 @@ bool config_location_needs_detect(const Config *cfg) {
   return fabs(cfg->latitude) < 1e-6 && fabs(cfg->longitude) < 1e-6;
 }
 
+// A reminder list holds at most MAX_REMINDERS values, each 1..1440 minutes,
+// the same bounds the parser and the library setter enforce.
+static bool minutes_list_valid(const int *mins, int count) {
+  if (count < 0 || count > MAX_REMINDERS)
+    return false;
+  for (int j = 0; j < count; j++) {
+    if (mins[j] < 1 || mins[j] > 1440)
+      return false;
+  }
+  return true;
+}
+
 bool config_validate(const Config *cfg) {
   if (!cfg)
     return false;
@@ -637,21 +649,9 @@ bool config_validate(const Config *cfg) {
   const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
 
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    if (prayers[i]->reminder_count < 0 || prayers[i]->reminder_count > MAX_REMINDERS) {
+    if (!minutes_list_valid(prayers[i]->reminders, prayers[i]->reminder_count) ||
+        !minutes_list_valid(prayers[i]->after_reminders, prayers[i]->after_reminder_count)) {
       return false;
-    }
-    for (int j = 0; j < prayers[i]->reminder_count; j++) {
-      if (prayers[i]->reminders[j] < 0 || prayers[i]->reminders[j] > 1440) {
-        return false;
-      }
-    }
-    if (prayers[i]->after_reminder_count < 0 || prayers[i]->after_reminder_count > MAX_REMINDERS) {
-      return false;
-    }
-    for (int j = 0; j < prayers[i]->after_reminder_count; j++) {
-      if (prayers[i]->after_reminders[j] < 1 || prayers[i]->after_reminders[j] > 1440) {
-        return false;
-      }
     }
     if (prayers[i]->offset < PRAYER_OFFSET_MIN || prayers[i]->offset > PRAYER_OFFSET_MAX) {
       return false;
