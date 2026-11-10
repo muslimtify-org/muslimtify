@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "config.h"
 #include "platform.h"
+#include "test_check.h"
 #include "test_support.h"
 #include <limits.h>
 #include <math.h>
@@ -9,19 +10,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
-static int passed = 0;
-static int failed = 0;
-
 static char tmpdir[256];
-
-static void check_bool(const char *test, bool cond) {
-  if (cond) {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]\n", test);
-  }
-}
 
 static void setup(void) {
   if (!test_tmpdir(tmpdir, sizeof(tmpdir), "cfgtest")) {

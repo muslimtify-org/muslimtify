@@ -31,103 +31,61 @@ static int resolve_path(char *dst, size_t dst_size, const char *src) {
   return 0;
 }
 
-// Get default adhan path
-static const char *get_adhan_path(void) {
-  static char adhan_path[PLATFORM_PATH_MAX] = {0};
-
-  // Return cached path if already found
-  if (adhan_path[0] != '\0')
-    return adhan_path;
-
-  const char *possible_paths[] = {"/usr/local/share/muslimtify/adhan.mp3",
-                                  "/usr/share/muslimtify/adhan.mp3",
-                                  NULL,
-                                  NULL,
-                                  "assets/adhan.mp3",
-                                  "../assets/adhan.mp3",
-                                  NULL};
-
-  // try XDG_DATA_HOME
-  char xdg_path[PLATFORM_PATH_MAX];
-  const char *xdg_data = getenv("XDG_DATA_HOME");
-  if (xdg_data != NULL &&
-      build_path(xdg_path, sizeof(xdg_path), xdg_data, "muslimtify/adhan.mp3") == 0) {
-    possible_paths[2] = xdg_path;
-  }
-
-  // try relative to binary location
-  char assets_path[PLATFORM_PATH_MAX];
+// Find an installed asset and write its resolved path into dst. Tried in
+// order: /usr/local/share and /usr/share and $XDG_DATA_HOME, each followed by
+// share_leaf, then the assets directory beside the binary, then assets/ and
+// ../assets/ under the working directory, each followed by asset_name.
+static bool find_asset(char *dst, size_t dst_size, const char *share_leaf, const char *asset_name) {
+  char exe_assets[PLATFORM_PATH_MAX] = "";
   const char *exe = platform_exe_dir();
-  if (exe[0] != '\0' &&
-      build_path(assets_path, sizeof(assets_path), exe, "../assets/adhan.mp3") == 0) {
-    possible_paths[3] = assets_path;
-  }
+  if (exe[0] == '\0' || build_path(exe_assets, sizeof(exe_assets), exe, "../assets") != 0)
+    exe_assets[0] = '\0';
 
-  // check each path (NULL entries are skipped, not sentinels)
-  size_t path_count = sizeof(possible_paths) / sizeof(possible_paths[0]);
-  for (size_t i = 0; i < path_count; i++) {
-    if (possible_paths[i] == NULL) {
+  // An empty base is skipped: no XDG_DATA_HOME, or no usable binary directory.
+  const struct {
+    const char *base;
+    const char *leaf;
+  } candidates[] = {
+      {"/usr/local/share", share_leaf},
+      {"/usr/share", share_leaf},
+      {getenv("XDG_DATA_HOME"), share_leaf},
+      {exe_assets[0] ? exe_assets : NULL, asset_name},
+      {"assets", asset_name},
+      {"../assets", asset_name},
+  };
+
+  for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+    char path[PLATFORM_PATH_MAX];
+    if (candidates[i].base == NULL ||
+        build_path(path, sizeof(path), candidates[i].base, candidates[i].leaf) != 0) {
       continue;
     }
-    if (platform_file_exists(possible_paths[i])) {
-      if (resolve_path(adhan_path, sizeof(adhan_path), possible_paths[i]) == 0) {
-        return adhan_path;
-      }
-    }
+    if (platform_file_exists(path) && resolve_path(dst, dst_size, path) == 0)
+      return true;
   }
-
-  return NULL;
+  return false;
 }
 
-// Get the icon path - tries multiple locations
+// Get default adhan path, cached once found.
+static const char *get_adhan_path(void) {
+  static char adhan_path[PLATFORM_PATH_MAX] = {0};
+  if (adhan_path[0] != '\0')
+    return adhan_path;
+  return find_asset(adhan_path, sizeof(adhan_path), "muslimtify/adhan.mp3", "adhan.mp3")
+             ? adhan_path
+             : NULL;
+}
+
+// Get the icon path, cached once found. Falls back to the icon name so the
+// system looks it up.
 static const char *get_icon_path(void) {
   static char icon_path[PLATFORM_PATH_MAX] = {0};
-
-  // Return cached path if already found
-  if (icon_path[0] != '\0') {
+  if (icon_path[0] != '\0')
     return icon_path;
-  }
-
-  // Try different icon locations in order of preference
-  const char *possible_paths[] = {"/usr/local/share/icons/hicolor/128x128/apps/muslimtify.png",
-                                  "/usr/share/icons/hicolor/128x128/apps/muslimtify.png",
-                                  NULL,
-                                  NULL,
-                                  "assets/muslimtify.png",
-                                  "../assets/muslimtify.png",
-                                  NULL};
-
-  // Try XDG_DATA_HOME
-  char xdg_path[PLATFORM_PATH_MAX];
-  const char *xdg_data = getenv("XDG_DATA_HOME");
-  if (xdg_data != NULL && build_path(xdg_path, sizeof(xdg_path), xdg_data,
-                                     "icons/hicolor/128x128/apps/muslimtify.png") == 0) {
-    possible_paths[2] = xdg_path;
-  }
-
-  // Try relative to binary location
-  char assets_path[PLATFORM_PATH_MAX];
-  const char *exe = platform_exe_dir();
-  if (exe[0] != '\0' &&
-      build_path(assets_path, sizeof(assets_path), exe, "../assets/muslimtify.png") == 0) {
-    possible_paths[3] = assets_path;
-  }
-
-  // Check each path (NULL entries are skipped, not sentinels)
-  size_t path_count = sizeof(possible_paths) / sizeof(possible_paths[0]);
-  for (size_t i = 0; i < path_count; i++) {
-    if (possible_paths[i] == NULL) {
-      continue;
-    }
-    if (platform_file_exists(possible_paths[i])) {
-      if (resolve_path(icon_path, sizeof(icon_path), possible_paths[i]) == 0) {
-        return icon_path;
-      }
-    }
-  }
-
-  // Fallback to icon name (let system find it)
-  return "muslimtify";
+  return find_asset(icon_path, sizeof(icon_path), "icons/hicolor/128x128/apps/muslimtify.png",
+                    "muslimtify.png")
+             ? icon_path
+             : "muslimtify";
 }
 
 int notify_init_once(const char *app_name) {
@@ -238,20 +196,8 @@ void notify_prayer(const char *prayer_name, const char *time_str, int minutes_be
   char title[128];
   char message[256];
 
-  if (minutes_before == 0) {
-    // Exact prayer time notification
-    snprintf(title, sizeof(title), "Prayer Time: %s", prayer_name);
-    snprintf(message, sizeof(message), "It's time for %s prayer\nTime: %s", prayer_name, time_str);
-  } else if (minutes_before < 0) {
-    snprintf(title, sizeof(title), "Prayer Reminder: %s", prayer_name);
-    snprintf(message, sizeof(message), "%s started %d minutes ago\nTime: %s", prayer_name,
-             -minutes_before, time_str);
-  } else {
-    // Reminder notification
-    snprintf(title, sizeof(title), "Prayer Reminder: %s", prayer_name);
-    snprintf(message, sizeof(message), "%s prayer in %d minutes\nTime: %s", prayer_name,
-             minutes_before, time_str);
-  }
+  notify_prayer_text(prayer_name, time_str, minutes_before, title, sizeof(title), message,
+                     sizeof(message));
 
   const char *icon = get_icon_path();
   NotifyNotification *n = notify_notification_new(title, message, icon);

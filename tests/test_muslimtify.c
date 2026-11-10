@@ -7,6 +7,7 @@
 #include "log.h"
 #include "muslimtify.h"
 #include "prayertimes.h"
+#include "test_check.h"
 #include "test_support.h"
 #include <limits.h>
 #include <math.h>
@@ -14,19 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int passed = 0;
-static int failed = 0;
-
 static char tmpdir[256];
-
-static void check_bool(const char *test, bool cond) {
-  if (cond) {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]\n", test);
-  }
-}
 
 // True when every byte of the object still holds the fill value, which is how
 // the tests prove a function left its out parameter alone.

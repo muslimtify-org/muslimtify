@@ -2,15 +2,13 @@
 #include "lib/muslimtify_internal.h"
 #include "muslimtify.h"
 #include "platform.h"
+#include "test_check.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-static int passed = 0;
-static int failed = 0;
 
 static char tmpdir[256];
 static char home_dir[512];
@@ -20,15 +18,6 @@ static char unit_file[1024];
 static char timer_file[1024];
 static char daemon_bin[1024];
 static char not_executable[1024];
-
-static void check_bool(const char *test, bool cond) {
-  if (cond) {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]\n", test);
-  }
-}
 
 // Which fake systemctl calls answer with a failure, as space-separated keys. A
 // key is the subcommand, or "<subcommand>:<unit>" for is-enabled and is-active.

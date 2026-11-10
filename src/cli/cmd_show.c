@@ -280,10 +280,8 @@ int handle_show(int argc, char **argv) {
         return 1;
       }
       MuslimtifyError range_err = muslimtify_check_range(sy, sm, sd, ey, em, ed, NULL);
-      if (range_err != MUSLIMTIFY_OK) {
-        fprintf(stderr, "Error: %s\n", muslimtify_get_error(range_err));
-        return 1;
-      }
+      if (range_err != MUSLIMTIFY_OK)
+        return cli_fail(range_err);
     }
   }
 
@@ -354,9 +352,5 @@ int handle_show(int argc, char **argv) {
     fprintf(stderr, "Error: day offset %ld falls outside years 1-9999\n", offset);
     return 1;
   }
-  if (err != MUSLIMTIFY_OK) {
-    fprintf(stderr, "Error: %s\n", muslimtify_get_error(err));
-    return 1;
-  }
-  return 0;
+  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
 }

@@ -31,6 +31,21 @@ static void log_truncation(const char *key) {
   }
 }
 
+// Copy src into dst when src is not NULL, logging once if it does not fit.
+static void set_string(char *dst, size_t cap, const char *src, const char *key) {
+  if (src && !copy_string(dst, cap, src))
+    log_truncation(key);
+}
+
+// The config file's key for each prayer, in PrayerType order.
+static const char *const PRAYER_KEYS[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
+
+// The writable settings of the i-th prayer, in PrayerType order.
+static PrayerConfig *prayer_config_at(Config *cfg, int i) {
+  PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
+  return prayers[i];
+}
+
 const char *config_get_path(void) {
   static char config_path[PLATFORM_PATH_MAX] = {0};
   if (config_path[0] != '\0')
@@ -60,9 +75,7 @@ Config config_default(void) {
   // Location defaults
   cfg.auto_detect = true;
   cfg.use_gps = false;
-  if (!copy_string(cfg.timezone, sizeof(cfg.timezone), "UTC")) {
-    log_truncation("timezone");
-  }
+  set_string(cfg.timezone, sizeof(cfg.timezone), "UTC", "timezone");
   cfg.timezone_offset = 0.0;
   cfg.updated_at = 0;
   cfg.refresh_interval = LOCATION_DEFAULT_REFRESH_SECONDS;
@@ -70,72 +83,31 @@ Config config_default(void) {
   // Prayer defaults with reminders [30, 15, 5]
   int default_reminders[] = {30, 15, 5};
 
-  cfg.fajr.enabled = true;
-  memcpy(cfg.fajr.reminders, default_reminders, sizeof(default_reminders));
-  cfg.fajr.reminder_count = 3;
-  if (!copy_string(cfg.fajr.adhan, sizeof(cfg.fajr.adhan), DEFAULT_ADHAN)) {
-    log_truncation("fajr.adhan");
+  for (int i = 0; i < PRAYER_COUNT; i++) {
+    PrayerConfig *p = prayer_config_at(&cfg, i);
+    p->enabled = true;
+    memcpy(p->reminders, default_reminders, sizeof(default_reminders));
+    p->reminder_count = 3;
+    set_string(p->adhan, sizeof(p->adhan), DEFAULT_ADHAN, "adhan");
+    p->adhan_enabled = true;
   }
-  cfg.fajr.adhan_enabled = true;
-
-  cfg.dhuhr.enabled = true;
-  memcpy(cfg.dhuhr.reminders, default_reminders, sizeof(default_reminders));
-  cfg.dhuhr.reminder_count = 3;
-  if (!copy_string(cfg.dhuhr.adhan, sizeof(cfg.dhuhr.adhan), DEFAULT_ADHAN)) {
-    log_truncation("dhuhr.adhan");
-  }
-  cfg.dhuhr.adhan_enabled = true;
-
-  cfg.asr.enabled = true;
-  memcpy(cfg.asr.reminders, default_reminders, sizeof(default_reminders));
-  cfg.asr.reminder_count = 3;
-  if (!copy_string(cfg.asr.adhan, sizeof(cfg.asr.adhan), DEFAULT_ADHAN)) {
-    log_truncation("asr.adhan");
-  }
-  cfg.asr.adhan_enabled = true;
-
-  cfg.maghrib.enabled = true;
-  memcpy(cfg.maghrib.reminders, default_reminders, sizeof(default_reminders));
-  cfg.maghrib.reminder_count = 3;
-  if (!copy_string(cfg.maghrib.adhan, sizeof(cfg.maghrib.adhan), DEFAULT_ADHAN)) {
-    log_truncation("maghrib.adhan");
-  }
-  cfg.maghrib.adhan_enabled = true;
-
-  cfg.isha.enabled = true;
-  memcpy(cfg.isha.reminders, default_reminders, sizeof(default_reminders));
-  cfg.isha.reminder_count = 3;
-  if (!copy_string(cfg.isha.adhan, sizeof(cfg.isha.adhan), DEFAULT_ADHAN)) {
-    log_truncation("isha.adhan");
-  }
-  cfg.isha.adhan_enabled = true;
 
   // Notification defaults
   cfg.notification_timeout = 5000;
-  if (!copy_string(cfg.notification_urgency, sizeof(cfg.notification_urgency), "critical")) {
-    log_truncation("notification_urgency");
-  }
-  if (!copy_string(cfg.notification_sound, sizeof(cfg.notification_sound), "adhan")) {
-    log_truncation("notification_sound");
-  }
-  if (!copy_string(cfg.notification_sound_alarm, sizeof(cfg.notification_sound_alarm), "alarm")) {
-    log_truncation("notification_sound_alarm");
-  }
-  if (!copy_string(cfg.notification_sound_reminder, sizeof(cfg.notification_sound_reminder),
-                   "reminder")) {
-    log_truncation("notification_sound_reminder");
-  }
-  if (!copy_string(cfg.notification_icon, sizeof(cfg.notification_icon), "muslimtify")) {
-    log_truncation("notification_icon");
-  }
+  set_string(cfg.notification_urgency, sizeof(cfg.notification_urgency), "critical",
+             "notification_urgency");
+  set_string(cfg.notification_sound, sizeof(cfg.notification_sound), "adhan", "notification_sound");
+  set_string(cfg.notification_sound_alarm, sizeof(cfg.notification_sound_alarm), "alarm",
+             "notification_sound_alarm");
+  set_string(cfg.notification_sound_reminder, sizeof(cfg.notification_sound_reminder), "reminder",
+             "notification_sound_reminder");
+  set_string(cfg.notification_icon, sizeof(cfg.notification_icon), "muslimtify",
+             "notification_icon");
 
   // Calculation defaults
-  if (!copy_string(cfg.calculation_method, sizeof(cfg.calculation_method), "kemenag")) {
-    log_truncation("calculation_method");
-  }
-  if (!copy_string(cfg.madhab, sizeof(cfg.madhab), "shafi")) {
-    log_truncation("madhab");
-  }
+  set_string(cfg.calculation_method, sizeof(cfg.calculation_method), "kemenag",
+             "calculation_method");
+  set_string(cfg.madhab, sizeof(cfg.madhab), "shafi", "madhab");
   cfg.fajr_angle = 0;
   cfg.isha_angle = 0;
 
@@ -179,20 +151,17 @@ static int write_json_file(FILE *f, const Config *cfg) {
 
   fprintf(f, "  \"prayers\": {\n");
 
-  const char *prayer_names[] = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
-  const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
-
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    fprintf(f, "    \"%s\": {\n", prayer_names[i]);
-    fprintf(f, "      \"enabled\": %s,\n", prayers[i]->enabled ? "true" : "false");
+    const PrayerConfig *p = prayer_get_config(cfg, (PrayerType)i);
+    fprintf(f, "    \"%s\": {\n", PRAYER_KEYS[i]);
+    fprintf(f, "      \"enabled\": %s,\n", p->enabled ? "true" : "false");
     fprintf(f, "      \"adhan\": ");
-    json_write_escaped(f, prayers[i]->adhan);
+    json_write_escaped(f, p->adhan);
     fprintf(f, ",\n");
-    fprintf(f, "      \"adhan_enabled\": %s,\n", prayers[i]->adhan_enabled ? "true" : "false");
-    write_minutes_array(f, "reminders", prayers[i]->reminders, prayers[i]->reminder_count);
-    write_minutes_array(f, "after_reminders", prayers[i]->after_reminders,
-                        prayers[i]->after_reminder_count);
-    fprintf(f, "      \"offset\": %d\n", prayers[i]->offset);
+    fprintf(f, "      \"adhan_enabled\": %s,\n", p->adhan_enabled ? "true" : "false");
+    write_minutes_array(f, "reminders", p->reminders, p->reminder_count);
+    write_minutes_array(f, "after_reminders", p->after_reminders, p->after_reminder_count);
+    fprintf(f, "      \"offset\": %d\n", p->offset);
     fprintf(f, "    }%s\n", i + 1 < PRAYER_COUNT ? "," : "");
   }
 
@@ -293,7 +262,7 @@ int config_save(const Config *cfg) {
   return 0;
 }
 
-static char *read_file(const char *path) {
+char *config_read_text_file(const char *path, long max_bytes, const char *label) {
   FILE *f = platform_file_open(path, "r");
   if (!f) {
     return NULL;
@@ -305,8 +274,8 @@ static char *read_file(const char *path) {
     fclose(f);
     return NULL;
   }
-  if (size > MAX_CONFIG_FILE_BYTES) {
-    MT_LOGF(MT_LOG_WARNING, "config: file too large (%ld bytes), refusing to load", size);
+  if (size > max_bytes) {
+    MT_LOGF(MT_LOG_WARNING, "%s: file too large (%ld bytes), refusing to load", label, size);
     fclose(f);
     return NULL;
   }
@@ -360,11 +329,7 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
   }
 
   char *adhan_str = get_value(ctx, "adhan", prayer_obj);
-  if (adhan_str) {
-    if (!copy_string(pcfg->adhan, sizeof(pcfg->adhan), adhan_str)) {
-      log_truncation("adhan");
-    }
-  }
+  set_string(pcfg->adhan, sizeof(pcfg->adhan), adhan_str, "adhan");
 
   char *adhan_enabled_str = get_value(ctx, "adhan_enabled", prayer_obj);
   if (adhan_enabled_str) {
@@ -403,7 +368,7 @@ int config_load(Config *cfg) {
   // Initialize with defaults so partial JSON still has sane values
   *cfg = config_default();
 
-  char *content = read_file(path);
+  char *content = config_read_text_file(path, MAX_CONFIG_FILE_BYTES, "config");
   if (!content) {
     MT_LOGF(MT_LOG_ERROR, "Error: Cannot read config file");
     return -1;
@@ -446,11 +411,7 @@ int config_load(Config *cfg) {
       cfg->latitude = strtod(lat_str, NULL);
     if (lon_str)
       cfg->longitude = strtod(lon_str, NULL);
-    if (tz_str) {
-      if (!copy_string(cfg->timezone, sizeof(cfg->timezone), tz_str)) {
-        log_truncation("timezone");
-      }
-    }
+    set_string(cfg->timezone, sizeof(cfg->timezone), tz_str, "timezone");
     if (tz_offset_str)
       cfg->timezone_offset = strtod(tz_offset_str, NULL);
     if (auto_detect_str)
@@ -462,16 +423,8 @@ int config_load(Config *cfg) {
     // hand edit, is read as GPS off.
     if (!cfg->auto_detect)
       cfg->use_gps = false;
-    if (city_str) {
-      if (!copy_string(cfg->city, sizeof(cfg->city), city_str)) {
-        log_truncation("city");
-      }
-    }
-    if (country_str) {
-      if (!copy_string(cfg->country, sizeof(cfg->country), country_str)) {
-        log_truncation("country");
-      }
-    }
+    set_string(cfg->city, sizeof(cfg->city), city_str, "city");
+    set_string(cfg->country, sizeof(cfg->country), country_str, "country");
     if (updated_at_str)
       cfg->updated_at = (int64_t)strtoll(updated_at_str, NULL, 10);
     if (refresh_interval_str)
@@ -485,25 +438,11 @@ int config_load(Config *cfg) {
   // Parse prayers
   char *prayers = get_value(ctx, "prayers", content);
   if (prayers) {
-    char *fajr = get_value(ctx, "fajr", prayers);
-    if (fajr)
-      parse_prayer_config(ctx, fajr, &cfg->fajr);
-
-    char *dhuhr = get_value(ctx, "dhuhr", prayers);
-    if (dhuhr)
-      parse_prayer_config(ctx, dhuhr, &cfg->dhuhr);
-
-    char *asr = get_value(ctx, "asr", prayers);
-    if (asr)
-      parse_prayer_config(ctx, asr, &cfg->asr);
-
-    char *maghrib = get_value(ctx, "maghrib", prayers);
-    if (maghrib)
-      parse_prayer_config(ctx, maghrib, &cfg->maghrib);
-
-    char *isha = get_value(ctx, "isha", prayers);
-    if (isha)
-      parse_prayer_config(ctx, isha, &cfg->isha);
+    for (int i = 0; i < PRAYER_COUNT; i++) {
+      char *prayer = get_value(ctx, PRAYER_KEYS[i], prayers);
+      if (prayer)
+        parse_prayer_config(ctx, prayer, prayer_config_at(cfg, i));
+    }
   }
 
   // Parse notification
@@ -525,11 +464,8 @@ int config_load(Config *cfg) {
         timeout = INT_MIN;
       cfg->notification_timeout = (int)timeout;
     }
-    if (urgency_str) {
-      if (!copy_string(cfg->notification_urgency, sizeof(cfg->notification_urgency), urgency_str)) {
-        log_truncation("notification_urgency");
-      }
-    }
+    set_string(cfg->notification_urgency, sizeof(cfg->notification_urgency), urgency_str,
+               "notification_urgency");
     if (sound_str) {
       // Migrate the legacy boolean and normalize to a known mode.
       const char *mode = sound_str;
@@ -540,27 +476,15 @@ int config_load(Config *cfg) {
       else if (strcmp(sound_str, "adhan") != 0 && strcmp(sound_str, "default") != 0 &&
                strcmp(sound_str, "off") != 0)
         mode = "adhan";
-      if (!copy_string(cfg->notification_sound, sizeof(cfg->notification_sound), mode)) {
-        log_truncation("notification_sound");
-      }
+      set_string(cfg->notification_sound, sizeof(cfg->notification_sound), mode,
+                 "notification_sound");
     }
-    if (sound_alarm_str) {
-      if (!copy_string(cfg->notification_sound_alarm, sizeof(cfg->notification_sound_alarm),
-                       sound_alarm_str)) {
-        log_truncation("notification_sound_alarm");
-      }
-    }
-    if (sound_reminder_str) {
-      if (!copy_string(cfg->notification_sound_reminder, sizeof(cfg->notification_sound_reminder),
-                       sound_reminder_str)) {
-        log_truncation("notification_sound_reminder");
-      }
-    }
-    if (icon_str) {
-      if (!copy_string(cfg->notification_icon, sizeof(cfg->notification_icon), icon_str)) {
-        log_truncation("notification_icon");
-      }
-    }
+    set_string(cfg->notification_sound_alarm, sizeof(cfg->notification_sound_alarm),
+               sound_alarm_str, "notification_sound_alarm");
+    set_string(cfg->notification_sound_reminder, sizeof(cfg->notification_sound_reminder),
+               sound_reminder_str, "notification_sound_reminder");
+    set_string(cfg->notification_icon, sizeof(cfg->notification_icon), icon_str,
+               "notification_icon");
   }
 
   // Parse calculation
@@ -569,16 +493,9 @@ int config_load(Config *cfg) {
     char *method_str = get_value(ctx, "method", calculation);
     char *madhab_str = get_value(ctx, "madhab", calculation);
 
-    if (method_str) {
-      if (!copy_string(cfg->calculation_method, sizeof(cfg->calculation_method), method_str)) {
-        log_truncation("calculation_method");
-      }
-    }
-    if (madhab_str) {
-      if (!copy_string(cfg->madhab, sizeof(cfg->madhab), madhab_str)) {
-        log_truncation("madhab");
-      }
-    }
+    set_string(cfg->calculation_method, sizeof(cfg->calculation_method), method_str,
+               "calculation_method");
+    set_string(cfg->madhab, sizeof(cfg->madhab), madhab_str, "madhab");
     char *fajr_angle_str = get_value(ctx, "fajr_angle", calculation);
     char *isha_angle_str = get_value(ctx, "isha_angle", calculation);
     /* A failed conversion yields 0, which is the documented sentinel for
@@ -646,14 +563,13 @@ bool config_validate(const Config *cfg) {
     return false;
 
   // Validate reminders
-  const PrayerConfig *prayers[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
-
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    if (!minutes_list_valid(prayers[i]->reminders, prayers[i]->reminder_count) ||
-        !minutes_list_valid(prayers[i]->after_reminders, prayers[i]->after_reminder_count)) {
+    const PrayerConfig *p = prayer_get_config(cfg, (PrayerType)i);
+    if (!minutes_list_valid(p->reminders, p->reminder_count) ||
+        !minutes_list_valid(p->after_reminders, p->after_reminder_count)) {
       return false;
     }
-    if (prayers[i]->offset < PRAYER_OFFSET_MIN || prayers[i]->offset > PRAYER_OFFSET_MAX) {
+    if (p->offset < PRAYER_OFFSET_MIN || p->offset > PRAYER_OFFSET_MAX) {
       return false;
     }
   }
@@ -790,9 +706,8 @@ struct PrayerTimes prayer_times_for_config(const Config *cfg, int year, int mont
   // cache_build_triggers instead, which is the one consumer that needs a
   // minute-of-day rather than an instant.
   double *fields[] = {&t.fajr, &t.dhuhr, &t.asr, &t.maghrib, &t.isha};
-  const PrayerConfig *pcfgs[] = {&cfg->fajr, &cfg->dhuhr, &cfg->asr, &cfg->maghrib, &cfg->isha};
   for (int i = 0; i < PRAYER_COUNT; i++) {
-    *fields[i] += pcfgs[i]->offset / 60.0;
+    *fields[i] += prayer_get_config(cfg, (PrayerType)i)->offset / 60.0;
   }
 
   return t;

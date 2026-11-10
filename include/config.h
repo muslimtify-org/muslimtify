@@ -73,6 +73,14 @@ typedef struct {
 } Config;
 
 /**
+ * Read a whole text file into a malloc'd, NUL-terminated buffer the caller
+ * frees. A file larger than max_bytes is refused with a warning that starts
+ * with label. Shared by the config and cache loaders.
+ * Returns: the buffer, or NULL when the file is missing, too large or unreadable
+ */
+char *config_read_text_file(const char *path, long max_bytes, const char *label);
+
+/**
  * Load config from ~/.config/muslimtify/config.json
  * Creates default config if file doesn't exist
  * Returns: 0 on success, -1 on error

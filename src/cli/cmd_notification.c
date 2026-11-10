@@ -84,13 +84,6 @@ static MuslimtifyError set_prayer_flag(Muslimtify *mt, PrayerFlagSetter set, boo
   return err;
 }
 
-// Save what the setters changed. Prints the error and returns 1 on failure.
-static int save_or_fail(Muslimtify *mt, MuslimtifyError err) {
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_save(mt);
-  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
-}
-
 // Set enabled on one prayer or all of them.
 static int notif_enable(int argc, char **argv, bool enable) {
   const char *command = enable ? "notification enable" : "notification disable";
@@ -109,8 +102,7 @@ static int notif_enable(int argc, char **argv, bool enable) {
   Muslimtify *mt = NULL;
   if (cli_open(&mt))
     return 1;
-  int ret =
-      save_or_fail(mt, set_prayer_flag(mt, muslimtify_set_prayer_enabled, all, prayer, enable));
+  int ret = cli_save(mt, set_prayer_flag(mt, muslimtify_set_prayer_enabled, all, prayer, enable));
   muslimtify_close(mt);
   if (ret != 0)
     return ret;
@@ -148,7 +140,7 @@ static int notif_urgency(int argc, char **argv) {
   Muslimtify *mt = NULL;
   if (cli_open(&mt))
     return 1;
-  int ret = save_or_fail(mt, muslimtify_set_urgency(mt, urgency));
+  int ret = cli_save(mt, muslimtify_set_urgency(mt, urgency));
   muslimtify_close(mt);
   if (ret != 0)
     return ret;
@@ -238,7 +230,7 @@ static int notif_reminder(int argc, char **argv, bool after) {
   } else {
     err = set(mt, prayer, mins, (size_t)count);
   }
-  int ret = save_or_fail(mt, err);
+  int ret = cli_save(mt, err);
   muslimtify_close(mt);
   if (ret != 0)
     return ret;
@@ -261,7 +253,7 @@ static int notif_adhan_set(Muslimtify *mt, const char *path) {
     err = muslimtify_set_prayer_adhan_file(mt, (MuslimtifyPrayerType)i, path);
   if (err != MUSLIMTIFY_OK)
     return cli_fail_value(err, path);
-  if (save_or_fail(mt, MUSLIMTIFY_OK) != 0)
+  if (cli_save(mt, MUSLIMTIFY_OK) != 0)
     return 1;
 
   MuslimtifyNotification settings;
@@ -320,7 +312,7 @@ static int notif_adhan(int argc, char **argv) {
     muslimtify_close(mt);
     return cli_unknown_prayer(argv[1]);
   }
-  int ret = save_or_fail(mt, muslimtify_set_prayer_adhan(mt, prayer, enable));
+  int ret = cli_save(mt, muslimtify_set_prayer_adhan(mt, prayer, enable));
   muslimtify_close(mt);
   if (ret != 0)
     return ret;
@@ -344,7 +336,7 @@ static int notif_sound(int argc, char **argv) {
   Muslimtify *mt = NULL;
   if (cli_open(&mt))
     return 1;
-  int ret = save_or_fail(mt, muslimtify_set_sound_mode(mt, mode));
+  int ret = cli_save(mt, muslimtify_set_sound_mode(mt, mode));
   muslimtify_close(mt);
   if (ret != 0)
     return ret;
@@ -377,17 +369,8 @@ int handle_notification(int argc, char **argv) {
     return 0;
   }
 
-  // Default settings view: only --json / --headless are accepted here.
-  for (int i = 0; i < argc; i++) {
-    const char *a = argv[i];
-    if (strcmp(a, "--json") == 0 || strcmp(a, "--headless") == 0)
-      continue;
-    fprintf(stderr, "Error: unknown notification argument '%s'\n", a);
-    return 1;
-  }
-
   OutputMode mode = OUTPUT_TABLE;
-  if (cli_parse_output_mode(argc, argv, &mode) != 0)
+  if (cli_parse_view_args("notification", argc, argv, &mode))
     return 1;
 
   Muslimtify *mt = NULL;

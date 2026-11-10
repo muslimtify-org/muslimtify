@@ -46,10 +46,8 @@ static int timeformat_run(Muslimtify *mt, int argc, char **argv) {
   }
 
   MuslimtifyError err = muslimtify_set_time_format(mt, atoi(argv[0]));
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_save(mt);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save(mt, err))
+    return 1;
   printf("Time format set to: %d-hour\n", muslimtify_time_format(mt));
   return 0;
 }

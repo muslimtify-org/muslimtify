@@ -22,6 +22,23 @@ int cli_parse_output_mode(int argc, char **argv, OutputMode *out) {
   return 0;
 }
 
+int cli_parse_view_args(const char *name, int argc, char **argv, OutputMode *out) {
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "--json") == 0 || strcmp(argv[i], "--headless") == 0)
+      continue;
+    fprintf(stderr, "Error: unknown %s argument '%s'\n", name, argv[i]);
+    return 1;
+  }
+  return cli_parse_output_mode(argc, argv, out);
+}
+
+void cli_print_method(const char *label, const MuslimtifyMethodInfo *info) {
+  printf("%s: %s", label, info->key);
+  if (info->name[0] != '\0')
+    printf(" (%s)", info->name);
+  printf("\n");
+}
+
 int cli_unknown_prayer(const char *name) {
   fprintf(stderr, "Error: Unknown prayer '%s'\n", name);
   fprintf(stderr, "  Available: fajr, dhuhr, asr, maghrib, isha\n");
@@ -36,6 +53,20 @@ int cli_fail(MuslimtifyError err) {
 int cli_fail_value(MuslimtifyError err, const char *value) {
   fprintf(stderr, "Error: %s '%s'\n", muslimtify_get_error(err), value);
   return 1;
+}
+
+int cli_save(Muslimtify *mt, MuslimtifyError err) {
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
+}
+
+int cli_save_location(Muslimtify *mt, MuslimtifyError err, MuslimtifyLocation *loc) {
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_save(mt);
+  if (err == MUSLIMTIFY_OK)
+    err = muslimtify_get_location(mt, loc);
+  return err == MUSLIMTIFY_OK ? 0 : cli_fail(err);
 }
 
 int cli_open(Muslimtify **mt) {
@@ -61,11 +92,8 @@ int cli_ensure_location(Muslimtify *mt) {
   cli_print_gps_warning(&detection);
 
   MuslimtifyLocation loc;
-  err = muslimtify_save(mt);
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_get_location(mt, &loc);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save_location(mt, MUSLIMTIFY_OK, &loc))
+    return 1;
 
   if (loc.city[0] != '\0')
     fprintf(stderr, "✓ Location detected: %s, %s\n", loc.city, loc.country);
@@ -74,46 +102,62 @@ int cli_ensure_location(Muslimtify *mt) {
   return 0;
 }
 
-static int removed_enable(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr, "Error: 'enable' was removed; use 'notification enable <prayer|all>'\n");
-  return 1;
+int cli_daemon_status(int argc, char **argv) {
+  (void)argc;
+  (void)argv;
+
+  MuslimtifyDaemonStatus st;
+  MuslimtifyError err = muslimtify_daemon_status(&st);
+  if (err != MUSLIMTIFY_OK)
+    return cli_fail(err);
+
+  printf("Installed: %s\n", st.installed ? "yes" : "no");
+  printf("Enabled:   %s\n", st.enabled ? "yes" : "no");
+  printf("Running:   %s\n", st.running ? "yes" : "no");
+  // Non-zero when it is not running, so a script can test for a live daemon.
+  return st.running ? 0 : 1;
 }
-static int removed_disable(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr, "Error: 'disable' was removed; use 'notification disable <prayer|all>'\n");
-  return 1;
+
+int cli_daemon_dispatch(const CommandEntry *commands, int count, void (*print_help)(void), int argc,
+                        char **argv) {
+  if (cli_wants_help(argc, argv)) {
+    print_help();
+    return 0;
+  }
+  if (argc > 0) {
+    const CommandEntry *sub = dispatch_lookup(commands, count, argv[0]);
+    if (sub) {
+      // No daemon subcommand takes arguments. Checked before any of them runs.
+      char command[64];
+      snprintf(command, sizeof(command), "daemon %s", argv[0]);
+      if (cli_reject_extra_args(command, argc - 1, argv + 1))
+        return 1;
+      return sub->handler(argc - 1, argv + 1);
+    }
+
+    fprintf(stderr, "Error: Unknown daemon subcommand '%s'\n", argv[0]);
+    print_help();
+    return 1;
+  }
+
+  return cli_daemon_status(0, NULL);
 }
-static int removed_list(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr, "Error: 'list' was removed; use 'notification' to see settings\n");
-  return 1;
-}
-static int removed_reminder(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr, "Error: 'reminder' was removed; use 'notification --reminder'\n");
-  return 1;
-}
-static int removed_sound(int a, char **v) {
-  (void)a;
-  (void)v;
-  fprintf(stderr,
-          "Error: 'sound' was removed; use 'notification --sound' or 'notification --adhan'\n");
-  return 1;
-}
+
+// Commands that no longer exist, each with where its job went.
+static const struct {
+  const char *name;
+  const char *hint;
+} removed_commands[] = {
+    {"enable", "use 'notification enable <prayer|all>'"},
+    {"disable", "use 'notification disable <prayer|all>'"},
+    {"list", "use 'notification' to see settings"},
+    {"reminder", "use 'notification --reminder'"},
+    {"sound", "use 'notification --sound' or 'notification --adhan'"},
+};
 
 static const CommandEntry top_commands[] = {
     {"show", handle_show},
     {"location", handle_location},
-    {"enable", removed_enable},
-    {"disable", removed_disable},
-    {"list", removed_list},
-    {"reminder", removed_reminder},
-    {"sound", removed_sound},
     {"offset", handle_offset},
     {"daemon", handle_daemon},
     {"method", handle_method},
@@ -141,10 +185,7 @@ int handle_version(int argc, char **argv) {
   Muslimtify *mt = NULL;
   MuslimtifyMethodInfo info;
   if (muslimtify_open(&mt) == MUSLIMTIFY_OK && muslimtify_get_method(mt, &info) == MUSLIMTIFY_OK) {
-    printf("Method: %s", info.key);
-    if (info.name[0] != '\0')
-      printf(" (%s)", info.name);
-    printf("\n");
+    cli_print_method("Method", &info);
   } else {
     printf("Method: unknown (the configuration could not be read)\n");
   }
@@ -328,6 +369,13 @@ int cli_run(int argc, char **argv) {
   const CommandEntry *entry = dispatch_lookup(top_commands, ARRAY_LEN(top_commands), cmd);
   if (entry)
     return entry->handler(argc - 2, argv + 2);
+
+  for (size_t i = 0; i < ARRAY_LEN(removed_commands); i++) {
+    if (strcmp(removed_commands[i].name, cmd) == 0) {
+      fprintf(stderr, "Error: '%s' was removed; %s\n", cmd, removed_commands[i].hint);
+      return 1;
+    }
+  }
 
   fprintf(stderr, "Unknown command '%s'. Use 'muslimtify help' for usage.\n", cmd);
   return 1;

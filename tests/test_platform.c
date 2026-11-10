@@ -3,6 +3,7 @@
 #endif
 
 #include "platform.h"
+#include "test_report.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -18,19 +19,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
-
-static int total = 0;
-static int failures = 0;
-
-static void report_result(const char *label, bool pass) {
-  total++;
-  if (pass) {
-    printf("  PASS: %s\n", label);
-  } else {
-    printf("  FAIL: %s\n", label);
-    failures++;
-  }
-}
 
 static void check_path(const char *label, const char *first, const char *second) {
   char non_empty_label[96];

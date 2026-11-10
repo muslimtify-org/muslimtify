@@ -111,22 +111,6 @@ static int daemon_uninstall_handler(int argc, char **argv) {
   return 0;
 }
 
-static int daemon_status_handler(int argc, char **argv) {
-  (void)argc;
-  (void)argv;
-
-  MuslimtifyDaemonStatus st;
-  MuslimtifyError err = muslimtify_daemon_status(&st);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
-
-  printf("Installed: %s\n", st.installed ? "yes" : "no");
-  printf("Enabled:   %s\n", st.enabled ? "yes" : "no");
-  printf("Running:   %s\n", st.running ? "yes" : "no");
-  // Non-zero when it is not running, so a script can test for a live daemon.
-  return st.running ? 0 : 1;
-}
-
 static int daemon_run_handler(int argc, char **argv) {
   (void)argc;
   (void)argv;
@@ -136,7 +120,7 @@ static int daemon_run_handler(int argc, char **argv) {
 static const CommandEntry daemon_commands[] = {
     {"install", daemon_install_handler},
     {"uninstall", daemon_uninstall_handler},
-    {"status", daemon_status_handler},
+    {"status", cli_daemon_status},
     {"run", daemon_run_handler},
 };
 
@@ -159,25 +143,6 @@ static void print_daemon_help(void) {
 }
 
 int handle_daemon(int argc, char **argv) {
-  if (cli_wants_help(argc, argv)) {
-    print_daemon_help();
-    return 0;
-  }
-  if (argc > 0) {
-    const CommandEntry *sub = dispatch_lookup(daemon_commands, ARRAY_LEN(daemon_commands), argv[0]);
-    if (sub) {
-      // No daemon subcommand takes arguments. Checked before any of them runs.
-      char command[64];
-      snprintf(command, sizeof(command), "daemon %s", argv[0]);
-      if (cli_reject_extra_args(command, argc - 1, argv + 1))
-        return 1;
-      return sub->handler(argc - 1, argv + 1);
-    }
-
-    fprintf(stderr, "Error: Unknown daemon subcommand '%s'\n", argv[0]);
-    print_daemon_help();
-    return 1;
-  }
-
-  return daemon_status_handler(0, NULL);
+  return cli_daemon_dispatch(daemon_commands, ARRAY_LEN(daemon_commands), print_daemon_help, argc,
+                             argv);
 }

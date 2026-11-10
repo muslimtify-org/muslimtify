@@ -1,5 +1,6 @@
 #include "cli_internal.h"
 #include "display.h"
+#include "util.h"
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -98,11 +99,8 @@ static int location_set_run(Muslimtify *mt, const LocationSetArgs *a) {
       return cli_fail_value(err, a->tz);
   }
 
-  err = muslimtify_save(mt);
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_get_location(mt, &loc);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save_location(mt, MUSLIMTIFY_OK, &loc))
+    return 1;
 
   // Concise confirmation: report only the fields the user actually changed.
   if (coords_changed)
@@ -152,13 +150,9 @@ static int location_auto_run(Muslimtify *mt, const char *city, const char *count
     err = muslimtify_set_city(mt, city);
   if (err == MUSLIMTIFY_OK && country)
     err = muslimtify_set_country(mt, country);
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_save(mt);
   MuslimtifyLocation loc = {0};
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_get_location(mt, &loc);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save_location(mt, err, &loc))
+    return 1;
 
   printf("✓ Location detected: %.4f, %.4f\n", loc.latitude, loc.longitude);
   printf("  Timezone: %s (UTC%+.1f)\n", loc.timezone, loc.utc_offset);
@@ -182,87 +176,46 @@ static int location_set_handler(int argc, char **argv) {
   const char *override_country = NULL;
   const char *override_refresh = NULL;
 
+  // Each value flag is accepted as `--flag=value` or `--flag value`.
+  const struct {
+    const char *name;
+    const char *unit;    // appended to "requires a value"
+    const char *example; // the value shown in the hint
+    const char *note;    // appended after the example
+    const char **value;
+  } flags[] = {
+      {"--lat", "", "1.2345", "", &override_lat},
+      {"--long", "", "1.2345", "", &override_lon},
+      {"--timezone", "", "Asia/Jakarta", "", &override_tz},
+      {"--city", "", "Jakarta", "", &override_city},
+      {"--country", "", "ID", "", &override_country},
+      {"--refresh-interval", " in seconds", "43200", ", or 0 to disable", &override_refresh},
+  };
+
   for (int i = 0; i < argc; ++i) {
-    if (strncmp(argv[i], "--lat=", 6) == 0) {
-      override_lat = argv[i] + 6;
-      if (*override_lat == '\0') {
-        fprintf(stderr, "Error: --lat requires a value (e.g. --lat=1.2345)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--lat") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --lat requires a value (e.g. --lat 1.2345)\n");
-        return 1;
-      }
-      override_lat = argv[++i];
-    } else if (strncmp(argv[i], "--long=", 7) == 0) {
-      override_lon = argv[i] + 7;
-      if (*override_lon == '\0') {
-        fprintf(stderr, "Error: --long requires a value (e.g. --long=1.2345)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--long") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --long requires a value (e.g. --long 1.2345)\n");
-        return 1;
-      }
-      override_lon = argv[++i];
-    } else if (strncmp(argv[i], "--timezone=", 11) == 0) {
-      override_tz = argv[i] + 11;
-      if (*override_tz == '\0') {
-        fprintf(stderr, "Error: --timezone requires a value (e.g. --timezone=Asia/Jakarta)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--timezone") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --timezone requires a value (e.g. --timezone Asia/Jakarta)\n");
-        return 1;
-      }
-      override_tz = argv[++i];
-    } else if (strncmp(argv[i], "--city=", 7) == 0) {
-      override_city = argv[i] + 7;
-      if (*override_city == '\0') {
-        fprintf(stderr, "Error: --city requires a value (e.g. --city=Jakarta)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--city") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --city requires a value (e.g. --city Jakarta)\n");
-        return 1;
-      }
-      override_city = argv[++i];
-    } else if (strncmp(argv[i], "--country=", 10) == 0) {
-      override_country = argv[i] + 10;
-      if (*override_country == '\0') {
-        fprintf(stderr, "Error: --country requires a value (e.g. --country=ID)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--country") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --country requires a value (e.g. --country ID)\n");
-        return 1;
-      }
-      override_country = argv[++i];
-    } else if (strncmp(argv[i], "--refresh-interval=", 19) == 0) {
-      override_refresh = argv[i] + 19;
-      if (*override_refresh == '\0') {
-        fprintf(stderr, "Error: --refresh-interval requires a value in seconds "
-                        "(e.g. --refresh-interval=43200, or 0 to disable)\n");
-        return 1;
-      }
-    } else if (strcmp(argv[i], "--refresh-interval") == 0) {
-      if (i + 1 >= argc) {
-        fprintf(stderr, "Error: --refresh-interval requires a value in seconds "
-                        "(e.g. --refresh-interval 43200, or 0 to disable)\n");
-        return 1;
-      }
-      override_refresh = argv[++i];
-    } else if (strcmp(argv[i], "--auto") == 0) {
+    if (strcmp(argv[i], "--auto") == 0) {
       auto_detect = true;
-    } else {
+      continue;
+    }
+    size_t f = 0;
+    size_t len = 0;
+    for (; f < ARRAY_LEN(flags); f++) {
+      len = strlen(flags[f].name);
+      if (strncmp(argv[i], flags[f].name, len) == 0 && (argv[i][len] == '=' || !argv[i][len]))
+        break;
+    }
+    if (f == ARRAY_LEN(flags)) {
       fprintf(stderr, "Error: unexpected argument '%s'\n%s", argv[i], LOCATION_SET_USAGE);
       return 1;
     }
+    // `--flag=` with nothing after it, or `--flag` as the last argument.
+    char sep = argv[i][len] == '=' ? '=' : ' ';
+    if (sep == '=' ? argv[i][len + 1] == '\0' : i + 1 >= argc) {
+      fprintf(stderr, "Error: %s requires a value%s (e.g. %s%c%s%s)\n", flags[f].name,
+              flags[f].unit, flags[f].name, sep, flags[f].example, flags[f].note);
+      return 1;
+    }
+    *flags[f].value = sep == '=' ? argv[i] + len + 1 : argv[++i];
   }
 
   if (auto_detect) {
@@ -368,12 +321,8 @@ static int location_gps_run(Muslimtify *mt, int argc, char **argv) {
 
   if (strcmp(argv[0], "off") == 0) {
     err = muslimtify_set_gps(mt, false, NULL);
-    if (err == MUSLIMTIFY_OK)
-      err = muslimtify_save(mt);
-    if (err == MUSLIMTIFY_OK)
-      err = muslimtify_get_location(mt, &loc);
-    if (err != MUSLIMTIFY_OK)
-      return cli_fail(err);
+    if (cli_save_location(mt, err, &loc))
+      return 1;
     // Only automatic location falls back to the network. A location set by
     // hand stays as it is.
     if (loc.auto_detect)
@@ -409,11 +358,8 @@ static int location_gps_run(Muslimtify *mt, int argc, char **argv) {
       return cli_fail(err);
     }
 
-    err = muslimtify_save(mt);
-    if (err == MUSLIMTIFY_OK)
-      err = muslimtify_get_location(mt, &loc);
-    if (err != MUSLIMTIFY_OK)
-      return cli_fail(err);
+    if (cli_save_location(mt, MUSLIMTIFY_OK, &loc))
+      return 1;
     if (has_fix)
       printf("✓ GPS ready — enabled. Location: %.4f, %.4f\n", loc.latitude, loc.longitude);
     else
@@ -500,16 +446,8 @@ int handle_location(int argc, char **argv) {
     return 0;
   }
 
-  for (int i = 0; i < argc; i++) {
-    const char *a = argv[i];
-    if (strcmp(a, "--json") == 0 || strcmp(a, "--headless") == 0)
-      continue;
-    fprintf(stderr, "Error: unknown location argument '%s'\n", a);
-    return 1;
-  }
-
   OutputMode mode = OUTPUT_TABLE;
-  if (cli_parse_output_mode(argc, argv, &mode) != 0)
+  if (cli_parse_view_args("location", argc, argv, &mode))
     return 1;
 
   Muslimtify *mt = NULL;

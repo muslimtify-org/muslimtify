@@ -56,19 +56,14 @@ static int method_auto(Muslimtify *mt) {
   }
 
   err = muslimtify_set_method_from_country(mt);
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_save(mt);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save(mt, err))
+    return 1;
 
   MuslimtifyMethodInfo info;
   err = muslimtify_get_method(mt, &info);
   if (err != MUSLIMTIFY_OK)
     return cli_fail(err);
-  printf("Method auto-detected: %s", info.key);
-  if (info.name[0] != '\0')
-    printf(" (%s)", info.name);
-  printf("\n");
+  cli_print_method("Method auto-detected", &info);
   return 0;
 }
 
@@ -77,10 +72,7 @@ static int method_show_current(Muslimtify *mt) {
   MuslimtifyError err = muslimtify_get_method(mt, &info);
   if (err != MUSLIMTIFY_OK)
     return cli_fail(err);
-  printf("Calculation Method: %s", info.key);
-  if (info.name[0] != '\0')
-    printf(" (%s)", info.name);
-  printf("\n");
+  cli_print_method("Calculation Method", &info);
   return 0;
 }
 
@@ -91,10 +83,8 @@ static int method_set(Muslimtify *mt, const char *name) {
     print_method_list(stderr, mt);
     return 1;
   }
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_save(mt);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save(mt, err))
+    return 1;
 
   MuslimtifyMethodInfo info;
   printf("Method set to: %s", name);
@@ -194,10 +184,8 @@ static int madzhab_run(Muslimtify *mt, int argc, char **argv) {
   }
 
   MuslimtifyError err = muslimtify_set_madhab(mt, madhab);
-  if (err == MUSLIMTIFY_OK)
-    err = muslimtify_save(mt);
-  if (err != MUSLIMTIFY_OK)
-    return cli_fail(err);
+  if (cli_save(mt, err))
+    return 1;
   printf("Madzhab set to: %s (%s)\n", muslimtify_madhab_key(madhab),
          muslimtify_madhab_name(madhab));
   return 0;

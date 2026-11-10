@@ -4,6 +4,7 @@
 #include "config.h"
 #include "platform.h"
 #include "prayer_checker.h"
+#include "test_check.h"
 #include "test_support.h"
 #include <math.h>
 #include <stdbool.h>
@@ -11,18 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-static int passed = 0;
-static int failed = 0;
-
-static void check_bool(const char *test, bool cond) {
-  if (cond) {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]\n", test);
-  }
-}
 
 // Jakarta prayer times (same as test_prayer_checker.c)
 static struct PrayerTimes jakarta_times(void) {

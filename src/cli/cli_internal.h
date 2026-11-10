@@ -29,6 +29,15 @@ typedef enum { OUTPUT_TABLE, OUTPUT_JSON, OUTPUT_HEADLESS } OutputMode;
 // mutual-exclusion error to stderr).
 int cli_parse_output_mode(int argc, char **argv, OutputMode *out);
 
+// For a settings view that takes only --json / --headless: reject any other
+// argument as "unknown <name> argument", then parse the output mode. Returns
+// 0 on success, 1 after printing an error.
+int cli_parse_view_args(const char *name, int argc, char **argv, OutputMode *out);
+
+// Print "<label>: <key> (<name>)" for a calculation method, leaving out the
+// parenthesised name when the method has none.
+void cli_print_method(const char *label, const MuslimtifyMethodInfo *info);
+
 // True if argv contains --help or -h.
 static inline bool cli_wants_help(int argc, char **argv) {
   for (int i = 0; i < argc; i++) {
@@ -58,6 +67,13 @@ int cli_open(Muslimtify **mt);
 // Print "Error: <message>" for a library error. Returns 1.
 int cli_fail(MuslimtifyError err);
 
+// Save what the setters changed, unless err already reports a failure. Prints
+// the error and returns 1 when err or the save failed, else returns 0.
+int cli_save(Muslimtify *mt, MuslimtifyError err);
+
+// cli_save, then read the stored location back into *loc.
+int cli_save_location(Muslimtify *mt, MuslimtifyError err, MuslimtifyLocation *loc);
+
 // Print "Error: <message> '<value>'" for a library error. Returns 1.
 int cli_fail_value(MuslimtifyError err, const char *value);
 
@@ -69,6 +85,15 @@ int cli_ensure_location(Muslimtify *mt);
 // Print the warning for a GPS problem met during detection, to stderr. Prints
 // nothing when there was none.
 void cli_print_gps_warning(const MuslimtifyDetection *detection);
+
+// `daemon status`: print whether the daemon is installed, enabled and running.
+// Returns 0 when it is running, 1 otherwise. Shared by both OS command files.
+int cli_daemon_status(int argc, char **argv);
+
+// Run `daemon <subcommand>` from one OS's command table: help, the subcommand
+// lookup, the no-arguments check, and status as the default.
+int cli_daemon_dispatch(const CommandEntry *commands, int count, void (*print_help)(void), int argc,
+                        char **argv);
 
 int handle_show(int argc, char **argv);
 int handle_location(int argc, char **argv);

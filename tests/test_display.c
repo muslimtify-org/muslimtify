@@ -85,21 +85,10 @@
 #include "cache.h"
 #include "config.h"
 #include "prayer_checker.h"
+#include "test_check.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-
-static int passed = 0;
-static int failed = 0;
-
-static void check_bool(const char *test, bool cond) {
-  if (cond) {
-    passed++;
-  } else {
-    failed++;
-    fprintf(stderr, "FAIL [%s]\n", test);
-  }
-}
 
 typedef struct {
   const char *name;
