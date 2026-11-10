@@ -31,6 +31,12 @@ static void log_truncation(const char *key) {
   }
 }
 
+// Copy src into dst when src is not NULL, logging once if it does not fit.
+static void set_string(char *dst, size_t cap, const char *src, const char *key) {
+  if (src && !copy_string(dst, cap, src))
+    log_truncation(key);
+}
+
 const char *config_get_path(void) {
   static char config_path[PLATFORM_PATH_MAX] = {0};
   if (config_path[0] != '\0')
@@ -60,9 +66,7 @@ Config config_default(void) {
   // Location defaults
   cfg.auto_detect = true;
   cfg.use_gps = false;
-  if (!copy_string(cfg.timezone, sizeof(cfg.timezone), "UTC")) {
-    log_truncation("timezone");
-  }
+  set_string(cfg.timezone, sizeof(cfg.timezone), "UTC", "timezone");
   cfg.timezone_offset = 0.0;
   cfg.updated_at = 0;
   cfg.refresh_interval = LOCATION_DEFAULT_REFRESH_SECONDS;
@@ -73,69 +77,49 @@ Config config_default(void) {
   cfg.fajr.enabled = true;
   memcpy(cfg.fajr.reminders, default_reminders, sizeof(default_reminders));
   cfg.fajr.reminder_count = 3;
-  if (!copy_string(cfg.fajr.adhan, sizeof(cfg.fajr.adhan), DEFAULT_ADHAN)) {
-    log_truncation("fajr.adhan");
-  }
+  set_string(cfg.fajr.adhan, sizeof(cfg.fajr.adhan), DEFAULT_ADHAN, "fajr.adhan");
   cfg.fajr.adhan_enabled = true;
 
   cfg.dhuhr.enabled = true;
   memcpy(cfg.dhuhr.reminders, default_reminders, sizeof(default_reminders));
   cfg.dhuhr.reminder_count = 3;
-  if (!copy_string(cfg.dhuhr.adhan, sizeof(cfg.dhuhr.adhan), DEFAULT_ADHAN)) {
-    log_truncation("dhuhr.adhan");
-  }
+  set_string(cfg.dhuhr.adhan, sizeof(cfg.dhuhr.adhan), DEFAULT_ADHAN, "dhuhr.adhan");
   cfg.dhuhr.adhan_enabled = true;
 
   cfg.asr.enabled = true;
   memcpy(cfg.asr.reminders, default_reminders, sizeof(default_reminders));
   cfg.asr.reminder_count = 3;
-  if (!copy_string(cfg.asr.adhan, sizeof(cfg.asr.adhan), DEFAULT_ADHAN)) {
-    log_truncation("asr.adhan");
-  }
+  set_string(cfg.asr.adhan, sizeof(cfg.asr.adhan), DEFAULT_ADHAN, "asr.adhan");
   cfg.asr.adhan_enabled = true;
 
   cfg.maghrib.enabled = true;
   memcpy(cfg.maghrib.reminders, default_reminders, sizeof(default_reminders));
   cfg.maghrib.reminder_count = 3;
-  if (!copy_string(cfg.maghrib.adhan, sizeof(cfg.maghrib.adhan), DEFAULT_ADHAN)) {
-    log_truncation("maghrib.adhan");
-  }
+  set_string(cfg.maghrib.adhan, sizeof(cfg.maghrib.adhan), DEFAULT_ADHAN, "maghrib.adhan");
   cfg.maghrib.adhan_enabled = true;
 
   cfg.isha.enabled = true;
   memcpy(cfg.isha.reminders, default_reminders, sizeof(default_reminders));
   cfg.isha.reminder_count = 3;
-  if (!copy_string(cfg.isha.adhan, sizeof(cfg.isha.adhan), DEFAULT_ADHAN)) {
-    log_truncation("isha.adhan");
-  }
+  set_string(cfg.isha.adhan, sizeof(cfg.isha.adhan), DEFAULT_ADHAN, "isha.adhan");
   cfg.isha.adhan_enabled = true;
 
   // Notification defaults
   cfg.notification_timeout = 5000;
-  if (!copy_string(cfg.notification_urgency, sizeof(cfg.notification_urgency), "critical")) {
-    log_truncation("notification_urgency");
-  }
-  if (!copy_string(cfg.notification_sound, sizeof(cfg.notification_sound), "adhan")) {
-    log_truncation("notification_sound");
-  }
-  if (!copy_string(cfg.notification_sound_alarm, sizeof(cfg.notification_sound_alarm), "alarm")) {
-    log_truncation("notification_sound_alarm");
-  }
-  if (!copy_string(cfg.notification_sound_reminder, sizeof(cfg.notification_sound_reminder),
-                   "reminder")) {
-    log_truncation("notification_sound_reminder");
-  }
-  if (!copy_string(cfg.notification_icon, sizeof(cfg.notification_icon), "muslimtify")) {
-    log_truncation("notification_icon");
-  }
+  set_string(cfg.notification_urgency, sizeof(cfg.notification_urgency), "critical",
+             "notification_urgency");
+  set_string(cfg.notification_sound, sizeof(cfg.notification_sound), "adhan", "notification_sound");
+  set_string(cfg.notification_sound_alarm, sizeof(cfg.notification_sound_alarm), "alarm",
+             "notification_sound_alarm");
+  set_string(cfg.notification_sound_reminder, sizeof(cfg.notification_sound_reminder), "reminder",
+             "notification_sound_reminder");
+  set_string(cfg.notification_icon, sizeof(cfg.notification_icon), "muslimtify",
+             "notification_icon");
 
   // Calculation defaults
-  if (!copy_string(cfg.calculation_method, sizeof(cfg.calculation_method), "kemenag")) {
-    log_truncation("calculation_method");
-  }
-  if (!copy_string(cfg.madhab, sizeof(cfg.madhab), "shafi")) {
-    log_truncation("madhab");
-  }
+  set_string(cfg.calculation_method, sizeof(cfg.calculation_method), "kemenag",
+             "calculation_method");
+  set_string(cfg.madhab, sizeof(cfg.madhab), "shafi", "madhab");
   cfg.fajr_angle = 0;
   cfg.isha_angle = 0;
 
@@ -360,11 +344,7 @@ static void parse_prayer_config(JsonContext *ctx, char *prayer_obj, PrayerConfig
   }
 
   char *adhan_str = get_value(ctx, "adhan", prayer_obj);
-  if (adhan_str) {
-    if (!copy_string(pcfg->adhan, sizeof(pcfg->adhan), adhan_str)) {
-      log_truncation("adhan");
-    }
-  }
+  set_string(pcfg->adhan, sizeof(pcfg->adhan), adhan_str, "adhan");
 
   char *adhan_enabled_str = get_value(ctx, "adhan_enabled", prayer_obj);
   if (adhan_enabled_str) {
@@ -446,11 +426,7 @@ int config_load(Config *cfg) {
       cfg->latitude = strtod(lat_str, NULL);
     if (lon_str)
       cfg->longitude = strtod(lon_str, NULL);
-    if (tz_str) {
-      if (!copy_string(cfg->timezone, sizeof(cfg->timezone), tz_str)) {
-        log_truncation("timezone");
-      }
-    }
+    set_string(cfg->timezone, sizeof(cfg->timezone), tz_str, "timezone");
     if (tz_offset_str)
       cfg->timezone_offset = strtod(tz_offset_str, NULL);
     if (auto_detect_str)
@@ -462,16 +438,8 @@ int config_load(Config *cfg) {
     // hand edit, is read as GPS off.
     if (!cfg->auto_detect)
       cfg->use_gps = false;
-    if (city_str) {
-      if (!copy_string(cfg->city, sizeof(cfg->city), city_str)) {
-        log_truncation("city");
-      }
-    }
-    if (country_str) {
-      if (!copy_string(cfg->country, sizeof(cfg->country), country_str)) {
-        log_truncation("country");
-      }
-    }
+    set_string(cfg->city, sizeof(cfg->city), city_str, "city");
+    set_string(cfg->country, sizeof(cfg->country), country_str, "country");
     if (updated_at_str)
       cfg->updated_at = (int64_t)strtoll(updated_at_str, NULL, 10);
     if (refresh_interval_str)
@@ -525,11 +493,8 @@ int config_load(Config *cfg) {
         timeout = INT_MIN;
       cfg->notification_timeout = (int)timeout;
     }
-    if (urgency_str) {
-      if (!copy_string(cfg->notification_urgency, sizeof(cfg->notification_urgency), urgency_str)) {
-        log_truncation("notification_urgency");
-      }
-    }
+    set_string(cfg->notification_urgency, sizeof(cfg->notification_urgency), urgency_str,
+               "notification_urgency");
     if (sound_str) {
       // Migrate the legacy boolean and normalize to a known mode.
       const char *mode = sound_str;
@@ -540,27 +505,15 @@ int config_load(Config *cfg) {
       else if (strcmp(sound_str, "adhan") != 0 && strcmp(sound_str, "default") != 0 &&
                strcmp(sound_str, "off") != 0)
         mode = "adhan";
-      if (!copy_string(cfg->notification_sound, sizeof(cfg->notification_sound), mode)) {
-        log_truncation("notification_sound");
-      }
+      set_string(cfg->notification_sound, sizeof(cfg->notification_sound), mode,
+                 "notification_sound");
     }
-    if (sound_alarm_str) {
-      if (!copy_string(cfg->notification_sound_alarm, sizeof(cfg->notification_sound_alarm),
-                       sound_alarm_str)) {
-        log_truncation("notification_sound_alarm");
-      }
-    }
-    if (sound_reminder_str) {
-      if (!copy_string(cfg->notification_sound_reminder, sizeof(cfg->notification_sound_reminder),
-                       sound_reminder_str)) {
-        log_truncation("notification_sound_reminder");
-      }
-    }
-    if (icon_str) {
-      if (!copy_string(cfg->notification_icon, sizeof(cfg->notification_icon), icon_str)) {
-        log_truncation("notification_icon");
-      }
-    }
+    set_string(cfg->notification_sound_alarm, sizeof(cfg->notification_sound_alarm),
+               sound_alarm_str, "notification_sound_alarm");
+    set_string(cfg->notification_sound_reminder, sizeof(cfg->notification_sound_reminder),
+               sound_reminder_str, "notification_sound_reminder");
+    set_string(cfg->notification_icon, sizeof(cfg->notification_icon), icon_str,
+               "notification_icon");
   }
 
   // Parse calculation
@@ -569,16 +522,9 @@ int config_load(Config *cfg) {
     char *method_str = get_value(ctx, "method", calculation);
     char *madhab_str = get_value(ctx, "madhab", calculation);
 
-    if (method_str) {
-      if (!copy_string(cfg->calculation_method, sizeof(cfg->calculation_method), method_str)) {
-        log_truncation("calculation_method");
-      }
-    }
-    if (madhab_str) {
-      if (!copy_string(cfg->madhab, sizeof(cfg->madhab), madhab_str)) {
-        log_truncation("madhab");
-      }
-    }
+    set_string(cfg->calculation_method, sizeof(cfg->calculation_method), method_str,
+               "calculation_method");
+    set_string(cfg->madhab, sizeof(cfg->madhab), madhab_str, "madhab");
     char *fajr_angle_str = get_value(ctx, "fajr_angle", calculation);
     char *isha_angle_str = get_value(ctx, "isha_angle", calculation);
     /* A failed conversion yields 0, which is the documented sentinel for
