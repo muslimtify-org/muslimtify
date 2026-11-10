@@ -369,17 +369,8 @@ int handle_notification(int argc, char **argv) {
     return 0;
   }
 
-  // Default settings view: only --json / --headless are accepted here.
-  for (int i = 0; i < argc; i++) {
-    const char *a = argv[i];
-    if (strcmp(a, "--json") == 0 || strcmp(a, "--headless") == 0)
-      continue;
-    fprintf(stderr, "Error: unknown notification argument '%s'\n", a);
-    return 1;
-  }
-
   OutputMode mode = OUTPUT_TABLE;
-  if (cli_parse_output_mode(argc, argv, &mode) != 0)
+  if (cli_parse_view_args("notification", argc, argv, &mode))
     return 1;
 
   Muslimtify *mt = NULL;

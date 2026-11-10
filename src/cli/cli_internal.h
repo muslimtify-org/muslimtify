@@ -29,6 +29,15 @@ typedef enum { OUTPUT_TABLE, OUTPUT_JSON, OUTPUT_HEADLESS } OutputMode;
 // mutual-exclusion error to stderr).
 int cli_parse_output_mode(int argc, char **argv, OutputMode *out);
 
+// For a settings view that takes only --json / --headless: reject any other
+// argument as "unknown <name> argument", then parse the output mode. Returns
+// 0 on success, 1 after printing an error.
+int cli_parse_view_args(const char *name, int argc, char **argv, OutputMode *out);
+
+// Print "<label>: <key> (<name>)" for a calculation method, leaving out the
+// parenthesised name when the method has none.
+void cli_print_method(const char *label, const MuslimtifyMethodInfo *info);
+
 // True if argv contains --help or -h.
 static inline bool cli_wants_help(int argc, char **argv) {
   for (int i = 0; i < argc; i++) {

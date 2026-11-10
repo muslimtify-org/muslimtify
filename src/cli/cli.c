@@ -22,6 +22,23 @@ int cli_parse_output_mode(int argc, char **argv, OutputMode *out) {
   return 0;
 }
 
+int cli_parse_view_args(const char *name, int argc, char **argv, OutputMode *out) {
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i], "--json") == 0 || strcmp(argv[i], "--headless") == 0)
+      continue;
+    fprintf(stderr, "Error: unknown %s argument '%s'\n", name, argv[i]);
+    return 1;
+  }
+  return cli_parse_output_mode(argc, argv, out);
+}
+
+void cli_print_method(const char *label, const MuslimtifyMethodInfo *info) {
+  printf("%s: %s", label, info->key);
+  if (info->name[0] != '\0')
+    printf(" (%s)", info->name);
+  printf("\n");
+}
+
 int cli_unknown_prayer(const char *name) {
   fprintf(stderr, "Error: Unknown prayer '%s'\n", name);
   fprintf(stderr, "  Available: fajr, dhuhr, asr, maghrib, isha\n");
@@ -168,10 +185,7 @@ int handle_version(int argc, char **argv) {
   Muslimtify *mt = NULL;
   MuslimtifyMethodInfo info;
   if (muslimtify_open(&mt) == MUSLIMTIFY_OK && muslimtify_get_method(mt, &info) == MUSLIMTIFY_OK) {
-    printf("Method: %s", info.key);
-    if (info.name[0] != '\0')
-      printf(" (%s)", info.name);
-    printf("\n");
+    cli_print_method("Method", &info);
   } else {
     printf("Method: unknown (the configuration could not be read)\n");
   }

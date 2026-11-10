@@ -63,10 +63,7 @@ static int method_auto(Muslimtify *mt) {
   err = muslimtify_get_method(mt, &info);
   if (err != MUSLIMTIFY_OK)
     return cli_fail(err);
-  printf("Method auto-detected: %s", info.key);
-  if (info.name[0] != '\0')
-    printf(" (%s)", info.name);
-  printf("\n");
+  cli_print_method("Method auto-detected", &info);
   return 0;
 }
 
@@ -75,10 +72,7 @@ static int method_show_current(Muslimtify *mt) {
   MuslimtifyError err = muslimtify_get_method(mt, &info);
   if (err != MUSLIMTIFY_OK)
     return cli_fail(err);
-  printf("Calculation Method: %s", info.key);
-  if (info.name[0] != '\0')
-    printf(" (%s)", info.name);
-  printf("\n");
+  cli_print_method("Calculation Method", &info);
   return 0;
 }
 
