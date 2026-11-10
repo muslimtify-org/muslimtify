@@ -340,7 +340,7 @@ Users then add the PPA and install with `apt`.
   override to pass `-DCMAKE_BUILD_TYPE=Release` to CMake.
 - `debian/changelog` — Version history in a strict Debian format. The **first entry**
   determines the package version. Must use RFC 2822 dates.
-- `debian/copyright` — License info in Debian machine-readable format (MIT).
+- `debian/copyright` — License info in Debian machine-readable format (GPL-3).
 - `debian/postinst` — Post-install script that prints a message telling the user to
   run `muslimtify daemon install`.
 - `debian/source/format` — Declares source format `3.0 (quilt)`.
@@ -792,7 +792,7 @@ This is a one-time process to register the package in the winget repository.
    | Package locale | `en-US` |
    | Publisher | `rizukirr` |
    | Package name | `Muslimtify` |
-   | License | `MIT` |
+   | License | `GPL-3.0-only` |
    | Short description | `Prayer time notification daemon for Windows` |
    | Installer type | Should auto-detect as `inno` |
 
@@ -866,7 +866,7 @@ PackageVersion: X.Y.Z
 PackageLocale: en-US
 Publisher: rizukirr
 PackageName: Muslimtify
-License: MIT
+License: GPL-3.0-only
 ShortDescription: Prayer time notification daemon for Windows
 PackageUrl: https://github.com/muslimtify-org/muslimtify
 ManifestType: defaultLocale

@@ -1,3 +1,11 @@
+muslimtify (0.4.5-1) unstable; urgency=medium
+
+  * Add "notification --after <prayer|--all> <minutes...>" for reminders that fire a number of minutes after the Adhan, stored per prayer as after_reminders in the config and off by default
+  * An after-Adhan reminder missed while the computer slept still fires up to 15 minutes late, and its notification reads "<prayer> started N minutes ago"
+  * Relicense from MIT to GPL-3.0-only
+
+ -- Rizki Rakasiwi <rizkirr.xyz@gmail.com>  Tue, 10 Nov 2026 20:54:31 +0700
+
 muslimtify (0.4.4-1) unstable; urgency=medium
 
   * "daemon status" now prints Installed, Enabled and Running lines and exits 0 only when the daemon is running, replacing the systemctl status output
